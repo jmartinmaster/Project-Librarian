@@ -5,3 +5,11 @@ build/
 dist/
 *.spec
 .pytest_cache/
+build/ProjectLibrarian/Analysis-00.toc
+build/ProjectLibrarian/Analysis-00.toc
+build/ProjectLibrarian/base_library.zip
+build/ProjectLibrarian/COLLECT-00.toc
+build/ProjectLibrarian/EXE-00.toc
+build/ProjectLibrarian/ProjectLibrarian
+build/ProjectLibrarian/ProjectLibrarian.pkg
+build/ProjectLibrarian/PYZ-00.pyz
