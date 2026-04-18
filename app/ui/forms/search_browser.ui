@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SearchBrowser</class>
+ <widget class="QWidget" name="SearchBrowser">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="controlsLayout">
+     <item>
+      <widget class="QLabel" name="queryLabel">
+       <property name="text">
+        <string>Query</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="queryInput">
+       <property name="placeholderText">
+        <string>Search symbols, files, or Excel rows</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="scopeLabel">
+       <property name="text">
+        <string>Scope</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="scopeCombo"/>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="changedOnly">
+       <property name="text">
+        <string>Changed Only</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="searchButton">
+       <property name="text">
+        <string>Search</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QTableWidget" name="resultsTable"/>
+     <widget class="QPlainTextEdit" name="previewPane"/>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,2396 @@
+{
+  "generated_at": "2026-04-18T18:55:09.525328+00:00",
+  "repo_root": "/home/jamie/Documents/Github/Project_Librarian",
+  "summary": {
+    "files": 52,
+    "symbols": 265,
+    "excel_rows": 0
+  },
+  "symbols": [
+    {
+      "name": "AppConfig",
+      "qualified_name": "AppConfig",
+      "kind": "class",
+      "line": 15,
+      "path": "app/config.py",
+      "signature": "AppConfig",
+      "doc_summary": "Persistent application settings for indexing and UI behavior."
+    },
+    {
+      "name": "to_dict",
+      "qualified_name": "AppConfig.to_dict",
+      "kind": "method",
+      "line": 30,
+      "path": "app/config.py",
+      "signature": "to_dict(self)",
+      "doc_summary": "Return a JSON-serializable dictionary for the current config."
+    },
+    {
+      "name": "from_dict",
+      "qualified_name": "AppConfig.from_dict",
+      "kind": "method",
+      "line": 35,
+      "path": "app/config.py",
+      "signature": "from_dict(cls, payload)",
+      "doc_summary": "Create a config from a mapping while preserving defaults for missing fields."
+    },
+    {
+      "name": "load_config",
+      "qualified_name": "load_config",
+      "kind": "function",
+      "line": 44,
+      "path": "app/config.py",
+      "signature": "load_config(config_path)",
+      "doc_summary": "Load configuration from disk or return defaults when unavailable."
+    },
+    {
+      "name": "save_config",
+      "qualified_name": "save_config",
+      "kind": "function",
+      "line": 59,
+      "path": "app/config.py",
+      "signature": "save_config(config, config_path)",
+      "doc_summary": "Save configuration to disk and return the written path."
+    },
+    {
+      "name": "infer_smoke_target",
+      "qualified_name": "infer_smoke_target",
+      "kind": "function",
+      "line": 14,
+      "path": "app/dev_tools/test_generator.py",
+      "signature": "infer_smoke_target(module_path, project_root)",
+      "doc_summary": "Infer the destination smoke-test path for a given module path."
+    },
+    {
+      "name": "build_prompt",
+      "qualified_name": "build_prompt",
+      "kind": "function",
+      "line": 29,
+      "path": "app/dev_tools/test_generator.py",
+      "signature": "build_prompt(module_path, module_source)",
+      "doc_summary": "Build a structured prompt requesting pytest smoke tests."
+    },
+    {
+      "name": "generate_test_text",
+      "qualified_name": "generate_test_text",
+      "kind": "function",
+      "line": 46,
+      "path": "app/dev_tools/test_generator.py",
+      "signature": "generate_test_text(module_path, model, ollama_url)",
+      "doc_summary": "Call Ollama and return generated test code text."
+    },
+    {
+      "name": "main",
+      "qualified_name": "main",
+      "kind": "function",
+      "line": 63,
+      "path": "app/dev_tools/test_generator.py",
+      "signature": "main()",
+      "doc_summary": "Command-line entrypoint for smoke-test generation."
+    },
+    {
+      "name": "_SymbolVisitor",
+      "qualified_name": "_SymbolVisitor",
+      "kind": "class",
+      "line": 10,
+      "path": "app/indexer/c_indexer.py",
+      "signature": "_SymbolVisitor",
+      "doc_summary": "Collect top-level C symbols from a parsed AST."
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "_SymbolVisitor.__init__",
+      "kind": "method",
+      "line": 13,
+      "path": "app/indexer/c_indexer.py",
+      "signature": "__init__(self, file_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_FuncDef",
+      "qualified_name": "_SymbolVisitor.visit_FuncDef",
+      "kind": "method",
+      "line": 17,
+      "path": "app/indexer/c_indexer.py",
+      "signature": "visit_FuncDef(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_Struct",
+      "qualified_name": "_SymbolVisitor.visit_Struct",
+      "kind": "method",
+      "line": 32,
+      "path": "app/indexer/c_indexer.py",
+      "signature": "visit_Struct(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_Enum",
+      "qualified_name": "_SymbolVisitor.visit_Enum",
+      "kind": "method",
+      "line": 48,
+      "path": "app/indexer/c_indexer.py",
+      "signature": "visit_Enum(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_clean_c_source",
+      "qualified_name": "_clean_c_source",
+      "kind": "function",
+      "line": 65,
+      "path": "app/indexer/c_indexer.py",
+      "signature": "_clean_c_source(source)",
+      "doc_summary": "Strip preprocessor lines to improve parser compatibility for smoke indexing."
+    },
+    {
+      "name": "index_c_symbols",
+      "qualified_name": "index_c_symbols",
+      "kind": "function",
+      "line": 70,
+      "path": "app/indexer/c_indexer.py",
+      "signature": "index_c_symbols(repo_root)",
+      "doc_summary": "Index symbols from .c and .h files under repo_root."
+    },
+    {
+      "name": "list_excel_files",
+      "qualified_name": "list_excel_files",
+      "kind": "function",
+      "line": 13,
+      "path": "app/indexer/excel_indexer.py",
+      "signature": "list_excel_files(folder_path)",
+      "doc_summary": "Return known spreadsheet files beneath folder_path."
+    },
+    {
+      "name": "discover_headers",
+      "qualified_name": "discover_headers",
+      "kind": "function",
+      "line": 20,
+      "path": "app/indexer/excel_indexer.py",
+      "signature": "discover_headers(file_path)",
+      "doc_summary": "Return first-row header values for a spreadsheet-like file."
+    },
+    {
+      "name": "index_excel_rows",
+      "qualified_name": "index_excel_rows",
+      "kind": "function",
+      "line": 38,
+      "path": "app/indexer/excel_indexer.py",
+      "signature": "index_excel_rows(folder_path, keyword_columns, limit)",
+      "doc_summary": "Collect keyword-matching row fields from spreadsheets for search integration."
+    },
+    {
+      "name": "IndexState",
+      "qualified_name": "IndexState",
+      "kind": "class",
+      "line": 22,
+      "path": "app/indexer/index_manager.py",
+      "signature": "IndexState",
+      "doc_summary": "Current in-memory index payloads used by UI and search."
+    },
+    {
+      "name": "IndexManager",
+      "qualified_name": "IndexManager",
+      "kind": "class",
+      "line": 30,
+      "path": "app/indexer/index_manager.py",
+      "signature": "IndexManager",
+      "doc_summary": "Manage indexing runs and persist generated outputs."
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "IndexManager.__init__",
+      "kind": "method",
+      "line": 33,
+      "path": "app/indexer/index_manager.py",
+      "signature": "__init__(self, config)",
+      "doc_summary": ""
+    },
+    {
+      "name": "is_refresh_worker_running",
+      "qualified_name": "IndexManager.is_refresh_worker_running",
+      "kind": "method",
+      "line": 43,
+      "path": "app/indexer/index_manager.py",
+      "signature": "is_refresh_worker_running(self)",
+      "doc_summary": "Return True when the background refresh worker is currently active."
+    },
+    {
+      "name": "refresh_status",
+      "qualified_name": "IndexManager.refresh_status",
+      "kind": "method",
+      "line": 47,
+      "path": "app/indexer/index_manager.py",
+      "signature": "refresh_status(self)",
+      "doc_summary": "Return current refresh worker/runtime metadata for UI display."
+    },
+    {
+      "name": "start_refresh_worker",
+      "qualified_name": "IndexManager.start_refresh_worker",
+      "kind": "method",
+      "line": 57,
+      "path": "app/indexer/index_manager.py",
+      "signature": "start_refresh_worker(self, interval_seconds, force_restart)",
+      "doc_summary": "Start (or restart) the background refresh worker with a safe interval."
+    },
+    {
+      "name": "stop_refresh_worker",
+      "qualified_name": "IndexManager.stop_refresh_worker",
+      "kind": "method",
+      "line": 79,
+      "path": "app/indexer/index_manager.py",
+      "signature": "stop_refresh_worker(self, join_timeout)",
+      "doc_summary": "Stop the background refresh worker and wait briefly for shutdown."
+    },
+    {
+      "name": "_worker_loop",
+      "qualified_name": "IndexManager._worker_loop",
+      "kind": "method",
+      "line": 87,
+      "path": "app/indexer/index_manager.py",
+      "signature": "_worker_loop(self)",
+      "doc_summary": "Run periodic refresh cycles until stopped."
+    },
+    {
+      "name": "_repo_root",
+      "qualified_name": "IndexManager._repo_root",
+      "kind": "method",
+      "line": 96,
+      "path": "app/indexer/index_manager.py",
+      "signature": "_repo_root(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_output_dir",
+      "qualified_name": "IndexManager._output_dir",
+      "kind": "method",
+      "line": 99,
+      "path": "app/indexer/index_manager.py",
+      "signature": "_output_dir(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_file_corpus",
+      "qualified_name": "IndexManager._build_file_corpus",
+      "kind": "method",
+      "line": 106,
+      "path": "app/indexer/index_manager.py",
+      "signature": "_build_file_corpus(self, repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "refresh",
+      "qualified_name": "IndexManager.refresh",
+      "kind": "method",
+      "line": 125,
+      "path": "app/indexer/index_manager.py",
+      "signature": "refresh(self)",
+      "doc_summary": "Rebuild all configured indexes and persist snapshot artifacts."
+    },
+    {
+      "name": "_function_signature",
+      "qualified_name": "_function_signature",
+      "kind": "function",
+      "line": 9,
+      "path": "app/indexer/python_indexer.py",
+      "signature": "_function_signature(node)",
+      "doc_summary": "Return a lightweight signature string for a function-like node."
+    },
+    {
+      "name": "_module_symbols",
+      "qualified_name": "_module_symbols",
+      "kind": "function",
+      "line": 15,
+      "path": "app/indexer/python_indexer.py",
+      "signature": "_module_symbols(path, repo_root)",
+      "doc_summary": "Extract class and function symbols from one Python file."
+    },
+    {
+      "name": "index_python_symbols",
+      "qualified_name": "index_python_symbols",
+      "kind": "function",
+      "line": 66,
+      "path": "app/indexer/python_indexer.py",
+      "signature": "index_python_symbols(repo_root)",
+      "doc_summary": "Index Python symbols for all source files beneath repo_root."
+    },
+    {
+      "name": "_best_preview_for_query",
+      "qualified_name": "_best_preview_for_query",
+      "kind": "function",
+      "line": 10,
+      "path": "app/search/search_engine.py",
+      "signature": "_best_preview_for_query(text, query, tokens)",
+      "doc_summary": "Return the most relevant line number and text snippet for a query."
+    },
+    {
+      "name": "_score_text_record",
+      "qualified_name": "_score_text_record",
+      "kind": "function",
+      "line": 22,
+      "path": "app/search/search_engine.py",
+      "signature": "_score_text_record(path, text, query, tokens)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_score_symbol_record",
+      "qualified_name": "_score_symbol_record",
+      "kind": "function",
+      "line": 38,
+      "path": "app/search/search_engine.py",
+      "signature": "_score_symbol_record(symbol, query, tokens)",
+      "doc_summary": ""
+    },
+    {
+      "name": "search_snapshot",
+      "qualified_name": "search_snapshot",
+      "kind": "function",
+      "line": 58,
+      "path": "app/search/search_engine.py",
+      "signature": "search_snapshot(file_corpus, symbols, excel_rows, query, scope, limit)",
+      "doc_summary": "Search indexed data and return ranked mixed-type records."
+    },
+    {
+      "name": "ExcelBrowser",
+      "qualified_name": "ExcelBrowser",
+      "kind": "class",
+      "line": 19,
+      "path": "app/ui/excel_browser.py",
+      "signature": "ExcelBrowser",
+      "doc_summary": "Widget for filtering in-memory Excel keyword row records."
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "ExcelBrowser.__init__",
+      "kind": "method",
+      "line": 22,
+      "path": "app/ui/excel_browser.py",
+      "signature": "__init__(self, index_manager)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_ui",
+      "qualified_name": "ExcelBrowser._load_ui",
+      "kind": "method",
+      "line": 31,
+      "path": "app/ui/excel_browser.py",
+      "signature": "_load_ui(self)",
+      "doc_summary": "Load and bind the excel browser Designer form."
+    },
+    {
+      "name": "_build_ui",
+      "qualified_name": "ExcelBrowser._build_ui",
+      "kind": "method",
+      "line": 46,
+      "path": "app/ui/excel_browser.py",
+      "signature": "_build_ui(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "run_filter",
+      "qualified_name": "ExcelBrowser.run_filter",
+      "kind": "method",
+      "line": 53,
+      "path": "app/ui/excel_browser.py",
+      "signature": "run_filter(self)",
+      "doc_summary": "Filter loaded Excel rows currently stored in memory."
+    },
+    {
+      "name": "set_filter",
+      "qualified_name": "ExcelBrowser.set_filter",
+      "kind": "method",
+      "line": 74,
+      "path": "app/ui/excel_browser.py",
+      "signature": "set_filter(self, query, execute)",
+      "doc_summary": "Set filter query from external navigation controls and optionally run."
+    },
+    {
+      "name": "MainWindow",
+      "qualified_name": "MainWindow",
+      "kind": "class",
+      "line": 31,
+      "path": "app/ui/main_window.py",
+      "signature": "MainWindow",
+      "doc_summary": "Top-level application window with primary tabs."
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "MainWindow.__init__",
+      "kind": "method",
+      "line": 34,
+      "path": "app/ui/main_window.py",
+      "signature": "__init__(self, index_manager)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_ui",
+      "qualified_name": "MainWindow._load_ui",
+      "kind": "method",
+      "line": 55,
+      "path": "app/ui/main_window.py",
+      "signature": "_load_ui(self)",
+      "doc_summary": "Load and bind the main window Designer form."
+    },
+    {
+      "name": "_build_ui",
+      "qualified_name": "MainWindow._build_ui",
+      "kind": "method",
+      "line": 72,
+      "path": "app/ui/main_window.py",
+      "signature": "_build_ui(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_menu",
+      "qualified_name": "MainWindow._build_menu",
+      "kind": "method",
+      "line": 92,
+      "path": "app/ui/main_window.py",
+      "signature": "_build_menu(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_refresh_index",
+      "qualified_name": "MainWindow._refresh_index",
+      "kind": "method",
+      "line": 103,
+      "path": "app/ui/main_window.py",
+      "signature": "_refresh_index(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_library_pane",
+      "qualified_name": "MainWindow._build_library_pane",
+      "kind": "method",
+      "line": 114,
+      "path": "app/ui/main_window.py",
+      "signature": "_build_library_pane(self)",
+      "doc_summary": "Build a browse-first navigation pane that mirrors indexed library content."
+    },
+    {
+      "name": "_rebuild_library_tree",
+      "qualified_name": "MainWindow._rebuild_library_tree",
+      "kind": "method",
+      "line": 146,
+      "path": "app/ui/main_window.py",
+      "signature": "_rebuild_library_tree(self)",
+      "doc_summary": "Render current index state into the library navigation tree."
+    },
+    {
+      "name": "_on_library_item_activated",
+      "qualified_name": "MainWindow._on_library_item_activated",
+      "kind": "method",
+      "line": 254,
+      "path": "app/ui/main_window.py",
+      "signature": "_on_library_item_activated(self, item, _column)",
+      "doc_summary": "Route library navigation actions to the appropriate browse view."
+    },
+    {
+      "name": "_open_settings",
+      "qualified_name": "MainWindow._open_settings",
+      "kind": "method",
+      "line": 275,
+      "path": "app/ui/main_window.py",
+      "signature": "_open_settings(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_toggle_auto_refresh",
+      "qualified_name": "MainWindow._toggle_auto_refresh",
+      "kind": "method",
+      "line": 283,
+      "path": "app/ui/main_window.py",
+      "signature": "_toggle_auto_refresh(self, enabled)",
+      "doc_summary": "Enable or disable interval-based auto-refresh worker."
+    },
+    {
+      "name": "_update_refresh_indicator",
+      "qualified_name": "MainWindow._update_refresh_indicator",
+      "kind": "method",
+      "line": 292,
+      "path": "app/ui/main_window.py",
+      "signature": "_update_refresh_indicator(self)",
+      "doc_summary": "Refresh status-bar labels for worker state and last refresh time."
+    },
+    {
+      "name": "closeEvent",
+      "qualified_name": "MainWindow.closeEvent",
+      "kind": "method",
+      "line": 304,
+      "path": "app/ui/main_window.py",
+      "signature": "closeEvent(self, event)",
+      "doc_summary": "Stop background workers before window teardown."
+    },
+    {
+      "name": "SearchBrowser",
+      "qualified_name": "SearchBrowser",
+      "kind": "class",
+      "line": 23,
+      "path": "app/ui/search_browser.py",
+      "signature": "SearchBrowser",
+      "doc_summary": "Widget providing near-instant search over in-memory index state."
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "SearchBrowser.__init__",
+      "kind": "method",
+      "line": 26,
+      "path": "app/ui/search_browser.py",
+      "signature": "__init__(self, index_manager)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_ui",
+      "qualified_name": "SearchBrowser._load_ui",
+      "kind": "method",
+      "line": 39,
+      "path": "app/ui/search_browser.py",
+      "signature": "_load_ui(self)",
+      "doc_summary": "Load and bind the search browser Designer form."
+    },
+    {
+      "name": "_build_ui",
+      "qualified_name": "SearchBrowser._build_ui",
+      "kind": "method",
+      "line": 60,
+      "path": "app/ui/search_browser.py",
+      "signature": "_build_ui(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "run_search",
+      "qualified_name": "SearchBrowser.run_search",
+      "kind": "method",
+      "line": 70,
+      "path": "app/ui/search_browser.py",
+      "signature": "run_search(self)",
+      "doc_summary": "Execute a search over in-memory indexes and populate the table."
+    },
+    {
+      "name": "set_query",
+      "qualified_name": "SearchBrowser.set_query",
+      "kind": "method",
+      "line": 97,
+      "path": "app/ui/search_browser.py",
+      "signature": "set_query(self, query, scope, execute)",
+      "doc_summary": "Set query/scope from external navigation controls and optionally run."
+    },
+    {
+      "name": "_on_result_selected",
+      "qualified_name": "SearchBrowser._on_result_selected",
+      "kind": "method",
+      "line": 107,
+      "path": "app/ui/search_browser.py",
+      "signature": "_on_result_selected(self)",
+      "doc_summary": "Render rich preview details for the currently selected result row."
+    },
+    {
+      "name": "_render_result",
+      "qualified_name": "SearchBrowser._render_result",
+      "kind": "method",
+      "line": 120,
+      "path": "app/ui/search_browser.py",
+      "signature": "_render_result(self, item)",
+      "doc_summary": "Render one result into the preview pane."
+    },
+    {
+      "name": "_line_context",
+      "qualified_name": "SearchBrowser._line_context",
+      "kind": "method",
+      "line": 149,
+      "path": "app/ui/search_browser.py",
+      "signature": "_line_context(self, path, line_number, fallback, title, context)",
+      "doc_summary": "Build a multi-line context preview from in-memory file corpus."
+    },
+    {
+      "name": "SettingsDialog",
+      "qualified_name": "SettingsDialog",
+      "kind": "class",
+      "line": 27,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "SettingsDialog",
+      "doc_summary": "Dialog for modifying persistent application configuration."
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "SettingsDialog.__init__",
+      "kind": "method",
+      "line": 30,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "__init__(self, config, parent)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_ui",
+      "qualified_name": "SettingsDialog._load_ui",
+      "kind": "method",
+      "line": 73,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_load_ui(self)",
+      "doc_summary": "Load and bind the settings dialog Designer form."
+    },
+    {
+      "name": "_wire_signals",
+      "qualified_name": "SettingsDialog._wire_signals",
+      "kind": "method",
+      "line": 100,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_wire_signals(self)",
+      "doc_summary": "Connect UI signals to dialog behavior."
+    },
+    {
+      "name": "_require_widget",
+      "qualified_name": "SettingsDialog._require_widget",
+      "kind": "method",
+      "line": 115,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_require_widget(self, widget_type, object_name)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_pick_project_root",
+      "qualified_name": "SettingsDialog._pick_project_root",
+      "kind": "method",
+      "line": 121,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_pick_project_root(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_pick_output_dir",
+      "qualified_name": "SettingsDialog._pick_output_dir",
+      "kind": "method",
+      "line": 126,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_pick_output_dir(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_pick_excel_folder",
+      "qualified_name": "SettingsDialog._pick_excel_folder",
+      "kind": "method",
+      "line": 131,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_pick_excel_folder(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_excel_columns_from_config",
+      "qualified_name": "SettingsDialog._load_excel_columns_from_config",
+      "kind": "method",
+      "line": 136,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_load_excel_columns_from_config(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_excel_columns_from_disk",
+      "qualified_name": "SettingsDialog._load_excel_columns_from_disk",
+      "kind": "method",
+      "line": 143,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_load_excel_columns_from_disk(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_save_and_accept",
+      "qualified_name": "SettingsDialog._save_and_accept",
+      "kind": "method",
+      "line": 160,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_save_and_accept(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_add_extension",
+      "qualified_name": "SettingsDialog._add_extension",
+      "kind": "method",
+      "line": 178,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_add_extension(self)",
+      "doc_summary": "Add a normalized file extension entry to the list."
+    },
+    {
+      "name": "_remove_extension",
+      "qualified_name": "SettingsDialog._remove_extension",
+      "kind": "method",
+      "line": 191,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_remove_extension(self)",
+      "doc_summary": "Remove selected extension entries from the list."
+    },
+    {
+      "name": "_add_excluded_dir",
+      "qualified_name": "SettingsDialog._add_excluded_dir",
+      "kind": "method",
+      "line": 196,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_add_excluded_dir(self)",
+      "doc_summary": "Add an excluded directory name to the list."
+    },
+    {
+      "name": "_remove_excluded_dir",
+      "qualified_name": "SettingsDialog._remove_excluded_dir",
+      "kind": "method",
+      "line": 208,
+      "path": "app/ui/settings_dialog.py",
+      "signature": "_remove_excluded_dir(self)",
+      "doc_summary": "Remove selected excluded directory entries from the list."
+    },
+    {
+      "name": "moduleInformation",
+      "qualified_name": "moduleInformation",
+      "kind": "function",
+      "line": 32,
+      "path": "dist/ProjectLibrarian/_internal/PyQt6/uic/widget-plugins/qaxcontainer.py",
+      "signature": "moduleInformation()",
+      "doc_summary": ""
+    },
+    {
+      "name": "moduleInformation",
+      "qualified_name": "moduleInformation",
+      "kind": "function",
+      "line": 32,
+      "path": "dist/ProjectLibrarian/_internal/PyQt6/uic/widget-plugins/qscintilla.py",
+      "signature": "moduleInformation()",
+      "doc_summary": ""
+    },
+    {
+      "name": "moduleInformation",
+      "qualified_name": "moduleInformation",
+      "kind": "function",
+      "line": 32,
+      "path": "dist/ProjectLibrarian/_internal/PyQt6/uic/widget-plugins/qtcharts.py",
+      "signature": "moduleInformation()",
+      "doc_summary": ""
+    },
+    {
+      "name": "moduleInformation",
+      "qualified_name": "moduleInformation",
+      "kind": "function",
+      "line": 32,
+      "path": "dist/ProjectLibrarian/_internal/PyQt6/uic/widget-plugins/qtopenglwidgets.py",
+      "signature": "moduleInformation()",
+      "doc_summary": ""
+    },
+    {
+      "name": "moduleInformation",
+      "qualified_name": "moduleInformation",
+      "kind": "function",
+      "line": 32,
+      "path": "dist/ProjectLibrarian/_internal/PyQt6/uic/widget-plugins/qtprintsupport.py",
+      "signature": "moduleInformation()",
+      "doc_summary": ""
+    },
+    {
+      "name": "moduleInformation",
+      "qualified_name": "moduleInformation",
+      "kind": "function",
+      "line": 32,
+      "path": "dist/ProjectLibrarian/_internal/PyQt6/uic/widget-plugins/qtquickwidgets.py",
+      "signature": "moduleInformation()",
+      "doc_summary": ""
+    },
+    {
+      "name": "moduleInformation",
+      "qualified_name": "moduleInformation",
+      "kind": "function",
+      "line": 32,
+      "path": "dist/ProjectLibrarian/_internal/PyQt6/uic/widget-plugins/qtwebenginewidgets.py",
+      "signature": "moduleInformation()",
+      "doc_summary": ""
+    },
+    {
+      "name": "main",
+      "qualified_name": "main",
+      "kind": "function",
+      "line": 17,
+      "path": "main.py",
+      "signature": "main()",
+      "doc_summary": "Launch the desktop application."
+    },
+    {
+      "name": "ProjectLibrarianError",
+      "qualified_name": "ProjectLibrarianError",
+      "kind": "class",
+      "line": 87,
+      "path": "project_librarian.py",
+      "signature": "ProjectLibrarianError",
+      "doc_summary": ""
+    },
+    {
+      "name": "LibrarianWorkspace",
+      "qualified_name": "LibrarianWorkspace",
+      "kind": "class",
+      "line": 92,
+      "path": "project_librarian.py",
+      "signature": "LibrarianWorkspace",
+      "doc_summary": ""
+    },
+    {
+      "name": "load",
+      "qualified_name": "LibrarianWorkspace.load",
+      "kind": "method",
+      "line": 100,
+      "path": "project_librarian.py",
+      "signature": "load(cls, repo_root, output_dir, refresh_if_missing, refresh_first)",
+      "doc_summary": ""
+    },
+    {
+      "name": "refresh",
+      "qualified_name": "LibrarianWorkspace.refresh",
+      "kind": "method",
+      "line": 127,
+      "path": "project_librarian.py",
+      "signature": "refresh(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "changed_files",
+      "qualified_name": "LibrarianWorkspace.changed_files",
+      "kind": "method",
+      "line": 135,
+      "path": "project_librarian.py",
+      "signature": "changed_files(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "changed_paths",
+      "qualified_name": "LibrarianWorkspace.changed_paths",
+      "kind": "method",
+      "line": 139,
+      "path": "project_librarian.py",
+      "signature": "changed_paths(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "file_records",
+      "qualified_name": "LibrarianWorkspace.file_records",
+      "kind": "method",
+      "line": 143,
+      "path": "project_librarian.py",
+      "signature": "file_records(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "symbol_records",
+      "qualified_name": "LibrarianWorkspace.symbol_records",
+      "kind": "method",
+      "line": 147,
+      "path": "project_librarian.py",
+      "signature": "symbol_records(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "file_lookup",
+      "qualified_name": "LibrarianWorkspace.file_lookup",
+      "kind": "method",
+      "line": 151,
+      "path": "project_librarian.py",
+      "signature": "file_lookup(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "LibrarianService",
+      "qualified_name": "LibrarianService",
+      "kind": "class",
+      "line": 155,
+      "path": "project_librarian.py",
+      "signature": "LibrarianService",
+      "doc_summary": ""
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "LibrarianService.__init__",
+      "kind": "method",
+      "line": 156,
+      "path": "project_librarian.py",
+      "signature": "__init__(self, repo_root, output_dir, refresh_if_missing, refresh_first, refresh_interval_seconds, library_watch_interval_seconds, start_refresh_worker)",
+      "doc_summary": ""
+    },
+    {
+      "name": "start_refresh_worker",
+      "qualified_name": "LibrarianService.start_refresh_worker",
+      "kind": "method",
+      "line": 193,
+      "path": "project_librarian.py",
+      "signature": "start_refresh_worker(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "stop",
+      "qualified_name": "LibrarianService.stop",
+      "kind": "method",
+      "line": 204,
+      "path": "project_librarian.py",
+      "signature": "stop(self, join_timeout)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_refresh_loop",
+      "qualified_name": "LibrarianService._refresh_loop",
+      "kind": "method",
+      "line": 211,
+      "path": "project_librarian.py",
+      "signature": "_refresh_loop(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_compute_library_watch_signature",
+      "qualified_name": "LibrarianService._compute_library_watch_signature",
+      "kind": "method",
+      "line": 218,
+      "path": "project_librarian.py",
+      "signature": "_compute_library_watch_signature(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_library_watch_loop",
+      "qualified_name": "LibrarianService._library_watch_loop",
+      "kind": "method",
+      "line": 233,
+      "path": "project_librarian.py",
+      "signature": "_library_watch_loop(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "configure_library_watcher",
+      "qualified_name": "LibrarianService.configure_library_watcher",
+      "kind": "method",
+      "line": 252,
+      "path": "project_librarian.py",
+      "signature": "configure_library_watcher(self, force_restart)",
+      "doc_summary": ""
+    },
+    {
+      "name": "library_watch_payload",
+      "qualified_name": "LibrarianService.library_watch_payload",
+      "kind": "method",
+      "line": 272,
+      "path": "project_librarian.py",
+      "signature": "library_watch_payload(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_with_workspace",
+      "qualified_name": "LibrarianService._with_workspace",
+      "kind": "method",
+      "line": 284,
+      "path": "project_librarian.py",
+      "signature": "_with_workspace(self, callback)",
+      "doc_summary": ""
+    },
+    {
+      "name": "refresh",
+      "qualified_name": "LibrarianService.refresh",
+      "kind": "method",
+      "line": 288,
+      "path": "project_librarian.py",
+      "signature": "refresh(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "status_payload",
+      "qualified_name": "LibrarianService.status_payload",
+      "kind": "method",
+      "line": 297,
+      "path": "project_librarian.py",
+      "signature": "status_payload(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "stats_text",
+      "qualified_name": "LibrarianService.stats_text",
+      "kind": "method",
+      "line": 318,
+      "path": "project_librarian.py",
+      "signature": "stats_text(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "snapshot_payload",
+      "qualified_name": "LibrarianService.snapshot_payload",
+      "kind": "method",
+      "line": 321,
+      "path": "project_librarian.py",
+      "signature": "snapshot_payload(self)",
+      "doc_summary": ""
+    },
+    {
+      "name": "history_payload",
+      "qualified_name": "LibrarianService.history_payload",
+      "kind": "method",
+      "line": 324,
+      "path": "project_librarian.py",
+      "signature": "history_payload(self, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "search_payload",
+      "qualified_name": "LibrarianService.search_payload",
+      "kind": "method",
+      "line": 334,
+      "path": "project_librarian.py",
+      "signature": "search_payload(self, query, scope, limit, area, changed_only, path_filter)",
+      "doc_summary": ""
+    },
+    {
+      "name": "changes_payload",
+      "qualified_name": "LibrarianService.changes_payload",
+      "kind": "method",
+      "line": 354,
+      "path": "project_librarian.py",
+      "signature": "changes_payload(self, limit, status_filter, area, path_filter, include_commits)",
+      "doc_summary": ""
+    },
+    {
+      "name": "show_excerpt",
+      "qualified_name": "LibrarianService.show_excerpt",
+      "kind": "method",
+      "line": 372,
+      "path": "project_librarian.py",
+      "signature": "show_excerpt(self, path_text, query, line, context)",
+      "doc_summary": ""
+    },
+    {
+      "name": "docs_draft_payload",
+      "qualified_name": "LibrarianService.docs_draft_payload",
+      "kind": "method",
+      "line": 375,
+      "path": "project_librarian.py",
+      "signature": "docs_draft_payload(self, title, changed_only, output_path, apply, target_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "changelog_draft_payload",
+      "qualified_name": "LibrarianService.changelog_draft_payload",
+      "kind": "method",
+      "line": 399,
+      "path": "project_librarian.py",
+      "signature": "changelog_draft_payload(self, version_text, release_date, changed_only, output_path, apply, target_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "ai_models_payload",
+      "qualified_name": "LibrarianService.ai_models_payload",
+      "kind": "method",
+      "line": 434,
+      "path": "project_librarian.py",
+      "signature": "ai_models_payload(self, preferred_model, ollama_host)",
+      "doc_summary": ""
+    },
+    {
+      "name": "ai_doctor_payload",
+      "qualified_name": "LibrarianService.ai_doctor_payload",
+      "kind": "method",
+      "line": 441,
+      "path": "project_librarian.py",
+      "signature": "ai_doctor_payload(self, preferred_model, ollama_host)",
+      "doc_summary": ""
+    },
+    {
+      "name": "ai_summary_payload",
+      "qualified_name": "LibrarianService.ai_summary_payload",
+      "kind": "method",
+      "line": 448,
+      "path": "project_librarian.py",
+      "signature": "ai_summary_payload(self, task, mode, model, changed_only, ollama_host)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_repo_root_from_here",
+      "qualified_name": "_repo_root_from_here",
+      "kind": "function",
+      "line": 463,
+      "path": "project_librarian.py",
+      "signature": "_repo_root_from_here()",
+      "doc_summary": ""
+    },
+    {
+      "name": "_resolve_output_dir",
+      "qualified_name": "_resolve_output_dir",
+      "kind": "function",
+      "line": 467,
+      "path": "project_librarian.py",
+      "signature": "_resolve_output_dir(repo_root, output_dir)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_utc_now_text",
+      "qualified_name": "_utc_now_text",
+      "kind": "function",
+      "line": 475,
+      "path": "project_librarian.py",
+      "signature": "_utc_now_text()",
+      "doc_summary": ""
+    },
+    {
+      "name": "_today_text",
+      "qualified_name": "_today_text",
+      "kind": "function",
+      "line": 479,
+      "path": "project_librarian.py",
+      "signature": "_today_text()",
+      "doc_summary": ""
+    },
+    {
+      "name": "_relative_path_text",
+      "qualified_name": "_relative_path_text",
+      "kind": "function",
+      "line": 483,
+      "path": "project_librarian.py",
+      "signature": "_relative_path_text(path, repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_file_area",
+      "qualified_name": "_file_area",
+      "kind": "function",
+      "line": 487,
+      "path": "project_librarian.py",
+      "signature": "_file_area(relative_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_iter_searchable_files",
+      "qualified_name": "_iter_searchable_files",
+      "kind": "function",
+      "line": 503,
+      "path": "project_librarian.py",
+      "signature": "_iter_searchable_files(repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_extract_title",
+      "qualified_name": "_extract_title",
+      "kind": "function",
+      "line": 519,
+      "path": "project_librarian.py",
+      "signature": "_extract_title(relative_path, text)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_token_count",
+      "qualified_name": "_token_count",
+      "kind": "function",
+      "line": 532,
+      "path": "project_librarian.py",
+      "signature": "_token_count(text)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_preview_for_query",
+      "qualified_name": "_preview_for_query",
+      "kind": "function",
+      "line": 536,
+      "path": "project_librarian.py",
+      "signature": "_preview_for_query(text, query, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_run_git_command",
+      "qualified_name": "_run_git_command",
+      "kind": "function",
+      "line": 550,
+      "path": "project_librarian.py",
+      "signature": "_run_git_command(repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_run_shell_command",
+      "qualified_name": "_run_shell_command",
+      "kind": "function",
+      "line": 563,
+      "path": "project_librarian.py",
+      "signature": "_run_shell_command(command, cwd, env)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_run_git_status",
+      "qualified_name": "_run_git_status",
+      "kind": "function",
+      "line": 574,
+      "path": "project_librarian.py",
+      "signature": "_run_git_status(repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_collect_recent_commits",
+      "qualified_name": "_collect_recent_commits",
+      "kind": "function",
+      "line": 611,
+      "path": "project_librarian.py",
+      "signature": "_collect_recent_commits(repo_root, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_collect_git_status_payload",
+      "qualified_name": "_collect_git_status_payload",
+      "kind": "function",
+      "line": 645,
+      "path": "project_librarian.py",
+      "signature": "_collect_git_status_payload(repo_root, commit_limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_run_git_action",
+      "qualified_name": "_run_git_action",
+      "kind": "function",
+      "line": 675,
+      "path": "project_librarian.py",
+      "signature": "_run_git_action(repo_root, args)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_read_git_diff_text",
+      "qualified_name": "_read_git_diff_text",
+      "kind": "function",
+      "line": 690,
+      "path": "project_librarian.py",
+      "signature": "_read_git_diff_text(repo_root, path_text, staged)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_read_git_commit_review",
+      "qualified_name": "_read_git_commit_review",
+      "kind": "function",
+      "line": 702,
+      "path": "project_librarian.py",
+      "signature": "_read_git_commit_review(repo_root, commit_ref)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_counts_from_items",
+      "qualified_name": "_counts_from_items",
+      "kind": "function",
+      "line": 721,
+      "path": "project_librarian.py",
+      "signature": "_counts_from_items(items, key_name)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_get_change_record",
+      "qualified_name": "_get_change_record",
+      "kind": "function",
+      "line": 729,
+      "path": "project_librarian.py",
+      "signature": "_get_change_record(workspace, path_text)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_symbols_for_path",
+      "qualified_name": "_symbols_for_path",
+      "kind": "function",
+      "line": 736,
+      "path": "project_librarian.py",
+      "signature": "_symbols_for_path(workspace, path_text)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_parse_changed_line_numbers",
+      "qualified_name": "_parse_changed_line_numbers",
+      "kind": "function",
+      "line": 741,
+      "path": "project_librarian.py",
+      "signature": "_parse_changed_line_numbers(diff_text)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_collect_changed_line_numbers",
+      "qualified_name": "_collect_changed_line_numbers",
+      "kind": "function",
+      "line": 757,
+      "path": "project_librarian.py",
+      "signature": "_collect_changed_line_numbers(repo_root, path_text)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_nearest_symbols",
+      "qualified_name": "_nearest_symbols",
+      "kind": "function",
+      "line": 764,
+      "path": "project_librarian.py",
+      "signature": "_nearest_symbols(symbols, changed_lines, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_collect_touched_symbols",
+      "qualified_name": "_collect_touched_symbols",
+      "kind": "function",
+      "line": 783,
+      "path": "project_librarian.py",
+      "signature": "_collect_touched_symbols(workspace, records)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_format_symbol_label",
+      "qualified_name": "_format_symbol_label",
+      "kind": "function",
+      "line": 819,
+      "path": "project_librarian.py",
+      "signature": "_format_symbol_label(symbol_record)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_summarize_symbol_labels",
+      "qualified_name": "_summarize_symbol_labels",
+      "kind": "function",
+      "line": 827,
+      "path": "project_librarian.py",
+      "signature": "_summarize_symbol_labels(symbol_records, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_collect_area_symbol_summary",
+      "qualified_name": "_collect_area_symbol_summary",
+      "kind": "function",
+      "line": 844,
+      "path": "project_librarian.py",
+      "signature": "_collect_area_symbol_summary(records, touched_symbols)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_recent_commit_subjects",
+      "qualified_name": "_recent_commit_subjects",
+      "kind": "function",
+      "line": 856,
+      "path": "project_librarian.py",
+      "signature": "_recent_commit_subjects(workspace, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_collect_git_snapshot",
+      "qualified_name": "_collect_git_snapshot",
+      "kind": "function",
+      "line": 864,
+      "path": "project_librarian.py",
+      "signature": "_collect_git_snapshot(repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_symbol_payload",
+      "qualified_name": "_load_symbol_payload",
+      "kind": "function",
+      "line": 877,
+      "path": "project_librarian.py",
+      "signature": "_load_symbol_payload(repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_flatten_symbol_payload",
+      "qualified_name": "_flatten_symbol_payload",
+      "kind": "function",
+      "line": 889,
+      "path": "project_librarian.py",
+      "signature": "_flatten_symbol_payload(symbol_payload)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_file_records",
+      "qualified_name": "_build_file_records",
+      "kind": "function",
+      "line": 966,
+      "path": "project_librarian.py",
+      "signature": "_build_file_records(repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_path_score_adjustment",
+      "qualified_name": "_path_score_adjustment",
+      "kind": "function",
+      "line": 996,
+      "path": "project_librarian.py",
+      "signature": "_path_score_adjustment(path_text)",
+      "doc_summary": ""
+    },
+    {
+      "name": "build_librarian_snapshot",
+      "qualified_name": "build_librarian_snapshot",
+      "kind": "function",
+      "line": 1008,
+      "path": "project_librarian.py",
+      "signature": "build_librarian_snapshot(repo_root, output_dir)",
+      "doc_summary": ""
+    },
+    {
+      "name": "refresh_librarian_snapshot",
+      "qualified_name": "refresh_librarian_snapshot",
+      "kind": "function",
+      "line": 1071,
+      "path": "project_librarian.py",
+      "signature": "refresh_librarian_snapshot(repo_root, output_dir)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_snapshot",
+      "qualified_name": "_load_snapshot",
+      "kind": "function",
+      "line": 1075,
+      "path": "project_librarian.py",
+      "signature": "_load_snapshot(repo_root, output_dir, refresh_if_missing)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_corpus",
+      "qualified_name": "_load_corpus",
+      "kind": "function",
+      "line": 1099,
+      "path": "project_librarian.py",
+      "signature": "_load_corpus(repo_root, output_dir, refresh_if_missing)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_history",
+      "qualified_name": "_load_history",
+      "kind": "function",
+      "line": 1116,
+      "path": "project_librarian.py",
+      "signature": "_load_history(repo_root, output_dir)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_normalize_status_filter",
+      "qualified_name": "_normalize_status_filter",
+      "kind": "function",
+      "line": 1139,
+      "path": "project_librarian.py",
+      "signature": "_normalize_status_filter(status_filter)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_matches_common_filters",
+      "qualified_name": "_matches_common_filters",
+      "kind": "function",
+      "line": 1146,
+      "path": "project_librarian.py",
+      "signature": "_matches_common_filters(path_text, area, path_filter, changed_only, changed_paths)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_score_text_record",
+      "qualified_name": "_score_text_record",
+      "kind": "function",
+      "line": 1157,
+      "path": "project_librarian.py",
+      "signature": "_score_text_record(record, file_text, query_tokens, query_text, changed_paths)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_score_symbol_record",
+      "qualified_name": "_score_symbol_record",
+      "kind": "function",
+      "line": 1193,
+      "path": "project_librarian.py",
+      "signature": "_score_symbol_record(record, query_tokens, query_text, changed_paths)",
+      "doc_summary": ""
+    },
+    {
+      "name": "search_snapshot",
+      "qualified_name": "search_snapshot",
+      "kind": "function",
+      "line": 1231,
+      "path": "project_librarian.py",
+      "signature": "search_snapshot(snapshot, corpus, query, scope, limit, area, changed_only, path_filter)",
+      "doc_summary": ""
+    },
+    {
+      "name": "format_search_results",
+      "qualified_name": "format_search_results",
+      "kind": "function",
+      "line": 1262,
+      "path": "project_librarian.py",
+      "signature": "format_search_results(results)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_filter_changed_files",
+      "qualified_name": "_filter_changed_files",
+      "kind": "function",
+      "line": 1282,
+      "path": "project_librarian.py",
+      "signature": "_filter_changed_files(snapshot, status_filter, area, path_filter)",
+      "doc_summary": ""
+    },
+    {
+      "name": "format_change_report",
+      "qualified_name": "format_change_report",
+      "kind": "function",
+      "line": 1297,
+      "path": "project_librarian.py",
+      "signature": "format_change_report(snapshot, limit, status_filter, area, path_filter, include_commits)",
+      "doc_summary": ""
+    },
+    {
+      "name": "format_history_report",
+      "qualified_name": "format_history_report",
+      "kind": "function",
+      "line": 1336,
+      "path": "project_librarian.py",
+      "signature": "format_history_report(history_records, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "format_workspace_stats",
+      "qualified_name": "format_workspace_stats",
+      "kind": "function",
+      "line": 1351,
+      "path": "project_librarian.py",
+      "signature": "format_workspace_stats(workspace)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_format_repl_welcome",
+      "qualified_name": "_format_repl_welcome",
+      "kind": "function",
+      "line": 1376,
+      "path": "project_librarian.py",
+      "signature": "_format_repl_welcome(workspace)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_resolve_workspace_path",
+      "qualified_name": "_resolve_workspace_path",
+      "kind": "function",
+      "line": 1406,
+      "path": "project_librarian.py",
+      "signature": "_resolve_workspace_path(workspace, path_text)",
+      "doc_summary": ""
+    },
+    {
+      "name": "show_file_excerpt",
+      "qualified_name": "show_file_excerpt",
+      "kind": "function",
+      "line": 1433,
+      "path": "project_librarian.py",
+      "signature": "show_file_excerpt(workspace, path_text, query, line, context)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_changed_file_records",
+      "qualified_name": "_changed_file_records",
+      "kind": "function",
+      "line": 1455,
+      "path": "project_librarian.py",
+      "signature": "_changed_file_records(workspace, changed_only)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_records_grouped_by_area",
+      "qualified_name": "_records_grouped_by_area",
+      "kind": "function",
+      "line": 1461,
+      "path": "project_librarian.py",
+      "signature": "_records_grouped_by_area(records)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_summarize_record_names",
+      "qualified_name": "_summarize_record_names",
+      "kind": "function",
+      "line": 1469,
+      "path": "project_librarian.py",
+      "signature": "_summarize_record_names(records, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_draft_bullet_for_area",
+      "qualified_name": "_draft_bullet_for_area",
+      "kind": "function",
+      "line": 1480,
+      "path": "project_librarian.py",
+      "signature": "_draft_bullet_for_area(area_name, records, symbol_records)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_suggest_docs",
+      "qualified_name": "_suggest_docs",
+      "kind": "function",
+      "line": 1503,
+      "path": "project_librarian.py",
+      "signature": "_suggest_docs(records)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_ensure_output_subdir",
+      "qualified_name": "_ensure_output_subdir",
+      "kind": "function",
+      "line": 1514,
+      "path": "project_librarian.py",
+      "signature": "_ensure_output_subdir(output_dir, directory_name)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_write_generated_output",
+      "qualified_name": "_write_generated_output",
+      "kind": "function",
+      "line": 1520,
+      "path": "project_librarian.py",
+      "signature": "_write_generated_output(output_dir, directory_name, prefix, content, output_path, output_base_dir)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_resolve_repo_path",
+      "qualified_name": "_resolve_repo_path",
+      "kind": "function",
+      "line": 1535,
+      "path": "project_librarian.py",
+      "signature": "_resolve_repo_path(repo_root, target_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_upsert_markdown_block",
+      "qualified_name": "_upsert_markdown_block",
+      "kind": "function",
+      "line": 1542,
+      "path": "project_librarian.py",
+      "signature": "_upsert_markdown_block(existing_text, content, start_marker, end_marker)",
+      "doc_summary": ""
+    },
+    {
+      "name": "apply_docs_update",
+      "qualified_name": "apply_docs_update",
+      "kind": "function",
+      "line": 1554,
+      "path": "project_librarian.py",
+      "signature": "apply_docs_update(repo_root, content, target_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_upsert_changelog_entry",
+      "qualified_name": "_upsert_changelog_entry",
+      "kind": "function",
+      "line": 1562,
+      "path": "project_librarian.py",
+      "signature": "_upsert_changelog_entry(existing_text, entry_text, version_label)",
+      "doc_summary": ""
+    },
+    {
+      "name": "apply_changelog_update",
+      "qualified_name": "apply_changelog_update",
+      "kind": "function",
+      "line": 1584,
+      "path": "project_librarian.py",
+      "signature": "apply_changelog_update(repo_root, content, version_label, target_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_parse_ollama_models",
+      "qualified_name": "_parse_ollama_models",
+      "kind": "function",
+      "line": 1592,
+      "path": "project_librarian.py",
+      "signature": "_parse_ollama_models(raw_output)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_select_recommended_model",
+      "qualified_name": "_select_recommended_model",
+      "kind": "function",
+      "line": 1604,
+      "path": "project_librarian.py",
+      "signature": "_select_recommended_model(models, preferred_model)",
+      "doc_summary": ""
+    },
+    {
+      "name": "collect_ai_runtime_status",
+      "qualified_name": "collect_ai_runtime_status",
+      "kind": "function",
+      "line": 1620,
+      "path": "project_librarian.py",
+      "signature": "collect_ai_runtime_status(repo_root, preferred_model, ollama_host)",
+      "doc_summary": ""
+    },
+    {
+      "name": "format_ai_model_list",
+      "qualified_name": "format_ai_model_list",
+      "kind": "function",
+      "line": 1670,
+      "path": "project_librarian.py",
+      "signature": "format_ai_model_list(ai_status)",
+      "doc_summary": ""
+    },
+    {
+      "name": "format_ai_status_report",
+      "qualified_name": "format_ai_status_report",
+      "kind": "function",
+      "line": 1688,
+      "path": "project_librarian.py",
+      "signature": "format_ai_status_report(ai_status)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_resolve_ai_model",
+      "qualified_name": "_resolve_ai_model",
+      "kind": "function",
+      "line": 1714,
+      "path": "project_librarian.py",
+      "signature": "_resolve_ai_model(ai_status, requested_model)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_html_escape",
+      "qualified_name": "_html_escape",
+      "kind": "function",
+      "line": 1731,
+      "path": "project_librarian.py",
+      "signature": "_html_escape(value)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_parse_bool",
+      "qualified_name": "_parse_bool",
+      "kind": "function",
+      "line": 1735,
+      "path": "project_librarian.py",
+      "signature": "_parse_bool(value)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_resolve_http_auth_token",
+      "qualified_name": "_resolve_http_auth_token",
+      "kind": "function",
+      "line": 1741,
+      "path": "project_librarian.py",
+      "signature": "_resolve_http_auth_token(auth_token)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_request_token_candidates",
+      "qualified_name": "_request_token_candidates",
+      "kind": "function",
+      "line": 1751,
+      "path": "project_librarian.py",
+      "signature": "_request_token_candidates(request)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_request_has_valid_token",
+      "qualified_name": "_request_has_valid_token",
+      "kind": "function",
+      "line": 1769,
+      "path": "project_librarian.py",
+      "signature": "_request_has_valid_token(request, auth_token)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_query_token_matches",
+      "qualified_name": "_query_token_matches",
+      "kind": "function",
+      "line": 1778,
+      "path": "project_librarian.py",
+      "signature": "_query_token_matches(request, auth_token)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_coerce_int",
+      "qualified_name": "_coerce_int",
+      "kind": "function",
+      "line": 1785,
+      "path": "project_librarian.py",
+      "signature": "_coerce_int(value, default, minimum, maximum)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_json_text_for_html",
+      "qualified_name": "_json_text_for_html",
+      "kind": "function",
+      "line": 1793,
+      "path": "project_librarian.py",
+      "signature": "_json_text_for_html(value)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_dashboard_bootstrap_payload",
+      "qualified_name": "_dashboard_bootstrap_payload",
+      "kind": "function",
+      "line": 1797,
+      "path": "project_librarian.py",
+      "signature": "_dashboard_bootstrap_payload(service)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_render_login_html",
+      "qualified_name": "_render_login_html",
+      "kind": "function",
+      "line": 1809,
+      "path": "project_librarian.py",
+      "signature": "_render_login_html()",
+      "doc_summary": ""
+    },
+    {
+      "name": "_render_dashboard_html",
+      "qualified_name": "_render_dashboard_html",
+      "kind": "function",
+      "line": 1881,
+      "path": "project_librarian.py",
+      "signature": "_render_dashboard_html(auth_enabled, bootstrap_payload)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_excel_library_config",
+      "qualified_name": "_load_excel_library_config",
+      "kind": "function",
+      "line": 3222,
+      "path": "project_librarian.py",
+      "signature": "_load_excel_library_config(output_dir)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_save_excel_library_config",
+      "qualified_name": "_save_excel_library_config",
+      "kind": "function",
+      "line": 3243,
+      "path": "project_librarian.py",
+      "signature": "_save_excel_library_config(output_dir, config)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_normalize_keyword_columns",
+      "qualified_name": "_normalize_keyword_columns",
+      "kind": "function",
+      "line": 3249,
+      "path": "project_librarian.py",
+      "signature": "_normalize_keyword_columns(raw_value)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_column_letter_to_index",
+      "qualified_name": "_column_letter_to_index",
+      "kind": "function",
+      "line": 3259,
+      "path": "project_librarian.py",
+      "signature": "_column_letter_to_index(value)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_normalize_excel_value",
+      "qualified_name": "_normalize_excel_value",
+      "kind": "function",
+      "line": 3269,
+      "path": "project_librarian.py",
+      "signature": "_normalize_excel_value(cell_value)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_resolve_keyword_column_indices",
+      "qualified_name": "_resolve_keyword_column_indices",
+      "kind": "function",
+      "line": 3282,
+      "path": "project_librarian.py",
+      "signature": "_resolve_keyword_column_indices(keyword_columns, header_row)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_iter_excel_keyword_rows",
+      "qualified_name": "_iter_excel_keyword_rows",
+      "kind": "function",
+      "line": 3302,
+      "path": "project_librarian.py",
+      "signature": "_iter_excel_keyword_rows(folder_path, keyword_columns)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_search_excel_rows",
+      "qualified_name": "_search_excel_rows",
+      "kind": "function",
+      "line": 3384,
+      "path": "project_librarian.py",
+      "signature": "_search_excel_rows(folder_path, keyword_columns, query, limit)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_list_excel_files",
+      "qualified_name": "_list_excel_files",
+      "kind": "function",
+      "line": 3412,
+      "path": "project_librarian.py",
+      "signature": "_list_excel_files(folder_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_format_iso_utc",
+      "qualified_name": "_format_iso_utc",
+      "kind": "function",
+      "line": 3440,
+      "path": "project_librarian.py",
+      "signature": "_format_iso_utc(timestamp_float)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_wrap_http_app_with_token_auth",
+      "qualified_name": "_wrap_http_app_with_token_auth",
+      "kind": "function",
+      "line": 3444,
+      "path": "project_librarian.py",
+      "signature": "_wrap_http_app_with_token_auth(app, auth_token)",
+      "doc_summary": ""
+    },
+    {
+      "name": "create_librarian_mcp_server",
+      "qualified_name": "create_librarian_mcp_server",
+      "kind": "function",
+      "line": 3498,
+      "path": "project_librarian.py",
+      "signature": "create_librarian_mcp_server(service, host, port, log_level, auth_token, transport)",
+      "doc_summary": ""
+    },
+    {
+      "name": "run_librarian_mcp_server",
+      "qualified_name": "run_librarian_mcp_server",
+      "kind": "function",
+      "line": 4096,
+      "path": "project_librarian.py",
+      "signature": "run_librarian_mcp_server(repo_root, output_dir, transport, host, port, refresh_first, refresh_interval_seconds, log_level, auth_token)",
+      "doc_summary": ""
+    },
+    {
+      "name": "generate_docs_draft",
+      "qualified_name": "generate_docs_draft",
+      "kind": "function",
+      "line": 4171,
+      "path": "project_librarian.py",
+      "signature": "generate_docs_draft(workspace, title, changed_only)",
+      "doc_summary": ""
+    },
+    {
+      "name": "generate_changelog_draft",
+      "qualified_name": "generate_changelog_draft",
+      "kind": "function",
+      "line": 4238,
+      "path": "project_librarian.py",
+      "signature": "generate_changelog_draft(workspace, version_text, release_date, changed_only)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_ai_context",
+      "qualified_name": "_build_ai_context",
+      "kind": "function",
+      "line": 4271,
+      "path": "project_librarian.py",
+      "signature": "_build_ai_context(workspace, task, changed_only)",
+      "doc_summary": ""
+    },
+    {
+      "name": "run_ai_summary",
+      "qualified_name": "run_ai_summary",
+      "kind": "function",
+      "line": 4300,
+      "path": "project_librarian.py",
+      "signature": "run_ai_summary(workspace, task, mode, model, changed_only, ollama_host)",
+      "doc_summary": ""
+    },
+    {
+      "name": "run_repl",
+      "qualified_name": "run_repl",
+      "kind": "function",
+      "line": 4366,
+      "path": "project_librarian.py",
+      "signature": "run_repl(repo_root, output_dir, refresh_first)",
+      "doc_summary": ""
+    },
+    {
+      "name": "parse_args",
+      "qualified_name": "parse_args",
+      "kind": "function",
+      "line": 4453,
+      "path": "project_librarian.py",
+      "signature": "parse_args()",
+      "doc_summary": ""
+    },
+    {
+      "name": "main",
+      "qualified_name": "main",
+      "kind": "function",
+      "line": 4551,
+      "path": "project_librarian.py",
+      "signature": "main()",
+      "doc_summary": ""
+    },
+    {
+      "name": "SymbolIndexError",
+      "qualified_name": "SymbolIndexError",
+      "kind": "class",
+      "line": 30,
+      "path": "symbol_index.py",
+      "signature": "SymbolIndexError",
+      "doc_summary": ""
+    },
+    {
+      "name": "_repo_root_from_here",
+      "qualified_name": "_repo_root_from_here",
+      "kind": "function",
+      "line": 34,
+      "path": "symbol_index.py",
+      "signature": "_repo_root_from_here()",
+      "doc_summary": ""
+    },
+    {
+      "name": "_safe_unparse",
+      "qualified_name": "_safe_unparse",
+      "kind": "function",
+      "line": 38,
+      "path": "symbol_index.py",
+      "signature": "_safe_unparse(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_literal_value",
+      "qualified_name": "_literal_value",
+      "kind": "function",
+      "line": 47,
+      "path": "symbol_index.py",
+      "signature": "_literal_value(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_attribute_path_text",
+      "qualified_name": "_attribute_path_text",
+      "kind": "function",
+      "line": 54,
+      "path": "symbol_index.py",
+      "signature": "_attribute_path_text(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_value_preview",
+      "qualified_name": "_value_preview",
+      "kind": "function",
+      "line": 66,
+      "path": "symbol_index.py",
+      "signature": "_value_preview(node, max_length)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_doc_summary",
+      "qualified_name": "_doc_summary",
+      "kind": "function",
+      "line": 94,
+      "path": "symbol_index.py",
+      "signature": "_doc_summary(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_annotation_text",
+      "qualified_name": "_annotation_text",
+      "kind": "function",
+      "line": 102,
+      "path": "symbol_index.py",
+      "signature": "_annotation_text(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_decorator_texts",
+      "qualified_name": "_decorator_texts",
+      "kind": "function",
+      "line": 106,
+      "path": "symbol_index.py",
+      "signature": "_decorator_texts(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_base_texts",
+      "qualified_name": "_base_texts",
+      "kind": "function",
+      "line": 110,
+      "path": "symbol_index.py",
+      "signature": "_base_texts(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_is_dataclass",
+      "qualified_name": "_is_dataclass",
+      "kind": "function",
+      "line": 114,
+      "path": "symbol_index.py",
+      "signature": "_is_dataclass(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_classification_for_module_variable",
+      "qualified_name": "_classification_for_module_variable",
+      "kind": "function",
+      "line": 122,
+      "path": "symbol_index.py",
+      "signature": "_classification_for_module_variable(name)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_classification_for_class_attribute",
+      "qualified_name": "_classification_for_class_attribute",
+      "kind": "function",
+      "line": 130,
+      "path": "symbol_index.py",
+      "signature": "_classification_for_class_attribute(name, dataclass_enabled)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_extract_name_targets",
+      "qualified_name": "_extract_name_targets",
+      "kind": "function",
+      "line": 138,
+      "path": "symbol_index.py",
+      "signature": "_extract_name_targets(target)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_format_argument",
+      "qualified_name": "_format_argument",
+      "kind": "function",
+      "line": 149,
+      "path": "symbol_index.py",
+      "signature": "_format_argument(arg_node, default_value, prefix)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_function_signature",
+      "qualified_name": "_function_signature",
+      "kind": "function",
+      "line": 159,
+      "path": "symbol_index.py",
+      "signature": "_function_signature(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_function_entry",
+      "qualified_name": "_build_function_entry",
+      "kind": "function",
+      "line": 202,
+      "path": "symbol_index.py",
+      "signature": "_build_function_entry(node, kind)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_SelfAttributeCollector",
+      "qualified_name": "_SelfAttributeCollector",
+      "kind": "class",
+      "line": 214,
+      "path": "symbol_index.py",
+      "signature": "_SelfAttributeCollector",
+      "doc_summary": ""
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "_SelfAttributeCollector.__init__",
+      "kind": "method",
+      "line": 215,
+      "path": "symbol_index.py",
+      "signature": "__init__(self, method_name, sink)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_FunctionDef",
+      "qualified_name": "_SelfAttributeCollector.visit_FunctionDef",
+      "kind": "method",
+      "line": 219,
+      "path": "symbol_index.py",
+      "signature": "visit_FunctionDef(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_AsyncFunctionDef",
+      "qualified_name": "_SelfAttributeCollector.visit_AsyncFunctionDef",
+      "kind": "method",
+      "line": 222,
+      "path": "symbol_index.py",
+      "signature": "visit_AsyncFunctionDef(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_ClassDef",
+      "qualified_name": "_SelfAttributeCollector.visit_ClassDef",
+      "kind": "method",
+      "line": 225,
+      "path": "symbol_index.py",
+      "signature": "visit_ClassDef(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_Lambda",
+      "qualified_name": "_SelfAttributeCollector.visit_Lambda",
+      "kind": "method",
+      "line": 228,
+      "path": "symbol_index.py",
+      "signature": "visit_Lambda(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_Assign",
+      "qualified_name": "_SelfAttributeCollector.visit_Assign",
+      "kind": "method",
+      "line": 231,
+      "path": "symbol_index.py",
+      "signature": "visit_Assign(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_AnnAssign",
+      "qualified_name": "_SelfAttributeCollector.visit_AnnAssign",
+      "kind": "method",
+      "line": 236,
+      "path": "symbol_index.py",
+      "signature": "visit_AnnAssign(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "visit_AugAssign",
+      "qualified_name": "_SelfAttributeCollector.visit_AugAssign",
+      "kind": "method",
+      "line": 241,
+      "path": "symbol_index.py",
+      "signature": "visit_AugAssign(self, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_record_target",
+      "qualified_name": "_SelfAttributeCollector._record_target",
+      "kind": "method",
+      "line": 245,
+      "path": "symbol_index.py",
+      "signature": "_record_target(self, target, node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_collect_assignment_entries",
+      "qualified_name": "_collect_assignment_entries",
+      "kind": "function",
+      "line": 272,
+      "path": "symbol_index.py",
+      "signature": "_collect_assignment_entries(node, classification_fn)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_merge_attribute_entries",
+      "qualified_name": "_merge_attribute_entries",
+      "kind": "function",
+      "line": 302,
+      "path": "symbol_index.py",
+      "signature": "_merge_attribute_entries(class_entries, instance_entries)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_class_entry",
+      "qualified_name": "_build_class_entry",
+      "kind": "function",
+      "line": 329,
+      "path": "symbol_index.py",
+      "signature": "_build_class_entry(node)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_relative_path_text",
+      "qualified_name": "_relative_path_text",
+      "kind": "function",
+      "line": 364,
+      "path": "symbol_index.py",
+      "signature": "_relative_path_text(path, repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_file_area",
+      "qualified_name": "_file_area",
+      "kind": "function",
+      "line": 368,
+      "path": "symbol_index.py",
+      "signature": "_file_area(relative_path)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_load_managed_module_names",
+      "qualified_name": "_load_managed_module_names",
+      "kind": "function",
+      "line": 380,
+      "path": "symbol_index.py",
+      "signature": "_load_managed_module_names(repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_iter_python_files",
+      "qualified_name": "_iter_python_files",
+      "kind": "function",
+      "line": 406,
+      "path": "symbol_index.py",
+      "signature": "_iter_python_files(repo_root)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_file_entry",
+      "qualified_name": "_build_file_entry",
+      "kind": "function",
+      "line": 421,
+      "path": "symbol_index.py",
+      "signature": "_build_file_entry(path, repo_root, managed_module_names)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_build_summary",
+      "qualified_name": "_build_summary",
+      "kind": "function",
+      "line": 469,
+      "path": "symbol_index.py",
+      "signature": "_build_summary(file_entries, managed_module_names)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_render_metadata_line",
+      "qualified_name": "_render_metadata_line",
+      "kind": "function",
+      "line": 503,
+      "path": "symbol_index.py",
+      "signature": "_render_metadata_line(label, value)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_markdown_path",
+      "qualified_name": "_markdown_path",
+      "kind": "function",
+      "line": 511,
+      "path": "symbol_index.py",
+      "signature": "_markdown_path(output_dir, repo_root, relative_path, line)",
+      "doc_summary": ""
+    },
+    {
+      "name": "_render_variable_lines",
+      "qualified_name": "_render_variable_lines",
+      "kind": "function",
+      "line": 519,
+      "path": "symbol_index.py",
+      "signature": "_render_variable_lines(entries, indent)",
+      "doc_summary": ""
+    },
+    {
+      "name": "render_markdown",
+      "qualified_name": "render_markdown",
+      "kind": "function",
+      "line": 539,
+      "path": "symbol_index.py",
+      "signature": "render_markdown(payload, output_dir)",
+      "doc_summary": ""
+    },
+    {
+      "name": "generate_symbol_index",
+      "qualified_name": "generate_symbol_index",
+      "kind": "function",
+      "line": 647,
+      "path": "symbol_index.py",
+      "signature": "generate_symbol_index(repo_root, output_dir)",
+      "doc_summary": ""
+    },
+    {
+      "name": "parse_args",
+      "qualified_name": "parse_args",
+      "kind": "function",
+      "line": 674,
+      "path": "symbol_index.py",
+      "signature": "parse_args()",
+      "doc_summary": ""
+    },
+    {
+      "name": "main",
+      "qualified_name": "main",
+      "kind": "function",
+      "line": 689,
+      "path": "symbol_index.py",
+      "signature": "main()",
+      "doc_summary": ""
+    }
+  ]
+}

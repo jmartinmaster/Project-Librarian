@@ -1,0 +1,67 @@
+"""Smoke tests for SearchBrowser interaction and results rendering."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from app.indexer.index_manager import IndexManager
+from app.ui.search_browser import SearchBrowser
+
+
+def test_search_browser_shows_clickable_results_columns(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    browser = SearchBrowser(manager)
+    qtbot.addWidget(browser)
+
+    browser.set_query("sample", scope="all", execute=True)
+
+    assert browser.results_table.columnCount() == 6
+    assert not browser.results_table.horizontalHeader().isHidden()
+    assert browser.results_table.rowCount() > 0
+    first_type = browser.results_table.item(0, 0)
+    first_file_type = browser.results_table.item(0, 1)
+    assert first_type is not None
+    assert first_file_type is not None
+    assert first_type.text() != ""
+    assert first_file_type.text() != ""
+
+
+def test_search_browser_shows_line_context_for_selected_result(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.state.file_corpus = {"app/sample.py": "line one\nneedle line\nline three\n"}
+    manager.state.symbols = []
+    manager.state.excel_rows = []
+
+    widget = SearchBrowser(manager)
+    qtbot.addWidget(widget)
+
+    widget.query_input.setText("needle")
+    widget.scope_combo.setCurrentText("files")
+    widget.run_search()
+
+    preview = widget.preview_pane.toPlainText()
+    assert "Path: app/sample.py" in preview
+    assert "needle line" in preview
+
+
+def test_search_browser_double_click_opens_file(monkeypatch, qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    browser = SearchBrowser(manager)
+    qtbot.addWidget(browser)
+    browser.set_query("sample", scope="files", execute=True)
+
+    opened: dict[str, str] = {}
+
+    def fake_open_url(url):
+        opened["path"] = Path(url.toLocalFile()).name
+        return True
+
+    monkeypatch.setattr("app.ui.search_browser.QDesktopServices.openUrl", fake_open_url)
+
+    assert browser.results_table.rowCount() > 0
+    browser._on_result_double_clicked(0, 0)
+    assert opened.get("path") == "sample.py"

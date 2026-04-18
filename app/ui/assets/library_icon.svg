@@ -1,0 +1,24 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F5E7C8"/>
+      <stop offset="1" stop-color="#C99A58"/>
+    </linearGradient>
+    <linearGradient id="book" x1="120" y1="140" x2="392" y2="372" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2F4B66"/>
+      <stop offset="1" stop-color="#1F3144"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="40" y="40" width="432" height="432" rx="92" fill="url(#bg)"/>
+
+  <rect x="122" y="132" width="268" height="248" rx="26" fill="url(#book)"/>
+  <rect x="164" y="132" width="20" height="248" fill="#9F6E3A"/>
+  <rect x="195" y="176" width="150" height="10" rx="5" fill="#F2E6D0"/>
+  <rect x="195" y="206" width="128" height="10" rx="5" fill="#E7D9C1"/>
+  <rect x="195" y="236" width="145" height="10" rx="5" fill="#E7D9C1"/>
+  <rect x="195" y="266" width="120" height="10" rx="5" fill="#E7D9C1"/>
+
+  <path d="M256 300L304 324V190H208V324L256 300Z" fill="#DAB47A"/>
+  <circle cx="256" cy="304" r="10" fill="#8A5C2D"/>
+</svg>

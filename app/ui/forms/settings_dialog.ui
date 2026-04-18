@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingsDialog</class>
+ <widget class="QDialog" name="SettingsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>780</width>
+    <height>620</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Settings</string>
+  </property>
+  <layout class="QVBoxLayout" name="rootLayout">
+   <item>
+    <widget class="QTabWidget" name="tabs">
+     <widget class="QWidget" name="generalTab">
+      <attribute name="title">
+       <string>General</string>
+      </attribute>
+      <layout class="QFormLayout" name="generalForm">
+       <item row="0" column="0">
+        <widget class="QLabel" name="projectRootLabel">
+         <property name="text">
+          <string>Project Root</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <layout class="QHBoxLayout" name="projectRootRow">
+         <item>
+          <widget class="QLineEdit" name="projectRootEdit"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="projectRootBrowseButton">
+           <property name="text">
+            <string>Browse</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="outputDirLabel">
+         <property name="text">
+          <string>Output Directory</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <layout class="QHBoxLayout" name="outputDirRow">
+         <item>
+          <widget class="QLineEdit" name="outputDirEdit"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="outputDirBrowseButton">
+           <property name="text">
+            <string>Browse</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="refreshLabel">
+         <property name="text">
+          <string>Refresh Interval (s)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QSpinBox" name="refreshSpin"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="indexingTab">
+      <attribute name="title">
+       <string>Indexing</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="indexingLayout">
+       <item>
+        <widget class="QCheckBox" name="indexPythonCheck">
+         <property name="text">
+          <string>Index Python</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="indexCCheck">
+         <property name="text">
+          <string>Index C</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="extensionsLabel">
+         <property name="text">
+          <string>File Extensions</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="extensionsList"/>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="extensionsControls">
+         <item>
+          <widget class="QLineEdit" name="extensionInput">
+           <property name="placeholderText">
+            <string>.py</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="extensionAddButton">
+           <property name="text">
+            <string>Add</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="extensionRemoveButton">
+           <property name="text">
+            <string>Remove Selected</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="excludedLabel">
+         <property name="text">
+          <string>Excluded Directories</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="excludedList"/>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="excludedControls">
+         <item>
+          <widget class="QLineEdit" name="excludedInput">
+           <property name="placeholderText">
+            <string>.venv</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="excludedAddButton">
+           <property name="text">
+            <string>Add</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="excludedRemoveButton">
+           <property name="text">
+            <string>Remove Selected</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="excelTab">
+      <attribute name="title">
+       <string>Excel</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="excelLayout">
+       <item>
+        <layout class="QHBoxLayout" name="excelFolderRow">
+         <item>
+          <widget class="QLineEdit" name="excelFolderEdit"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="excelFolderBrowseButton">
+           <property name="text">
+            <string>Browse</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QPushButton" name="loadHeadersButton">
+         <property name="text">
+          <string>Load Headers</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="excelColumnsLabel">
+         <property name="text">
+          <string>Keyword Columns</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="excelColumnsList"/>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Save</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
