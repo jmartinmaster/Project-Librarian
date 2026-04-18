@@ -1,3 +1,22 @@
+<!--
+Copyright (C) 2026 Project Librarian contributors
+
+This file is part of Project Librarian.
+
+Project Librarian is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Project Librarian is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
+-->
+
 # Project Librarian Master Plan
 
 ## Editing Protocol
@@ -52,6 +71,8 @@
 - [ ] UX requirement queued: copy actions should place full absolute containing-folder path on clipboard (no filename/extension).
 - [x] Stability fix complete: invalid/malformed spreadsheet files are skipped safely during header discovery and row indexing.
 - [x] Observability enhancement complete: skipped-file count/status indicator and skipped-file listing added.
+- [x] Documentation/licensing complete: repository README added, packaging dependency docs refreshed, and GPLv3 headers added to authored files.
+- [x] UX enhancement complete: startup splash screen and About dialog added with PyQt6 attribution and startup indexing behavior note.
 - [ ] Next up: validate packaging outputs on native Windows and Ubuntu hosts.
 
 ## Phase Checklist
@@ -111,6 +132,8 @@
 - 2026-04-18: New clipboard-path requirement recorded: default copy should use full system folder path only (exclude filename/extension) to avoid accidental file launch behavior.
 - 2026-04-18: Hardened spreadsheet parsing to skip malformed/invalid workbook files without crashing Settings or indexing flows.
 - 2026-04-18: Added skipped-file tracking (path/stage/reason), surfaced as status-bar count and Library pane section.
+- 2026-04-18: Added scope for README refresh, packaging dependency refresh, GPLv3 headers across authored files, and PyQt6 attribution in splash/About UX.
+- 2026-04-18: Added repository README, refreshed packaging requirements/docs, added splash/About attribution text, and applied GPLv3 headers across authored files except read-only reference modules.
 
 ## Out Of Scope (Initial Build)
 - MCP server and HTTP dashboard

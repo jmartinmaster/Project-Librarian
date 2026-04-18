@@ -1,4 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (C) 2026 Project Librarian contributors
+
+This file is part of Project Librarian.
+
+Project Librarian is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Project Librarian is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
+-->
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -41,8 +59,15 @@
     </property>
     <addaction name="actionPreferences"/>
    </widget>
+    <widget class="QMenu" name="menuHelp">
+     <property name="title">
+      <string>Help</string>
+     </property>
+     <addaction name="actionAbout"/>
+    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
+    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionRefreshIndex">
@@ -55,6 +80,11 @@
     <string>Preferences</string>
    </property>
   </action>
+    <action name="actionAbout">
+     <property name="text">
+        <string>About</string>
+     </property>
+    </action>
  </widget>
  <resources/>
  <connections/>

@@ -1,11 +1,29 @@
+# Copyright (C) 2026 Project Librarian contributors
+#
+# This file is part of Project Librarian.
+#
+# Project Librarian is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Project Librarian is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
+
 """Smoke tests for main window construction."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtWidgets import QCheckBox, QLabel, QLineEdit, QTreeWidget
+from PyQt6.QtWidgets import QCheckBox, QLabel, QLineEdit, QMenu, QTreeWidget
 
+from app import build_about_text
 from app.indexer.index_manager import IndexManager
 from app.ui.main_window import MainWindow
 
@@ -59,6 +77,22 @@ def test_main_window_shows_library_navigation_pane(qtbot, app_config):
     assert root_titles[1].startswith("Symbols (")
     assert root_titles[2].startswith("Excel Rows (")
     assert root_titles[3].startswith("Skipped Files (")
+
+
+def test_main_window_exposes_help_menu_and_about_text(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    window = MainWindow(manager)
+    qtbot.addWidget(window)
+
+    help_menu = window.findChild(QMenu, "menuHelp")
+    assert help_menu is not None
+    assert any(action.text() == "About" for action in help_menu.actions())
+
+    about_text = build_about_text()
+    assert "PyQt6" in about_text
+    assert "folder where the application is opened" in about_text
 
 
 def test_library_navigation_filter_and_tree_toggle(qtbot, app_config):

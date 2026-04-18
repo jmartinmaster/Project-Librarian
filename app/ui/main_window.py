@@ -1,3 +1,20 @@
+# Copyright (C) 2026 Project Librarian contributors
+#
+# This file is part of Project Librarian.
+#
+# Project Librarian is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Project Librarian is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
+
 """Primary desktop window for the standalone Project Librarian app."""
 
 from __future__ import annotations
@@ -14,6 +31,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QMenu,
     QTabWidget,
     QTreeWidget,
@@ -22,6 +40,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from app import APP_NAME, build_about_text
 from app.config import save_config
 from app.indexer.index_manager import IndexManager
 from app.ui.excel_browser import ExcelBrowser
@@ -40,6 +59,8 @@ class MainWindow(QMainWindow):
         self._action_preferences: QAction
         self._settings_menu: QMenu
         self._action_auto_refresh: QAction
+        self._help_menu: QMenu
+        self._action_about: QAction
         self._auto_refresh_label: QLabel
         self._skipped_label: QLabel
         self._last_refresh_label: QLabel
@@ -61,15 +82,19 @@ class MainWindow(QMainWindow):
 
         tabs = self.findChild(QTabWidget, "tabWidget")
         settings_menu = self.findChild(QMenu, "menuSettings")
+        help_menu = self.findChild(QMenu, "menuHelp")
         refresh_action = self.findChild(QAction, "actionRefreshIndex")
         preferences_action = self.findChild(QAction, "actionPreferences")
-        if tabs is None or settings_menu is None or refresh_action is None or preferences_action is None:
+        about_action = self.findChild(QAction, "actionAbout")
+        if any(widget is None for widget in [tabs, settings_menu, help_menu, refresh_action, preferences_action, about_action]):
             raise RuntimeError("Main window UI is missing required widgets/actions.")
 
         self._tabs = tabs
         self._settings_menu = settings_menu
+        self._help_menu = help_menu
         self._action_refresh_index = refresh_action
         self._action_preferences = preferences_action
+        self._action_about = about_action
 
     def _build_ui(self) -> None:
         self._tabs.addTab(self.search_browser, "Search Browser")
@@ -96,6 +121,7 @@ class MainWindow(QMainWindow):
     def _build_menu(self) -> None:
         self._action_refresh_index.triggered.connect(self._refresh_index)
         self._action_preferences.triggered.connect(self._open_settings)
+        self._action_about.triggered.connect(self._show_about_dialog)
 
         self._action_auto_refresh = QAction("Auto Refresh Enabled", self)
         self._action_auto_refresh.setCheckable(True)
@@ -103,6 +129,10 @@ class MainWindow(QMainWindow):
         self._action_auto_refresh.triggered.connect(self._toggle_auto_refresh)
         self._settings_menu.addSeparator()
         self._settings_menu.addAction(self._action_auto_refresh)
+
+    def _show_about_dialog(self) -> None:
+        """Show license and framework attribution required by the packaged app."""
+        QMessageBox.about(self, f"About {APP_NAME}", build_about_text())
 
     def _refresh_index(self) -> None:
         self.index_manager.refresh()
