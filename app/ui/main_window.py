@@ -69,6 +69,7 @@ class MainWindow(QMainWindow):
         self._library_tree_toggle: QCheckBox
         self._library_tree: QTreeWidget
         self._status_timer = QTimer(self)
+        self._last_applied_refresh_count = -1
         self.search_browser = SearchBrowser(index_manager=self.index_manager)
         self.excel_browser = ExcelBrowser(index_manager=self.index_manager)
         self._load_ui()
@@ -135,16 +136,11 @@ class MainWindow(QMainWindow):
         QMessageBox.about(self, f"About {APP_NAME}", build_about_text())
 
     def _refresh_index(self) -> None:
-        self.index_manager.refresh()
-        self.search_browser.run_search()
-        self.excel_browser.run_filter()
-        self._rebuild_library_tree()
-        summary = self.index_manager.state
-        self.statusBar().showMessage(
-            "Refreshed: "
-            f"files={len(summary.file_corpus)} symbols={len(summary.symbols)} "
-            f"excel_rows={len(summary.excel_rows)} skipped={len(summary.skipped_files)}"
-        )
+        started = self.index_manager.request_refresh_async()
+        if started:
+            self.statusBar().showMessage("Refreshing index in background...")
+        else:
+            self.statusBar().showMessage("Refresh already in progress.")
         self._update_refresh_indicator()
 
     def _build_library_pane(self) -> None:
@@ -188,6 +184,7 @@ class MainWindow(QMainWindow):
         tree = self._library_tree
         filter_text = self._library_filter_input.text().strip().lower() if hasattr(self, "_library_filter_input") else ""
         tree_mode = self._library_tree_toggle.isChecked() if hasattr(self, "_library_tree_toggle") else True
+        tree.setUpdatesEnabled(False)
         tree.clear()
 
         sorted_files = sorted(state.file_corpus.keys())
@@ -324,6 +321,7 @@ class MainWindow(QMainWindow):
 
         for idx in range(tree.topLevelItemCount()):
             tree.topLevelItem(idx).setExpanded(True)
+        tree.setUpdatesEnabled(True)
 
     def _on_library_item_activated(self, item: QTreeWidgetItem, _column: int) -> None:
         """Route library navigation actions to the appropriate browse view."""
@@ -443,11 +441,27 @@ class MainWindow(QMainWindow):
     def _update_refresh_indicator(self) -> None:
         """Refresh status-bar labels for worker state and last refresh time."""
         status = self.index_manager.refresh_status()
+        refresh_count = int(status.get("refresh_count") or 0)
         worker_running = bool(status.get("worker_running"))
+        refresh_in_progress = bool(status.get("refresh_in_progress"))
         interval = float(status.get("interval_seconds") or 0.0)
         last_refresh = status.get("last_refresh_at") or "--"
         skipped_count = int(status.get("skipped_count") or 0)
         worker_text = "running" if worker_running else "stopped"
+
+        if refresh_count != self._last_applied_refresh_count:
+            self._rebuild_library_tree()
+            self._last_applied_refresh_count = refresh_count
+            summary = self.index_manager.state
+            self.statusBar().showMessage(
+                "Refreshed: "
+                f"files={len(summary.file_corpus)} symbols={len(summary.symbols)} "
+                f"excel_rows={len(summary.excel_rows)} skipped={len(summary.skipped_files)}"
+            )
+
+        if refresh_in_progress:
+            worker_text = f"{worker_text}, indexing"
+
         self._auto_refresh_label.setText(f"Auto-Refresh: {worker_text} ({interval:.1f}s)")
         self._skipped_label.setText(f"Skipped: {skipped_count}")
         self._last_refresh_label.setText(f"Last Refresh: {last_refresh}")

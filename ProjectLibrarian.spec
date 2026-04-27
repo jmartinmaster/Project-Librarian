@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\main.py'],
+    ['C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\project_librarian\\Project-Librarian\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\ui\\forms', 'app\\ui\\forms'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\ui\\assets', 'app\\ui\\assets')],
+    datas=[('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\project_librarian\\Project-Librarian\\app\\ui\\forms', 'app\\ui\\forms'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\project_librarian\\Project-Librarian\\app\\ui\\assets', 'app\\ui\\assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -73,6 +73,10 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Observability enhancement complete: skipped-file count/status indicator and skipped-file listing added.
 - [x] Documentation/licensing complete: repository README added, packaging dependency docs refreshed, and GPLv3 headers added to authored files.
 - [x] UX enhancement complete: startup splash screen and About dialog added with PyQt6 attribution and startup indexing behavior note.
+- [x] Stability fix complete: startup no longer blocks on synchronous indexing; initial refresh now runs in the background.
+- [x] Stability fix complete: refresh status polling and manual refresh requests no longer block the UI thread during long indexing runs.
+- [x] Settings fix complete: refresh interval now accepts `0` to disable auto-refresh instead of clamping back to a positive value.
+- [x] UI fix complete: Indexed Library pane refreshes after background indexing even for larger result sets.
 - [ ] Next up: validate packaging outputs on native Windows and Ubuntu hosts.
 
 ## Phase Checklist
@@ -134,6 +138,10 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-04-18: Added skipped-file tracking (path/stage/reason), surfaced as status-bar count and Library pane section.
 - 2026-04-18: Added scope for README refresh, packaging dependency refresh, GPLv3 headers across authored files, and PyQt6 attribution in splash/About UX.
 - 2026-04-18: Added repository README, refreshed packaging requirements/docs, added splash/About attribution text, and applied GPLv3 headers across authored files except read-only reference modules.
+- 2026-04-27: Moved initial startup refresh off the UI thread by enabling immediate background worker refresh and UI auto-sync on refresh-count changes.
+- 2026-04-27: Reduced IndexManager refresh lock scope to state publication only, added non-blocking async manual refresh requests, and stopped automatic heavy UI refresh work after each background indexing cycle.
+- 2026-04-27: Allowed a zero-second refresh interval in SettingsDialog so users can disable auto-refresh through the UI and persist that value correctly.
+- 2026-04-27: Removed the Indexed Library auto-refresh size gate so completed background refreshes always repopulate the sidebar; tree updates are now wrapped with setUpdatesEnabled for less repaint churn.
 
 ## Out Of Scope (Initial Build)
 - MCP server and HTTP dashboard

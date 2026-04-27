@@ -52,8 +52,11 @@ class IndexManager:
         self.config = config
         self.state = IndexState(symbols=[], excel_rows=[], file_corpus={}, skipped_files=[])
         self._refresh_lock = threading.RLock()
+        self._refresh_run_lock = threading.Lock()
         self._worker_stop_event = threading.Event()
+        self._refresh_in_progress = threading.Event()
         self._worker_thread: threading.Thread | None = None
+        self._manual_refresh_thread: threading.Thread | None = None
         self._worker_interval_seconds = max(0.0, float(self.config.refresh_interval_seconds))
         self._last_refresh_at: str | None = None
         self._refresh_count = 0
@@ -67,13 +70,35 @@ class IndexManager:
         with self._refresh_lock:
             return {
                 "worker_running": self.is_refresh_worker_running(),
+                "refresh_in_progress": self._refresh_in_progress.is_set(),
                 "interval_seconds": self._worker_interval_seconds,
                 "last_refresh_at": self._last_refresh_at,
                 "refresh_count": self._refresh_count,
                 "skipped_count": len(self.state.skipped_files),
             }
 
-    def start_refresh_worker(self, interval_seconds: float | None = None, force_restart: bool = False) -> None:
+    def request_refresh_async(self) -> bool:
+        """Schedule one background refresh when no refresh is currently active."""
+        with self._refresh_lock:
+            if self._refresh_in_progress.is_set():
+                return False
+            if self._manual_refresh_thread is not None and self._manual_refresh_thread.is_alive():
+                return False
+
+            self._manual_refresh_thread = threading.Thread(
+                target=self.refresh,
+                name="librarian-refresh-request",
+                daemon=True,
+            )
+            self._manual_refresh_thread.start()
+            return True
+
+    def start_refresh_worker(
+        self,
+        interval_seconds: float | None = None,
+        force_restart: bool = False,
+        run_immediately: bool = False,
+    ) -> None:
         """Start (or restart) the background refresh worker with a safe interval."""
         configured_interval = (
             max(0.0, float(interval_seconds))
@@ -92,7 +117,12 @@ class IndexManager:
             self.stop_refresh_worker()
 
         self._worker_stop_event.clear()
-        self._worker_thread = threading.Thread(target=self._worker_loop, name="librarian-refresh-worker", daemon=True)
+        self._worker_thread = threading.Thread(
+            target=self._worker_loop,
+            kwargs={"run_immediately": run_immediately},
+            name="librarian-refresh-worker",
+            daemon=True,
+        )
         self._worker_thread.start()
 
     def stop_refresh_worker(self, join_timeout: float = 2.0) -> None:
@@ -103,8 +133,15 @@ class IndexManager:
         if worker is not None and worker.is_alive():
             worker.join(timeout=max(0.0, float(join_timeout)))
 
-    def _worker_loop(self) -> None:
+    def _worker_loop(self, run_immediately: bool = False) -> None:
         """Run periodic refresh cycles until stopped."""
+        if run_immediately and not self._worker_stop_event.is_set():
+            try:
+                self.refresh()
+            except Exception:
+                # Keep worker alive despite transient refresh errors.
+                pass
+
         while not self._worker_stop_event.wait(timeout=self._worker_interval_seconds):
             try:
                 self.refresh()
@@ -151,48 +188,59 @@ class IndexManager:
 
     def refresh(self) -> IndexState:
         """Rebuild all configured indexes and persist snapshot artifacts."""
-        with self._refresh_lock:
-            repo_root = self._repo_root()
-            output_dir = self._output_dir()
-            skipped_files: list[dict[str, str]] = []
+        with self._refresh_run_lock:
+            self._refresh_in_progress.set()
+            try:
+                repo_root = self._repo_root()
+                output_dir = self._output_dir()
+                skipped_files: list[dict[str, str]] = []
 
-            symbols: list[dict[str, object]] = []
-            if self.config.index_python:
-                symbols.extend(index_python_symbols(repo_root, skipped_files=skipped_files))
-            if self.config.index_c:
-                symbols.extend(index_c_symbols(repo_root, skipped_files=skipped_files))
+                symbols: list[dict[str, object]] = []
+                if self.config.index_python:
+                    symbols.extend(index_python_symbols(repo_root, skipped_files=skipped_files))
+                if self.config.index_c:
+                    symbols.extend(index_c_symbols(repo_root, skipped_files=skipped_files))
 
-            excel_rows: list[dict[str, object]] = []
-            if self.config.excel_folder:
-                excel_rows = index_excel_rows(
-                    folder_path=(repo_root / self.config.excel_folder).resolve(),
-                    keyword_columns=self.config.excel_keyword_columns,
+                excel_rows: list[dict[str, object]] = []
+                if self.config.excel_folder:
+                    excel_rows = index_excel_rows(
+                        folder_path=(repo_root / self.config.excel_folder).resolve(),
+                        keyword_columns=self.config.excel_keyword_columns,
+                        skipped_files=skipped_files,
+                    )
+
+                file_corpus = self._build_file_corpus(repo_root=repo_root, skipped_files=skipped_files)
+                next_state = IndexState(
+                    symbols=symbols,
+                    excel_rows=excel_rows,
+                    file_corpus=file_corpus,
                     skipped_files=skipped_files,
                 )
-
-            file_corpus = self._build_file_corpus(repo_root=repo_root, skipped_files=skipped_files)
-            self.state = IndexState(symbols=symbols, excel_rows=excel_rows, file_corpus=file_corpus, skipped_files=skipped_files)
-
-            generated_at = datetime.now(timezone.utc).isoformat()
-            self._last_refresh_at = generated_at
-            self._refresh_count += 1
-            snapshot = {
-                "generated_at": generated_at,
-                "repo_root": str(repo_root),
-                "summary": {
+                generated_at = datetime.now(timezone.utc).isoformat()
+                summary = {
                     "files": len(file_corpus),
                     "symbols": len(symbols),
                     "excel_rows": len(excel_rows),
                     "skipped_files": len(skipped_files),
-                },
-                "symbols": symbols,
-                "skipped_files": skipped_files,
-            }
+                }
+                snapshot = {
+                    "generated_at": generated_at,
+                    "repo_root": str(repo_root),
+                    "summary": summary,
+                    "symbols": symbols,
+                    "skipped_files": skipped_files,
+                }
 
-            (output_dir / SNAPSHOT_NAME).write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
-            (output_dir / CORPUS_NAME).write_text(json.dumps(file_corpus), encoding="utf-8")
-            history_line = json.dumps({"generated_at": generated_at, "summary": snapshot["summary"]}, ensure_ascii=True)
-            with (output_dir / HISTORY_NAME).open("a", encoding="utf-8") as handle:
-                handle.write(history_line + "\n")
+                (output_dir / SNAPSHOT_NAME).write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+                (output_dir / CORPUS_NAME).write_text(json.dumps(file_corpus), encoding="utf-8")
+                history_line = json.dumps({"generated_at": generated_at, "summary": summary}, ensure_ascii=True)
+                with (output_dir / HISTORY_NAME).open("a", encoding="utf-8") as handle:
+                    handle.write(history_line + "\n")
 
-            return self.state
+                with self._refresh_lock:
+                    self.state = next_state
+                    self._last_refresh_at = generated_at
+                    self._refresh_count += 1
+                    return self.state
+            finally:
+                self._refresh_in_progress.clear()

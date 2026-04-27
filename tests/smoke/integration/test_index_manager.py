@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
@@ -73,6 +74,99 @@ def test_refresh_worker_stops_safely(monkeypatch, app_config):
     time.sleep(0.12)
     assert counter["calls"] == calls_after_stop
     assert not manager.is_refresh_worker_running()
+
+
+def test_refresh_worker_can_run_immediately(monkeypatch, app_config):
+    manager = IndexManager(app_config)
+    counter = {"calls": 0}
+
+    def fake_refresh():
+        counter["calls"] += 1
+        return manager.state
+
+    monkeypatch.setattr(manager, "refresh", fake_refresh)
+
+    manager.start_refresh_worker(interval_seconds=1.0, run_immediately=True)
+    time.sleep(0.05)
+    manager.stop_refresh_worker(join_timeout=1.0)
+
+    assert counter["calls"] >= 1
+
+
+def test_refresh_worker_immediate_run_does_not_block_main_thread(monkeypatch, app_config):
+    manager = IndexManager(app_config)
+    main_thread_id = threading.get_ident()
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+    observed_thread_ids: list[int] = []
+
+    def fake_refresh():
+        observed_thread_ids.append(threading.get_ident())
+        refresh_started.set()
+        release_refresh.wait(timeout=1.0)
+        return manager.state
+
+    monkeypatch.setattr(manager, "refresh", fake_refresh)
+
+    start = time.perf_counter()
+    manager.start_refresh_worker(interval_seconds=1.0, run_immediately=True)
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 0.1
+    assert refresh_started.wait(timeout=0.2)
+    assert observed_thread_ids
+    assert observed_thread_ids[0] != main_thread_id
+
+    release_refresh.set()
+    manager.stop_refresh_worker(join_timeout=1.0)
+
+
+def test_refresh_status_does_not_wait_for_background_refresh(monkeypatch, app_config):
+    manager = IndexManager(app_config)
+    release_refresh = threading.Event()
+
+    def fake_repo_root():
+        release_refresh.wait(timeout=1.0)
+        return Path(app_config.project_root)
+
+    monkeypatch.setattr(manager, "_repo_root", fake_repo_root)
+
+    manager.start_refresh_worker(interval_seconds=1.0, run_immediately=True)
+    time.sleep(0.05)
+
+    start = time.perf_counter()
+    status = manager.refresh_status()
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 0.1
+    assert status["worker_running"] is True
+
+    release_refresh.set()
+    manager.stop_refresh_worker(join_timeout=1.0)
+
+
+def test_request_refresh_async_returns_without_blocking(monkeypatch, app_config):
+    manager = IndexManager(app_config)
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+
+    def fake_refresh():
+        refresh_started.set()
+        release_refresh.wait(timeout=1.0)
+        return manager.state
+
+    monkeypatch.setattr(manager, "refresh", fake_refresh)
+
+    start = time.perf_counter()
+    started = manager.request_refresh_async()
+    elapsed = time.perf_counter() - start
+
+    assert started is True
+    assert elapsed < 0.1
+    assert refresh_started.wait(timeout=0.2)
+
+    release_refresh.set()
+    time.sleep(0.05)
 
 
 def test_refresh_status_tracks_last_refresh_and_count(app_config):

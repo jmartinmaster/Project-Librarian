@@ -71,7 +71,7 @@ class SettingsDialog(QDialog):
 
         self._load_ui()
 
-        self.refresh_spin.setRange(1, 3600)
+        self.refresh_spin.setRange(0, 3600)
         self.refresh_spin.setValue(config.refresh_interval_seconds)
         self.index_python_check.setChecked(config.index_python)
         self.index_c_check.setChecked(config.index_c)

@@ -102,15 +102,18 @@ def main() -> int:
     splash = _show_startup_splash(app, config, app_icon)
 
     manager = IndexManager(config=config)
-    splash.showMessage("Refreshing in-memory index...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter, QColor("#2f261f"))
+    splash.showMessage(
+        "Launching UI and starting background indexing...",
+        Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
+        QColor("#2f261f"),
+    )
     app.processEvents()
-    manager.refresh()
     app.aboutToQuit.connect(manager.stop_refresh_worker)
 
     window = MainWindow(index_manager=manager)
-    manager.start_refresh_worker()
     window.show()
     splash.finish(window)
+    manager.start_refresh_worker(run_immediately=True)
     return app.exec()
 
 

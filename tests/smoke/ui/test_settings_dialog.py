@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.config import AppConfig
 from app.ui.settings_dialog import SettingsDialog
 
@@ -47,3 +49,23 @@ def test_settings_dialog_add_remove_extension_and_excluded_dir(qtbot):
     added_excluded.setSelected(True)
     dialog._remove_excluded_dir()
     assert dialog.excluded_list.count() == initial_excluded
+
+
+def test_settings_dialog_allows_zero_refresh_interval(monkeypatch, qtbot, tmp_path: Path):
+    config = AppConfig(refresh_interval_seconds=30)
+    dialog = SettingsDialog(config)
+    qtbot.addWidget(dialog)
+
+    written = {}
+
+    def fake_save_config(saved_config):
+        written["interval"] = saved_config.refresh_interval_seconds
+        return tmp_path / "config.json"
+
+    monkeypatch.setattr("app.ui.settings_dialog.save_config", fake_save_config)
+
+    dialog.refresh_spin.setValue(0)
+    dialog._save_and_accept()
+
+    assert config.refresh_interval_seconds == 0
+    assert written["interval"] == 0

@@ -19,12 +19,14 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 
 from PyQt6.QtWidgets import QCheckBox, QLabel, QLineEdit, QMenu, QTreeWidget
 
 from app import build_about_text
-from app.indexer.index_manager import IndexManager
+from app.indexer.index_manager import IndexManager, IndexState
 from app.ui.main_window import MainWindow
 
 
@@ -159,3 +161,54 @@ def test_library_double_click_opens_file(monkeypatch, qtbot, app_config):
 
     window._on_library_item_double_clicked(target_item, 0)
     assert opened.get("path") == "sample.py"
+
+
+def test_main_window_refresh_requests_background_refresh(monkeypatch, qtbot, app_config):
+    manager = IndexManager(app_config)
+    window = MainWindow(manager)
+    qtbot.addWidget(window)
+
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+
+    def fake_refresh():
+        refresh_started.set()
+        release_refresh.wait(timeout=1.0)
+        return manager.state
+
+    monkeypatch.setattr(manager, "refresh", fake_refresh)
+
+    start = time.perf_counter()
+    window._refresh_index()
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 0.1
+    assert refresh_started.wait(timeout=0.2)
+    assert "Refreshing index in background" in window.statusBar().currentMessage()
+
+    release_refresh.set()
+    time.sleep(0.05)
+
+
+def test_main_window_rebuilds_library_tree_for_large_refresh_results(qtbot, app_config):
+    manager = IndexManager(app_config)
+    window = MainWindow(manager)
+    qtbot.addWidget(window)
+
+    manager.state = IndexState(
+        file_corpus={f"src/file_{index}.py": "print('x')" for index in range(55)},
+        symbols=[
+            {"name": f"symbol_{index}", "kind": "function", "path": f"src/file_{index % 55}.py", "line": index + 1}
+            for index in range(312)
+        ],
+        excel_rows=[],
+        skipped_files=[],
+    )
+    manager._refresh_count = 1
+
+    window._update_refresh_indicator()
+
+    library_tree = window.findChild(QTreeWidget, "libraryTree")
+    assert library_tree is not None
+    assert library_tree.topLevelItem(0).text(0) == "Files (55)"
+    assert library_tree.topLevelItem(1).text(0) == "Symbols (312)"
