@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (C) 2026 Project Librarian contributors
+
+This file is part of Project Librarian.
+
+Project Librarian is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Project Librarian is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
+-->
+<ui version="4.0">
+ <class>AntiPatternBrowser</class>
+ <widget class="QWidget" name="AntiPatternBrowser">
+  <layout class="QHBoxLayout" name="horizontalLayout">
+   <item>
+    <widget class="QSplitter" name="mainSplitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QWidget" name="presetsPanel" native="true">
+      <property name="maximumSize">
+       <size>
+        <width>320</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <layout class="QVBoxLayout" name="presetsLayout">
+       <item>
+        <widget class="QLabel" name="presetsLabel">
+         <property name="text">
+          <string>Anti-Pattern Presets</string>
+         </property>
+         <property name="font">
+          <font>
+           <bold>true</bold>
+          </font>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="presetsList"/>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="presetButtonsLayout">
+         <item>
+          <widget class="QPushButton" name="addButton">
+           <property name="text">
+            <string>Add</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="deleteButton">
+           <property name="text">
+            <string>Delete</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>10</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QLabel" name="scopeLabel">
+         <property name="text">
+          <string>Scan Scope</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="scopeCombo"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="pathFilter">
+         <property name="placeholderText">
+          <string>Path filter (e.g. app/)</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="scanButton">
+         <property name="text">
+          <string>Scan Workspace</string>
+         </property>
+         <property name="font">
+          <font>
+           <bold>true</bold>
+          </font>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QSplitter" name="resultsSplitter">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <widget class="QTableWidget" name="resultsTable"/>
+      <widget class="QPlainTextEdit" name="previewPane"/>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

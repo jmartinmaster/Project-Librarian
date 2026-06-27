@@ -46,6 +46,8 @@ from app.indexer.index_manager import IndexManager
 from app.ui.excel_browser import ExcelBrowser
 from app.ui.search_browser import SearchBrowser
 from app.ui.settings_dialog import SettingsDialog
+from app.ui.anti_pattern_browser import AntiPatternBrowser
+from app.ui.diagnostics_browser import DiagnosticsBrowser
 
 
 class MainWindow(QMainWindow):
@@ -72,6 +74,8 @@ class MainWindow(QMainWindow):
         self._last_applied_refresh_count = -1
         self.search_browser = SearchBrowser(index_manager=self.index_manager)
         self.excel_browser = ExcelBrowser(index_manager=self.index_manager)
+        self.anti_pattern_browser = AntiPatternBrowser(index_manager=self.index_manager)
+        self.diagnostics_browser = DiagnosticsBrowser(index_manager=self.index_manager)
         self._load_ui()
         self._build_ui()
         self._build_menu()
@@ -100,6 +104,8 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         self._tabs.addTab(self.search_browser, "Search Browser")
         self._tabs.addTab(self.excel_browser, "Excel Library")
+        self._tabs.addTab(self.anti_pattern_browser, "Code Audit")
+        self._tabs.addTab(self.diagnostics_browser, "Diagnostics")
         self.setCentralWidget(self._tabs)
         self._build_library_pane()
         self._rebuild_library_tree()

@@ -34,6 +34,48 @@ from pathlib import Path
 from typing import Any
 
 
+def safe_rmtree(path: Path) -> None:
+    """Recursively delete a directory, handling read-only files and Windows locking issues."""
+    import stat
+    import time
+
+    if not path.exists():
+        return
+
+    def onerror(func, p, exc_info):
+        # Clear read-only attribute and retry
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except Exception:
+            pass
+
+    for attempt in range(5):
+        try:
+            shutil.rmtree(path, onerror=onerror)
+            if not path.exists():
+                return
+        except Exception:
+            pass
+        time.sleep(0.2)
+
+    # Final attempt: shell command force delete
+    if path.exists():
+        if platform.system() == "Windows":
+            try:
+                subprocess.run(["cmd.exe", "/c", "rd", "/s", "/q", str(path)], capture_output=True)
+            except Exception:
+                pass
+        else:
+            try:
+                subprocess.run(["rm", "-rf", str(path)], capture_output=True)
+            except Exception:
+                pass
+
+    if path.exists():
+        raise PermissionError(f"Could not remove directory: {path}. It might be locked by another process.")
+
+
 class BuildConfig:
     """Configuration for build operations."""
 
@@ -129,7 +171,7 @@ class WindowsBuilder:
         if not exe_file.exists():
             raise RuntimeError(f"PyInstaller failed: {exe_file} not created")
 
-        print(f"\n✓ Windows EXE build complete: {exe_dir}")
+        print(f"\n[OK] Windows EXE build complete: {exe_dir}")
         print(f"  Executable: {exe_file}")
         return exe_dir
 
@@ -154,7 +196,7 @@ class WindowsBuilder:
         print("\n[2/3] Cleaning previous build files...")
         for path in [self.config.dist_dir, self.config.build_dir, self.config.pyinstaller_tmp]:
             if path.exists():
-                shutil.rmtree(path)
+                safe_rmtree(path)
                 print(f"  Removed: {path}")
 
     def _run_pyinstaller(self) -> None:
@@ -224,13 +266,13 @@ class DebBuilder:
             # Build DEB package
             deb_file = self._build_deb_package(deb_root)
 
-            print(f"\n✓ Ubuntu DEB build complete: {deb_file}")
+            print(f"\n[OK] Ubuntu DEB build complete: {deb_file}")
             return deb_file
 
         finally:
             # Preserve DEB file before cleanup
             if self.temp_dir and self.temp_dir.exists():
-                shutil.rmtree(self.temp_dir)
+                safe_rmtree(self.temp_dir)
 
     def _install_packaging_deps(self) -> None:
         """Install PyInstaller and related dependencies."""
@@ -259,7 +301,7 @@ class DebBuilder:
         # Clean previous builds
         for path in [self.config.dist_dir, self.config.build_dir, self.config.pyinstaller_tmp]:
             if path.exists():
-                shutil.rmtree(path)
+                safe_rmtree(path)
 
         # Run PyInstaller
         cmd = [
@@ -494,7 +536,7 @@ class BuildOrchestrator:
             try:
                 results["windows"] = self.build_windows()
             except Exception as e:
-                print(f"✗ Windows build failed: {e}")
+                print(f"[ERROR] Windows build failed: {e}")
                 return results
 
         # Build DEB on Linux
@@ -503,7 +545,7 @@ class BuildOrchestrator:
             try:
                 results["deb"] = self.build_deb()
             except Exception as e:
-                print(f"✗ DEB build failed: {e}")
+                print(f"[ERROR] DEB build failed: {e}")
                 if "dpkg-deb" in str(e):
                     print("  Install dpkg-dev: sudo apt-get install dpkg-dev")
                 return results
@@ -555,9 +597,9 @@ def main() -> int:
             print("\n[CLEAN] Removing build artifacts...")
             for path in [config.dist_dir, config.build_dir, config.pyinstaller_tmp]:
                 if path.exists():
-                    shutil.rmtree(path)
+                    safe_rmtree(path)
                     print(f"  Removed: {path}")
-            print("✓ Clean complete")
+            print("[OK] Clean complete")
             return 0
 
         orchestrator = BuildOrchestrator(config)
@@ -578,18 +620,18 @@ def main() -> int:
             print("BUILD SUMMARY")
             print("=" * 70)
             for platform_name, artifact_path in results.items():
-                print(f"✓ {platform_name.upper()}: {artifact_path}")
+                print(f"[OK] {platform_name.upper()}: {artifact_path}")
             print("=" * 70 + "\n")
             return 0
         else:
-            print("\n✗ No builds completed successfully")
+            print("\n[ERROR] No builds completed successfully")
             return 1
 
     except KeyboardInterrupt:
-        print("\n✗ Build cancelled by user")
+        print("\n[ERROR] Build cancelled by user")
         return 1
     except Exception as e:
-        print(f"\n✗ Build failed: {e}")
+        print(f"\n[ERROR] Build failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
