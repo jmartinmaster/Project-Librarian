@@ -43,6 +43,7 @@ class AppConfig:
     index_c: bool = True
     excel_folder: str = ""
     excel_keyword_columns: list[str] = field(default_factory=list)
+    external_editor_cmd: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary for the current config."""

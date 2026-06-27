@@ -26,7 +26,7 @@ from pathlib import Path
 
 from PyQt6 import uic
 from PyQt6.QtCore import QPoint, Qt, QUrl
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QColor, QDesktopServices
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -55,6 +55,7 @@ from app.services.anti_pattern_service import (
     load_anti_pattern_config,
     save_anti_pattern_config,
 )
+from app.ui.editor_launcher import launch_editor
 
 
 class PresetDialog(QDialog):
@@ -239,7 +240,7 @@ class AntiPatternBrowser(QWidget):
             output_candidate = Path(self.index_manager.config.output_dir)
             repo_root = Path(self.index_manager.config.project_root or Path.cwd()).resolve()
             output_dir = output_candidate if output_candidate.is_absolute() else repo_root / output_candidate
-            _save_anti_pattern_config(output_dir, {"presets": self.presets})
+            save_anti_pattern_config(output_dir, {"presets": self.presets})
             
             self.load_presets()
 
@@ -329,7 +330,20 @@ class AntiPatternBrowser(QWidget):
             self.results_table.setItem(row, 0, QTableWidgetItem(str(item.get("path", ""))))
             self.results_table.setItem(row, 1, QTableWidgetItem(str(item.get("line", ""))))
             self.results_table.setItem(row, 2, QTableWidgetItem(str(item.get("preset_name", ""))))
-            self.results_table.setItem(row, 3, QTableWidgetItem(str(item.get("severity", ""))))
+            
+            severity = str(item.get("severity", "")).lower()
+            severity_item = QTableWidgetItem(severity)
+            if severity == "error":
+                severity_item.setBackground(QColor("#fce8e6"))
+                severity_item.setForeground(QColor("#a51d24"))
+            elif severity == "warning":
+                severity_item.setBackground(QColor("#fef7e0"))
+                severity_item.setForeground(QColor("#b06000"))
+            elif severity == "info":
+                severity_item.setBackground(QColor("#e8f0fe"))
+                severity_item.setForeground(QColor("#1a73e8"))
+            
+            self.results_table.setItem(row, 3, severity_item)
             self.results_table.setItem(row, 4, QTableWidgetItem(str(item.get("match", ""))))
             self.results_table.setItem(row, 5, QTableWidgetItem(str(item.get("content", ""))))
 
@@ -353,27 +367,73 @@ class AntiPatternBrowser(QWidget):
 
     def _on_results_context_menu(self, position: QPoint) -> None:
         row = self.results_table.rowAt(position.y())
-        if row < 0 or row >= len(self._last_results):
-            return
-
-        self.results_table.selectRow(row)
-        result = self._last_results[row]
-        path_text = str(result.get("path", "")).strip()
+        has_selection = (0 <= row < len(self._last_results))
 
         menu = QMenu(self)
-        open_action = menu.addAction("Open File")
-        copy_path_action = menu.addAction("Copy Path")
-        copy_ref_action = menu.addAction("Copy Reference Location")
-        menu.setDefaultAction(copy_path_action)
+        open_action = None
+        copy_path_action = None
+        copy_ref_action = None
+
+        if has_selection:
+            self.results_table.selectRow(row)
+            result = self._last_results[row]
+            path_text = str(result.get("path", "")).strip()
+
+            open_action = menu.addAction("Open File")
+            copy_path_action = menu.addAction("Copy Path")
+            copy_ref_action = menu.addAction("Copy Reference Location")
+            menu.addSeparator()
+
+        export_csv_action = menu.addAction("Export All Results to CSV...")
+        export_csv_action.setEnabled(len(self._last_results) > 0)
 
         selected = menu.exec(self.results_table.viewport().mapToGlobal(position))
-        if selected == open_action:
+        if not selected:
+            return
+
+        if selected == open_action and has_selection:
             self._open_result_file(result)
-        elif selected == copy_path_action:
+        elif selected == copy_path_action and has_selection:
             QApplication.clipboard().setText(path_text)
-        elif selected == copy_ref_action:
+        elif selected == copy_ref_action and has_selection:
             line_str = str(result.get("line", ""))
             QApplication.clipboard().setText(f"{path_text}:{line_str}")
+        elif selected == export_csv_action:
+            self.export_results_to_csv()
+
+    def export_results_to_csv(self) -> None:
+        """Prompt user for a file location and export all scan results to CSV."""
+        from PyQt6.QtWidgets import QFileDialog
+        import csv
+
+        if not self._last_results:
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Results to CSV",
+            "",
+            "CSV Files (*.csv);;All Files (*)",
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["File", "Line", "Preset Name", "Severity", "Match", "Content"])
+                for item in self._last_results:
+                    writer.writerow([
+                        item.get("path", ""),
+                        item.get("line", ""),
+                        item.get("preset_name", ""),
+                        item.get("severity", ""),
+                        item.get("match", ""),
+                        item.get("content", ""),
+                    ])
+            QMessageBox.information(self, "Export Successful", f"Successfully exported {len(self._last_results)} results to:\n{file_path}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Export Failed", f"Failed to export results: {exc}")
 
     def _open_result_file(self, item: dict[str, object]) -> None:
         path_text = str(item.get("path", "")).strip()
@@ -384,6 +444,12 @@ class AntiPatternBrowser(QWidget):
             repo_root = Path(self.index_manager.config.project_root or Path.cwd()).resolve()
             candidate = (repo_root / candidate).resolve()
         if candidate.exists():
+            line = item.get("line")
+            line_number = int(line) if line is not None and str(line).isdigit() else None
+            
+            if launch_editor(candidate, line_number, self.index_manager.config):
+                return
+                
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(candidate)))
 
     def _render_result(self, item: dict[str, object]) -> None:

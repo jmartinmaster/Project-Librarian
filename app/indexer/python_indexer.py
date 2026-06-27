@@ -105,7 +105,7 @@ def _module_symbols(
 def index_python_symbols(repo_root: Path, skipped_files: list[dict[str, str]] | None = None) -> list[dict[str, object]]:
     """Index Python symbols for all source files beneath repo_root."""
     symbols: list[dict[str, object]] = []
-    for path in sorted(repo_root.rglob("*.py")):
+    for path in repo_root.rglob("*.py"):
         if any(part.startswith(".") for part in path.parts):
             continue
         if "tests" in path.parts:

@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QHBoxLayout,
     QHeaderView,
     QLineEdit,
     QMenu,
@@ -41,6 +42,7 @@ from PyQt6.QtWidgets import (
 
 from app.indexer.index_manager import IndexManager
 from app.search.search_engine import search_snapshot
+from app.ui.editor_launcher import launch_editor
 
 
 class SearchBrowser(QWidget):
@@ -70,7 +72,8 @@ class SearchBrowser(QWidget):
         search_button = self.findChild(QPushButton, "searchButton")
         results_table = self.findChild(QTableWidget, "resultsTable")
         preview_pane = self.findChild(QPlainTextEdit, "previewPane")
-        if any(widget is None for widget in [query_input, scope_combo, changed_only, search_button, results_table, preview_pane]):
+        controls_layout = self.findChild(QHBoxLayout, "controlsLayout")
+        if any(widget is None for widget in [query_input, scope_combo, changed_only, search_button, results_table, preview_pane, controls_layout]):
             raise RuntimeError("Search browser UI is missing required widgets.")
 
         self.query_input = query_input
@@ -79,6 +82,7 @@ class SearchBrowser(QWidget):
         self.search_button = search_button
         self.results_table = results_table
         self.preview_pane = preview_pane
+        self.controls_layout = controls_layout
 
     def _build_ui(self) -> None:
         self.scope_combo.addItems(["all", "files", "symbols", "excel"])
@@ -105,9 +109,21 @@ class SearchBrowser(QWidget):
         self.results_table.cellDoubleClicked.connect(self._on_result_double_clicked)
         self.results_table.customContextMenuRequested.connect(self._on_results_context_menu)
 
+        self.match_case = QCheckBox("Match Case", self)
+        self.match_case.setObjectName("matchCase")
+        self.use_regex = QCheckBox("Use Regex", self)
+        self.use_regex.setObjectName("useRegex")
+        self.match_case.stateChanged.connect(self.run_search)
+        self.use_regex.stateChanged.connect(self.run_search)
+        self.controls_layout.addWidget(self.match_case)
+        self.controls_layout.addWidget(self.use_regex)
+
     def run_search(self) -> None:
         """Execute a search over in-memory indexes and populate the table."""
         query = self.query_input.text().strip()
+        match_case = self.match_case.isChecked() if hasattr(self, "match_case") else False
+        use_regex = self.use_regex.isChecked() if hasattr(self, "use_regex") else False
+
         results = search_snapshot(
             file_corpus=self.index_manager.state.file_corpus,
             symbols=self.index_manager.state.symbols,
@@ -115,6 +131,8 @@ class SearchBrowser(QWidget):
             query=query,
             scope=self.scope_combo.currentText(),
             limit=100,
+            match_case=match_case,
+            use_regex=use_regex,
         )
         self._last_results = results
 
@@ -164,39 +182,75 @@ class SearchBrowser(QWidget):
         self._open_result_file(self._last_results[row])
 
     def _on_results_context_menu(self, position: QPoint) -> None:
-        """Show result context menu with open/copy actions."""
+        """Show result context menu with open/copy/export actions."""
         row = self.results_table.rowAt(position.y())
-        if row < 0 or row >= len(self._last_results):
-            return
-
-        self.results_table.selectRow(row)
-        result = self._last_results[row]
-        path_text = str(result.get("path", "")).strip()
-        reference = self._reference_location(result)
+        has_selection = (0 <= row < len(self._last_results))
 
         menu = QMenu(self)
-        open_action = menu.addAction("Open File")
-        menu.addSeparator()
-        copy_path_action = menu.addAction("Copy Path")
-        copy_reference_action = menu.addAction("Copy Reference Location")
-        menu.setDefaultAction(copy_path_action)
+        open_action = None
+        copy_path_action = None
+        copy_ref_action = None
 
-        if not path_text:
-            open_action.setEnabled(False)
-            copy_path_action.setEnabled(False)
-            copy_reference_action.setEnabled(False)
+        if has_selection:
+            self.results_table.selectRow(row)
+            result = self._last_results[row]
+            path_text = str(result.get("path", "")).strip()
+            reference = self._reference_location(result)
+
+            open_action = menu.addAction("Open File")
+            copy_path_action = menu.addAction("Copy Path")
+            copy_ref_action = menu.addAction("Copy Reference Location")
+            menu.addSeparator()
+
+        export_csv_action = menu.addAction("Export All Results to CSV...")
+        export_csv_action.setEnabled(len(self._last_results) > 0)
 
         selected = menu.exec(self.results_table.viewport().mapToGlobal(position))
-        if selected is None:
+        if not selected:
             return
-        if selected == open_action:
+
+        if selected == open_action and has_selection:
             self._open_result_file(result)
-            return
-        if selected == copy_path_action and path_text:
+        elif selected == copy_path_action and has_selection:
             QApplication.clipboard().setText(path_text)
-            return
-        if selected == copy_reference_action and reference:
+        elif selected == copy_ref_action and has_selection:
             QApplication.clipboard().setText(reference)
+        elif selected == export_csv_action:
+            self.export_results_to_csv()
+
+    def export_results_to_csv(self) -> None:
+        """Prompt user for a file location and export all search results to CSV."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        import csv
+
+        if not self._last_results:
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Search Results to CSV",
+            "",
+            "CSV Files (*.csv);;All Files (*)",
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Type", "File Type", "Path", "Line", "Title", "Preview"])
+                for item in self._last_results:
+                    writer.writerow([
+                        item.get("type", ""),
+                        item.get("file_type", ""),
+                        item.get("path", ""),
+                        item.get("line", ""),
+                        item.get("title", ""),
+                        item.get("preview", ""),
+                    ])
+            QMessageBox.information(self, "Export Successful", f"Successfully exported {len(self._last_results)} results to:\n{file_path}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Export Failed", f"Failed to export results: {exc}")
 
     def _resolve_path(self, path_text: str) -> Path | None:
         """Resolve index path to local filesystem path."""
@@ -214,6 +268,13 @@ class SearchBrowser(QWidget):
         resolved = self._resolve_path(path_text)
         if resolved is None or not resolved.exists():
             return
+        
+        line = item.get("line")
+        line_number = int(line) if line is not None and str(line).isdigit() else None
+        
+        if launch_editor(resolved, line_number, self.index_manager.config):
+            return
+
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(resolved)))
 
     def _reference_location(self, item: dict[str, object]) -> str:

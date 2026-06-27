@@ -95,7 +95,7 @@ def index_c_symbols(repo_root: Path, skipped_files: list[dict[str, str]] | None 
     """Index symbols from .c and .h files under repo_root."""
     parser = c_parser.CParser()
     symbols: list[dict[str, object]] = []
-    for path in sorted(repo_root.rglob("*")):
+    for path in repo_root.rglob("*"):
         if path.suffix.lower() not in {".c", ".h"}:
             continue
         if "build" in path.parts or "tests" in path.parts:

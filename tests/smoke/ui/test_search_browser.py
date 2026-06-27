@@ -77,6 +77,7 @@ def test_search_browser_double_click_opens_file(monkeypatch, qtbot, app_config):
         opened["path"] = Path(url.toLocalFile()).name
         return True
 
+    monkeypatch.setattr("app.ui.search_browser.launch_editor", lambda *args: False)
     monkeypatch.setattr("app.ui.search_browser.QDesktopServices.openUrl", fake_open_url)
 
     assert browser.results_table.rowCount() > 0

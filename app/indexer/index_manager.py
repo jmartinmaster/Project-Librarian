@@ -164,7 +164,7 @@ class IndexManager:
         allowed = {ext.lower() for ext in self.config.file_extensions}
         excluded = set(self.config.excluded_dirs)
 
-        for path in sorted(repo_root.rglob("*")):
+        for path in repo_root.rglob("*"):
             if not path.is_file():
                 continue
             if any(part in excluded for part in path.parts):

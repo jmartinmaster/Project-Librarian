@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
@@ -59,6 +60,7 @@ class SettingsDialog(QDialog):
         self.excluded_input: QLineEdit
         self.excel_folder_edit: QLineEdit
         self.excel_columns_list: QListWidget
+        self.external_editor_edit: QLineEdit
         self._button_box: QDialogButtonBox
         self._project_root_browse_button: QPushButton
         self._output_dir_browse_button: QPushButton
@@ -84,6 +86,7 @@ class SettingsDialog(QDialog):
         for item in config.excluded_dirs:
             self.excluded_list.addItem(QListWidgetItem(item))
         self.excel_folder_edit.setText(config.excel_folder)
+        self.external_editor_edit.setText(config.external_editor_cmd)
         self._wire_signals()
         self._load_excel_columns_from_config()
 
@@ -103,6 +106,15 @@ class SettingsDialog(QDialog):
         self.excluded_input = self._require_widget(QLineEdit, "excludedInput")
         self.excel_folder_edit = self._require_widget(QLineEdit, "excelFolderEdit")
         self.excel_columns_list = self._require_widget(QListWidget, "excelColumnsList")
+
+        self.generalForm = self.findChild(QFormLayout, "generalForm")
+        if self.generalForm is None:
+            raise RuntimeError("Settings dialog UI is missing required layout: generalForm")
+        
+        self.external_editor_edit = QLineEdit(self)
+        self.external_editor_edit.setObjectName("externalEditorEdit")
+        self.external_editor_edit.setPlaceholderText('e.g., code -g "{file}:{line}"')
+        self.generalForm.addRow("External Editor Command:", self.external_editor_edit)
 
         self._button_box = self._require_widget(QDialogButtonBox, "buttonBox")
         self._project_root_browse_button = self._require_widget(QPushButton, "projectRootBrowseButton")
@@ -193,6 +205,7 @@ class SettingsDialog(QDialog):
             for i in range(self.excel_columns_list.count())
             if self.excel_columns_list.item(i).checkState() == Qt.CheckState.Checked
         ]
+        self.config.external_editor_cmd = self.external_editor_edit.text().strip()
 
         save_config(self.config)
         self.accept()

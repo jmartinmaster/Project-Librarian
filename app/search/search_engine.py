@@ -34,49 +34,88 @@ def _file_type_from_path(path: str | None) -> str:
     return suffix.lower()
 
 
-def _best_preview_for_query(text: str, query: str, tokens: list[str]) -> tuple[int | None, str]:
+def _best_preview_for_query(
+    text: str, query: str, tokens: list[str], match_case: bool, pattern: re.Pattern | None
+) -> tuple[int | None, str]:
     """Return the most relevant line number and text snippet for a query."""
     for line_number, line in enumerate(text.splitlines(), start=1):
-        lowered = line.lower()
-        if query in lowered or all(token in lowered for token in tokens):
-            snippet = line.strip()
-            return line_number, snippet[:180]
+        if pattern is not None:
+            if pattern.search(line):
+                return line_number, line.strip()[:180]
+        else:
+            if match_case:
+                if query in line or all(token in line for token in tokens):
+                    return line_number, line.strip()[:180]
+            else:
+                lowered = line.lower()
+                if query in lowered or all(token in lowered for token in tokens):
+                    return line_number, line.strip()[:180]
 
     first = next((line.strip() for line in text.splitlines() if line.strip()), "")
     return (1 if first else None), first[:180]
 
 
-def _score_text_record(path: str, text: str, query: str, tokens: list[str]) -> int:
+def _score_text_record(
+    path: str, text: str, query: str, tokens: list[str], match_case: bool, pattern: re.Pattern | None
+) -> int:
     score = 0
-    lowered = text.lower()
-    path_lower = path.lower()
-    if query in path_lower:
+    if pattern is not None:
+        if pattern.search(path):
+            score += 80
+        if pattern.search(text):
+            score += 25
+        return score
+
+    h_path = path if match_case else path.lower()
+    h_text = text if match_case else text.lower()
+    q = query if match_case else query.lower()
+    t_tokens = tokens if match_case else [t.lower() for t in tokens]
+
+    if q in h_path:
         score += 80
-    if query in lowered:
+    if q in h_text:
         score += 25
-    for token in tokens:
-        if token in path_lower:
+    for token in t_tokens:
+        if token in h_path:
             score += 10
-        if token in lowered:
+        if token in h_text:
             score += 5
     return score
 
 
-def _score_symbol_record(symbol: dict[str, object], query: str, tokens: list[str]) -> int:
-    haystack = " ".join(
-        [
-            str(symbol.get("name", "")),
-            str(symbol.get("qualified_name", "")),
-            str(symbol.get("signature", "")),
-            str(symbol.get("path", "")),
-        ]
-    ).lower()
+def _score_symbol_record(
+    symbol: dict[str, object], query: str, tokens: list[str], match_case: bool, pattern: re.Pattern | None
+) -> int:
+    name = str(symbol.get("name", ""))
+    qualified_name = str(symbol.get("qualified_name", ""))
+    signature = str(symbol.get("signature", ""))
+    path = str(symbol.get("path", ""))
+
+    if pattern is not None:
+        score = 0
+        if pattern.search(qualified_name):
+            score += 90
+        elif pattern.search(name):
+            score += 60
+        elif pattern.search(signature) or pattern.search(path):
+            score += 10
+        return score
+
+    h_name = name if match_case else name.lower()
+    h_qual = qualified_name if match_case else qualified_name.lower()
+    h_sig = signature if match_case else signature.lower()
+    h_path = path if match_case else path.lower()
+    q = query if match_case else query.lower()
+    t_tokens = tokens if match_case else [t.lower() for t in tokens]
+
     score = 0
-    if query in str(symbol.get("qualified_name", "")).lower():
+    if q in h_qual:
         score += 90
-    if query in str(symbol.get("name", "")).lower():
+    if q in h_name:
         score += 60
-    for token in tokens:
+
+    haystack = " ".join([h_name, h_qual, h_sig, h_path])
+    for token in t_tokens:
         if token in haystack:
             score += 10
     return score
@@ -89,21 +128,32 @@ def search_snapshot(
     query: str,
     scope: str = "all",
     limit: int = 20,
+    match_case: bool = False,
+    use_regex: bool = False,
 ) -> list[dict[str, object]]:
     """Search indexed data and return ranked mixed-type records."""
-    query_text = query.strip().lower()
-    if not query_text:
+    if not query.strip():
         return []
 
-    tokens = [token.lower() for token in TOKEN_PATTERN.findall(query_text)] or [query_text]
+    pattern = None
+    if use_regex:
+        try:
+            flags = 0 if match_case else re.IGNORECASE
+            pattern = re.compile(query, flags)
+        except re.error:
+            pass  # Fall back to literal search
+
+    query_term = query if match_case else query.lower()
+    tokens = [token if match_case else token.lower() for token in TOKEN_PATTERN.findall(query)] or [query_term]
+
     results: list[dict[str, object]] = []
 
     if scope in {"all", "files"}:
         for path, text in file_corpus.items():
-            score = _score_text_record(path=path, text=text, query=query_text, tokens=tokens)
+            score = _score_text_record(path, text, query, tokens, match_case, pattern)
             if score <= 0:
                 continue
-            preview_line, preview = _best_preview_for_query(text=text, query=query_text, tokens=tokens)
+            preview_line, preview = _best_preview_for_query(text, query, tokens, match_case, pattern)
             results.append(
                 {
                     "type": "file",
@@ -117,7 +167,7 @@ def search_snapshot(
 
     if scope in {"all", "symbols"}:
         for symbol in symbols:
-            score = _score_symbol_record(symbol=symbol, query=query_text, tokens=tokens)
+            score = _score_symbol_record(symbol, query, tokens, match_case, pattern)
             if score <= 0:
                 continue
             results.append(
@@ -134,18 +184,31 @@ def search_snapshot(
 
     if scope in {"all", "excel"}:
         for row in excel_rows:
-            combined = " ".join([str(row.get("field", "")), str(row.get("value", "")), str(row.get("file", ""))]).lower()
-            if query_text not in combined and not all(token in combined for token in tokens):
-                continue
-            score = 55 + sum(5 for token in tokens if token in combined)
+            field_val = str(row.get("field", ""))
+            value_val = str(row.get("value", ""))
+            file_val = str(row.get("file", ""))
+
+            if pattern is not None:
+                if not (pattern.search(field_val) or pattern.search(value_val) or pattern.search(file_val)):
+                    continue
+                score = 65
+            else:
+                combined = " ".join([field_val, value_val, file_val])
+                if not match_case:
+                    combined = combined.lower()
+
+                if query_term not in combined and not all(token in combined for token in tokens):
+                    continue
+                score = 55 + sum(5 for token in tokens if token in combined)
+
             results.append(
                 {
                     "type": "excel",
-                    "file_type": _file_type_from_path(str(row.get("file", ""))),
-                    "path": row.get("file"),
+                    "file_type": _file_type_from_path(file_val),
+                    "path": file_val,
                     "line": row.get("row"),
-                    "title": row.get("field"),
-                    "preview": row.get("value"),
+                    "title": field_val,
+                    "preview": value_val,
                     "score": score,
                 }
             )

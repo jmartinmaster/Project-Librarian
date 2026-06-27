@@ -314,8 +314,8 @@ def supervisor_main() -> int:
             process = subprocess.Popen(
                 cmd,
                 env=env,
-                stdout=None,  # Live stream stdout to parent's stdout
-                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,  # Capture both channels
+                stderr=subprocess.STDOUT, # Merge stderr into stdout
                 text=True,
                 encoding="utf-8",
                 errors="replace",
@@ -326,42 +326,80 @@ def supervisor_main() -> int:
             show_crash_dialog(-1, f"Failed to start child process: {e}")
             return 1
             
-        stderr_lines = []
-        def read_stderr():
+        output_lines = []
+        def read_output():
             while True:
-                line = process.stderr.readline()
+                line = process.stdout.readline()
                 if not line:
                     break
                 sys.stderr.write(line)
                 sys.stderr.flush()
-                stderr_lines.append(line)
-                if len(stderr_lines) > 200:
-                    stderr_lines.pop(0)
+                output_lines.append(line)
+                if len(output_lines) > 200:
+                    output_lines.pop(0)
                     
-        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
-        stderr_thread.start()
+        output_thread = threading.Thread(target=read_output, daemon=True)
+        output_thread.start()
         
         exit_code = process.wait()
-        stderr_thread.join(timeout=2.0)
+        output_thread.join(timeout=2.0)
         
         if exit_code == 0:
             return 0
             
-        crash_log = "".join(stderr_lines)
+        crash_log = "".join(output_lines)
         should_restart = show_crash_dialog(exit_code, crash_log)
         if not should_restart:
             return exit_code
 
 
 if __name__ == "__main__":
+    target_script_to_analyze = None
+    analyze_duration = 0
+    analyze_interval = 0
+    analyze_headless = False
+    
+    if "--analyze-headless" in sys.argv:
+        analyze_headless = True
+        sys.argv.remove("--analyze-headless")
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        
+    if "--analyze-interval" in sys.argv:
+        idx = sys.argv.index("--analyze-interval")
+        if idx + 1 < len(sys.argv):
+            try:
+                analyze_interval = int(sys.argv.pop(idx + 1))
+            except ValueError:
+                pass
+            sys.argv.pop(idx)
+            
+    if "--analyze-duration" in sys.argv:
+        idx = sys.argv.index("--analyze-duration")
+        if idx + 1 < len(sys.argv):
+            try:
+                analyze_duration = int(sys.argv.pop(idx + 1))
+            except ValueError:
+                pass
+            sys.argv.pop(idx)
+            
+    if "--analyze" in sys.argv:
+        idx = sys.argv.index("--analyze")
+        if idx + 1 < len(sys.argv):
+            target_script_to_analyze = sys.argv.pop(idx + 1)
+            sys.argv.pop(idx)
+
+    is_profile_run = "--internal-profile-run" in sys.argv or target_script_to_analyze is not None
     bypass_supervisor = False
+    
     if "--no-supervisor" in sys.argv:
         bypass_supervisor = True
         sys.argv.remove("--no-supervisor")
     elif os.environ.get("PROJECT_LIBRARIAN_NO_SUPERVISOR") == "1":
         bypass_supervisor = True
-        
-    if bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1":
+
+    is_child = bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1" or is_profile_run
+
+    if is_child:
         # Restore sys.stdout and sys.stderr from file descriptors 1 and 2 if PyInstaller set them to None
         import io
         for fd, stream_name in ((1, "stdout"), (2, "stderr")):
@@ -404,6 +442,181 @@ if __name__ == "__main__":
             faulthandler.enable()
         except Exception:
             pass
+
+        # Install Qt message handler to catch qFatal() BEFORE we initialize the GUI
+        try:
+            from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
+            def custom_qt_msg_handler(msg_type, context, msg):
+                if msg_type == QtMsgType.QtFatalMsg:
+                    print(f"FATAL Qt Error: {msg}", file=sys.stderr)
+                    if context.file:
+                        print(f"  at {context.file}:{context.line}, function: {context.function}", file=sys.stderr)
+                    if sys.stderr:
+                        sys.stderr.flush()
+                    import os
+                    os._exit(1)
+                elif msg_type == QtMsgType.QtCriticalMsg:
+                    print(f"Critical Qt Error: {msg}", file=sys.stderr)
+                    if sys.stderr:
+                        sys.stderr.flush()
+            qInstallMessageHandler(custom_qt_msg_handler)
+        except Exception:
+            pass
+
+    if is_profile_run:
+        import tracemalloc
+        import gc
+        import json
+        import runpy
+        
+        tracemalloc.start(25)
+        
+        script_error = None
+        if target_script_to_analyze:
+            print(f"Starting memory profile for external script: {target_script_to_analyze}")
+            
+            for _ in range(3):
+                gc.collect()
+            baseline = tracemalloc.take_snapshot()
+            
+            cycles = 1
+            print(f"Executing target script (Duration: {analyze_duration}s)...")
+            
+            def run_target():
+                global script_error
+                try:
+                    script_dir = str(Path(target_script_to_analyze).resolve().parent)
+                    
+                    # Remove Project Librarian's root from sys.path to prevent module shadowing
+                    project_root = str(Path(__file__).resolve().parent)
+                    sys.path = [p for p in sys.path if str(Path(p).resolve()) != project_root]
+                    
+                    # Also completely scrub Project Librarian's 'app' package from sys.modules
+                    # since it was imported at the top of main.py
+                    for mod_name in list(sys.modules.keys()):
+                        if mod_name == "app" or mod_name.startswith("app."):
+                            del sys.modules[mod_name]
+                    
+                    sys.path.insert(0, script_dir)
+                    print(f"DEBUG: sys.executable={sys.executable}", file=sys.stderr)
+                    print(f"DEBUG: sys.path={sys.path}", file=sys.stderr)
+                    print(f"DEBUG: PYTHONPATH={os.environ.get('PYTHONPATH')}", file=sys.stderr)
+                    sys.stderr.flush()
+                    runpy.run_path(target_script_to_analyze, run_name="__main__")
+                except Exception as e:
+                    import traceback
+                    script_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+                    print(f"Script execution error:\n{script_error}", file=sys.stderr)
+
+            target_thread = threading.Thread(target=run_target, daemon=True)
+            target_thread.start()
+            
+            if analyze_interval > 0:
+                elapsed = 0
+                import time
+                from datetime import datetime
+                
+                while (analyze_duration == 0 or elapsed < analyze_duration) and target_thread.is_alive():
+                    sleep_time = min(analyze_interval, analyze_duration - elapsed) if analyze_duration > 0 else analyze_interval
+                    target_thread.join(timeout=sleep_time)
+                    elapsed += sleep_time
+                    
+                    if target_thread.is_alive() or elapsed >= analyze_duration:
+                        for _ in range(3):
+                            gc.collect()
+                        live_snap = tracemalloc.take_snapshot()
+                        live_kb = round(sum(s.size for s in live_snap.statistics("lineno")) / 1024, 2)
+                        
+                        live_payload = {
+                            "__profile_snapshot__": True,
+                            "name": f"snapshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                            "size_kb": live_kb
+                        }
+                        print(json.dumps(live_payload))
+                        sys.stdout.flush()
+            else:
+                if analyze_duration > 0:
+                    target_thread.join(timeout=analyze_duration)
+                else:
+                    target_thread.join()
+                
+            print("Execution period finished. Taking final snapshot...")
+        else:
+            from app.config import load_config
+            from app.indexer.index_manager import IndexManager
+            
+            print("Starting headless memory profile for IndexManager...")
+            config = load_config()
+            if not config.project_root:
+                config.project_root = str(Path.cwd())
+                
+            manager = IndexManager(config=config)
+            
+            # Warmup
+            try:
+                manager.refresh()
+            except Exception as e:
+                print(f"Warmup error: {e}", file=sys.stderr)
+                
+            for _ in range(3):
+                gc.collect()
+                
+            baseline = tracemalloc.take_snapshot()
+            
+            # Run some cycles
+            cycles = 3
+            print(f"Running {cycles} indexing cycles...")
+            try:
+                for _ in range(cycles):
+                    manager.refresh()
+            except Exception as e:
+                print(f"Profiling error: {e}", file=sys.stderr)
+            
+        for _ in range(3):
+            gc.collect()
+            
+        current = tracemalloc.take_snapshot()
+        stats = current.compare_to(baseline, "lineno")
+        
+        top_differences = []
+        for s in stats[:20]:
+            if s.size_diff > 0:
+                top_differences.append({
+                    "size_diff_kb": round(s.size_diff / 1024, 2),
+                    "size_kb": round(s.size / 1024, 2),
+                    "count_diff": s.count_diff,
+                    "count": s.count,
+                    "traceback": [str(frame) for frame in s.traceback],
+                })
+        
+        total_after_kb = round(sum(s.size for s in current.statistics("lineno")) / 1024, 2)
+        total_before_kb = round(sum(s.size for s in baseline.statistics("lineno")) / 1024, 2)
+        
+        result = {
+            "__profile_result__": True,
+            "cycles_run": cycles,
+            "total_allocated_before_kb": total_before_kb,
+            "total_allocated_after_kb": total_after_kb,
+            "size_growth_kb": round(total_after_kb - total_before_kb, 2),
+            "top_differences": top_differences,
+        }
+        
+        if script_error:
+            result["error"] = script_error
+        
+        print(json.dumps(result))
+        import sys
+        sys.stdout.flush()
+        
+        if target_script_to_analyze:
+            # Keep the main thread alive indefinitely so the daemon thread (and target GUI) remains active
+            import time
+            while True:
+                time.sleep(1)
+        else:
+            sys.exit(0)
+
+    if bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1":
         raise SystemExit(main())
     else:
         raise SystemExit(supervisor_main())

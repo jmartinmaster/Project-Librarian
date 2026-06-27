@@ -23,3 +23,4 @@ dist/
 *.spec
 .pytest_cache/
 .pyc
+.pyinstaller_tmp/
