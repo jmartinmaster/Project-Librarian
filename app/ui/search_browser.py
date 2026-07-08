@@ -41,8 +41,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from app.controllers.path_controller import PathController
+from app.controllers.search_controller import SearchController
 from app.indexer.index_manager import IndexManager
-from app.search.search_engine import search_snapshot
 from app.ui.editor_launcher import launch_editor
 from app.ui.path_utils import absolute_containing_folder
 
@@ -54,10 +55,14 @@ class SearchBrowser(QWidget):
         self,
         index_manager: IndexManager,
         open_file_callback: Callable[[Path, int | None], bool] | None = None,
+        controller: SearchController | None = None,
+        path_controller: PathController | None = None,
     ) -> None:
         super().__init__()
         self.index_manager = index_manager
         self._open_file_callback = open_file_callback
+        self._controller = controller or SearchController(index_manager=index_manager)
+        self._path_controller = path_controller or PathController(index_manager=index_manager)
         self.query_input: QLineEdit
         self.scope_combo: QComboBox
         self.changed_only: QCheckBox
@@ -131,10 +136,7 @@ class SearchBrowser(QWidget):
         match_case = self.match_case.isChecked() if hasattr(self, "match_case") else False
         use_regex = self.use_regex.isChecked() if hasattr(self, "use_regex") else False
 
-        results = search_snapshot(
-            file_corpus=self.index_manager.state.file_corpus,
-            symbols=self.index_manager.state.symbols,
-            excel_rows=self.index_manager.state.excel_rows,
+        results = self._controller.run_search(
             query=query,
             scope=self.scope_combo.currentText(),
             limit=100,
@@ -230,7 +232,6 @@ class SearchBrowser(QWidget):
     def export_results_to_csv(self) -> None:
         """Prompt user for a file location and export all search results to CSV."""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
-        import csv
 
         if not self._last_results:
             return
@@ -245,31 +246,14 @@ class SearchBrowser(QWidget):
             return
 
         try:
-            with open(file_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Type", "File Type", "Path", "Line", "Title", "Preview"])
-                for item in self._last_results:
-                    writer.writerow([
-                        item.get("type", ""),
-                        item.get("file_type", ""),
-                        item.get("path", ""),
-                        item.get("line", ""),
-                        item.get("title", ""),
-                        item.get("preview", ""),
-                    ])
+            self._controller.export_results_to_csv(self._last_results, file_path)
             QMessageBox.information(self, "Export Successful", f"Successfully exported {len(self._last_results)} results to:\n{file_path}")
         except Exception as exc:
             QMessageBox.critical(self, "Export Failed", f"Failed to export results: {exc}")
 
     def _resolve_path(self, path_text: str) -> Path | None:
         """Resolve index path to local filesystem path."""
-        if not path_text:
-            return None
-        candidate = Path(path_text)
-        if candidate.is_absolute():
-            return candidate
-        repo_root = Path(self.index_manager.config.project_root or Path.cwd())
-        return (repo_root / candidate).resolve()
+        return self._path_controller.resolve_path(path_text)
 
     def _open_result_file(self, item: dict[str, object]) -> None:
         """Open file path from a result row in the desktop shell."""
@@ -295,9 +279,9 @@ class SearchBrowser(QWidget):
         path_text = str(item.get("path", "")).strip()
         line = item.get("line")
         line_text = str(line).strip() if line is not None else ""
-        if path_text and line_text and line_text != "None":
-            return f"{path_text}:{line_text}"
-        return path_text
+        if line_text == "None":
+            line_text = ""
+        return self._path_controller.reference_location(path_text=path_text, line_text=line_text)
 
     def _render_result(self, item: dict[str, object]) -> None:
         """Render one result into the preview pane."""
@@ -330,17 +314,10 @@ class SearchBrowser(QWidget):
 
     def _line_context(self, path: str, line_number: int | None, fallback: str, title: str, context: int = 3) -> str:
         """Build a multi-line context preview from in-memory file corpus."""
-        source = self.index_manager.state.file_corpus.get(path, "")
-        lines = source.splitlines()
-        if not lines:
-            return "\n".join([f"Path: {path}", f"Title: {title}", f"Preview: {fallback}"])
-
-        resolved_line = max(1, line_number or 1)
-        start = max(1, resolved_line - context)
-        end = min(len(lines), resolved_line + context)
-
-        rendered = [f"Path: {path}", f"Line: {resolved_line}", ""]
-        for ln in range(start, end + 1):
-            marker = ">" if ln == resolved_line else " "
-            rendered.append(f"{marker} {ln:4d} | {lines[ln - 1]}")
-        return "\n".join(rendered)
+        return self._controller.line_context(
+            path=path,
+            line_number=line_number,
+            fallback=fallback,
+            title=title,
+            context=context,
+        )

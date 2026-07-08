@@ -19,9 +19,7 @@
 
 from __future__ import annotations
 
-import json
 import re
-import subprocess
 from pathlib import Path
 from typing import Callable
 
@@ -49,13 +47,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from app.controllers.anti_pattern_controller import AntiPatternController
 from app.indexer.index_manager import IndexManager
-from app.services.anti_pattern_service import (
-    ANTI_PATTERN_CONFIG_NAME,
-    DEFAULT_ANTI_PATTERNS,
-    load_anti_pattern_config,
-    save_anti_pattern_config,
-)
 from app.ui.editor_launcher import launch_editor
 from app.ui.path_utils import absolute_containing_folder
 
@@ -97,10 +90,12 @@ class AntiPatternBrowser(QWidget):
         self,
         index_manager: IndexManager,
         open_file_callback: Callable[[Path, int | None], bool] | None = None,
+        controller: AntiPatternController | None = None,
     ) -> None:
         super().__init__()
         self.index_manager = index_manager
         self._open_file_callback = open_file_callback
+        self._controller = controller or AntiPatternController(index_manager=index_manager)
         self.presets_list: QListWidget
         self.addButton: QPushButton
         self.deleteButton: QPushButton
@@ -183,12 +178,7 @@ class AntiPatternBrowser(QWidget):
 
     def load_presets(self) -> None:
         """Load presets config from output dir."""
-        output_candidate = Path(self.index_manager.config.output_dir)
-        repo_root = Path(self.index_manager.config.project_root or Path.cwd()).resolve()
-        output_dir = output_candidate if output_candidate.is_absolute() else repo_root / output_candidate
-        
-        config = load_anti_pattern_config(output_dir)
-        self.presets = config.get("presets", [])
+        self.presets = self._controller.load_presets()
         
         self.presets_list.clear()
         for p in self.presets:
@@ -208,11 +198,7 @@ class AntiPatternBrowser(QWidget):
             updated.append(p)
         self.presets = updated
 
-        output_candidate = Path(self.index_manager.config.output_dir)
-        repo_root = Path(self.index_manager.config.project_root or Path.cwd()).resolve()
-        output_dir = output_candidate if output_candidate.is_absolute() else repo_root / output_candidate
-        
-        save_anti_pattern_config(output_dir, {"presets": self.presets})
+        self._controller.save_presets(self.presets)
 
     def add_preset(self) -> None:
         """Open PresetDialog and add a new anti-pattern preset definition."""
@@ -243,11 +229,7 @@ class AntiPatternBrowser(QWidget):
             
             self.save_presets()
             self.presets.append(preset)
-            
-            output_candidate = Path(self.index_manager.config.output_dir)
-            repo_root = Path(self.index_manager.config.project_root or Path.cwd()).resolve()
-            output_dir = output_candidate if output_candidate.is_absolute() else repo_root / output_candidate
-            save_anti_pattern_config(output_dir, {"presets": self.presets})
+            self._controller.save_presets(self.presets)
             
             self.load_presets()
 
@@ -277,58 +259,18 @@ class AntiPatternBrowser(QWidget):
             QMessageBox.information(self, "No Active Presets", "No active anti-pattern presets configured.")
             return
 
-        compiled = []
-        for p in active_presets:
-            try:
-                compiled.append((p, re.compile(p["regex"])))
-            except re.error:
-                continue
-
         scope = self.scope_combo.currentText()
         filter_text = self.path_filter.text().strip().lower()
 
-        changed_paths = set()
-        if scope == "changed":
-            try:
-                repo_root = Path(self.index_manager.config.project_root or Path.cwd()).resolve()
-                import sys
-                extra = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
-                res = subprocess.run(
-                    ["git", "status", "--porcelain"],
-                    cwd=str(repo_root),
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    **extra
-                )
-                for line in res.stdout.splitlines():
-                    if len(line) > 3:
-                        changed_paths.add(line[3:].strip().replace("\\", "/"))
-            except Exception as e:
-                QMessageBox.warning(self, "Git Error", f"Unable to fetch changed files via git status: {e}")
-
-        results = []
-        corpus = self.index_manager.state.file_corpus
-        for rel_path, file_text in corpus.items():
-            normalized_path = rel_path.replace("\\", "/")
-            if filter_text and filter_text not in normalized_path.lower():
-                continue
-            if scope == "changed" and normalized_path not in changed_paths:
-                continue
-
-            lines = file_text.splitlines()
-            for line_idx, line in enumerate(lines, start=1):
-                for preset, pattern in compiled:
-                    for match in pattern.finditer(line):
-                        results.append({
-                            "path": rel_path,
-                            "line": line_idx,
-                            "match": match.group(0),
-                            "preset_name": preset["name"],
-                            "description": preset["description"],
-                            "severity": preset["severity"],
-                            "content": line.strip(),
-                        })
+        try:
+            results = self._controller.run_scan(
+                presets=active_presets,
+                scope=scope,
+                filter_text=filter_text,
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "Scan Error", f"Unable to run anti-pattern scan: {e}")
+            return
 
         self._last_results = results
         self.results_table.clearContents()
@@ -406,14 +348,13 @@ class AntiPatternBrowser(QWidget):
                 QApplication.clipboard().setText(folder_path)
         elif selected == copy_ref_action and has_selection:
             line_str = str(result.get("line", ""))
-            QApplication.clipboard().setText(f"{path_text}:{line_str}")
+            QApplication.clipboard().setText(self._controller.reference_location(path_text=path_text, line_text=line_str))
         elif selected == export_csv_action:
             self.export_results_to_csv()
 
     def export_results_to_csv(self) -> None:
         """Prompt user for a file location and export all scan results to CSV."""
         from PyQt6.QtWidgets import QFileDialog
-        import csv
 
         if not self._last_results:
             return
@@ -428,18 +369,7 @@ class AntiPatternBrowser(QWidget):
             return
 
         try:
-            with open(file_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(["File", "Line", "Preset Name", "Severity", "Match", "Content"])
-                for item in self._last_results:
-                    writer.writerow([
-                        item.get("path", ""),
-                        item.get("line", ""),
-                        item.get("preset_name", ""),
-                        item.get("severity", ""),
-                        item.get("match", ""),
-                        item.get("content", ""),
-                    ])
+            self._controller.export_results_to_csv(self._last_results, file_path)
             QMessageBox.information(self, "Export Successful", f"Successfully exported {len(self._last_results)} results to:\n{file_path}")
         except Exception as exc:
             QMessageBox.critical(self, "Export Failed", f"Failed to export results: {exc}")
@@ -448,10 +378,9 @@ class AntiPatternBrowser(QWidget):
         path_text = str(item.get("path", "")).strip()
         if not path_text:
             return
-        candidate = Path(path_text)
-        if not candidate.is_absolute():
-            repo_root = Path(self.index_manager.config.project_root or Path.cwd()).resolve()
-            candidate = (repo_root / candidate).resolve()
+        candidate = self._controller.resolve_result_path(path_text)
+        if candidate is None:
+            return
         if candidate.exists():
             line = item.get("line")
             line_number = int(line) if line is not None and str(line).isdigit() else None
@@ -469,10 +398,7 @@ class AntiPatternBrowser(QWidget):
         path = str(item.get("path", ""))
         line = item.get("line")
         line_number = int(line) if str(line).isdigit() else None
-        
-        source = self.index_manager.state.file_corpus.get(path, "")
-        lines = source.splitlines()
-        
+
         rendered = [
             f"Rule: {item.get('preset_name')}",
             f"Severity: {item.get('severity')}",
@@ -482,15 +408,12 @@ class AntiPatternBrowser(QWidget):
             f"Match Text: {item.get('match')}",
             "",
         ]
-        
-        if lines and line_number is not None:
-            context = 4
-            start = max(1, line_number - context)
-            end = min(len(lines), line_number + context)
-            for ln in range(start, end + 1):
-                marker = ">" if ln == line_number else " "
-                rendered.append(f"{marker} {ln:4d} | {lines[ln - 1]}")
-        else:
-            rendered.append(f"Content: {item.get('content')}")
+        context_text = self._controller.line_context(
+            path=path,
+            line_number=line_number,
+            fallback_content=f"Content: {item.get('content')}",
+            context=4,
+        )
+        rendered.append(context_text)
             
         self.preview_pane.setPlainText("\n".join(rendered))

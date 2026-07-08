@@ -40,8 +40,8 @@ from PyQt6.QtWidgets import (
 )
 import sys
 import re
-import subprocess
 
+from app.controllers.diagnostics_controller import DiagnosticsController
 from app.indexer.index_manager import IndexManager
 from app.services.diagnostics_service import DiagnosticsService
 
@@ -50,19 +50,14 @@ class PipInstallWorker(QThread):
     """Worker thread to run pip install asynchronously."""
     finished_signal = pyqtSignal(bool, str)
 
-    def __init__(self, package_name: str) -> None:
+    def __init__(self, package_name: str, controller: DiagnosticsController) -> None:
         super().__init__()
         self.package_name = package_name
+        self._controller = controller
 
     def run(self) -> None:
-        try:
-            cmd = [sys.executable, "-m", "pip", "install", self.package_name]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            self.finished_signal.emit(True, result.stdout)
-        except subprocess.CalledProcessError as e:
-            self.finished_signal.emit(False, e.stderr)
-        except Exception as e:
-            self.finished_signal.emit(False, str(e))
+        success, message = self._controller.install_package(self.package_name)
+        self.finished_signal.emit(success, message)
 
 
 class MemoryChartWidget(QWidget):
@@ -228,6 +223,7 @@ class DiagnosticsBrowser(QWidget):
     def __init__(self, index_manager: IndexManager) -> None:
         super().__init__()
         self.index_manager = index_manager
+        self._controller = DiagnosticsController()
         
         self.status_label: QLabel
         self.start_tracing_btn: QPushButton
@@ -659,17 +655,7 @@ class DiagnosticsBrowser(QWidget):
             return
 
         try:
-            import csv
-            with open(file_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Diff Size (KB)", "Total Size (KB)", "Count Diff", "Location"])
-                for diff in self._last_comparison_results:
-                    writer.writerow([
-                        diff.get("size_diff_kb", 0.0),
-                        diff.get("size_kb", 0.0),
-                        diff.get("count_diff", 0),
-                        diff.get("traceback", "unknown"),
-                    ])
+            self._controller.export_comparison_to_csv(self._last_comparison_results, file_path)
             QMessageBox.information(
                 self,
                 "Export Successful",
@@ -854,7 +840,7 @@ class DiagnosticsBrowser(QWidget):
                         progress.setCancelButton(None)
                         progress.show()
                         
-                        self.install_worker = PipInstallWorker(pkg_to_install)
+                        self.install_worker = PipInstallWorker(pkg_to_install, self._controller)
                         def on_install_finished(success: bool, msg: str):
                             progress.accept()
                             if success:

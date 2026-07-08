@@ -62,7 +62,7 @@ def test_settings_dialog_allows_zero_refresh_interval(monkeypatch, qtbot, tmp_pa
         written["interval"] = saved_config.refresh_interval_seconds
         return tmp_path / "config.json"
 
-    monkeypatch.setattr("app.ui.settings_dialog.save_config", fake_save_config)
+    monkeypatch.setattr("app.controllers.settings_controller.save_config", fake_save_config)
 
     dialog.refresh_spin.setValue(0)
     dialog._save_and_accept()

@@ -87,6 +87,11 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Root coherence fix complete: Integrations, MVC Editor, and MCP runtime now share the same Librarian project root, and project-root changes propagate across running integrations.
 - [x] Native MVC shell integration complete: embedded MVC tab now drops standalone menu/toolbar/workspace tree/console chrome so Librarian controls and tree remain the single primary navigation shell.
 - [x] Windows packaging update complete: build scripts now emit a single-file `ProjectLibrarian.exe`, with Windows config/output defaults under `%LOCALAPPDATA%\\Project Librarian`.
+- [ ] Phase 11 started: full MVC-compliance refactor planning and staged execution.
+- [x] Phase 11 task 1 complete: baseline MVC boundary audit finished and extraction map prepared.
+- [x] Phase 11 task 2 complete: `app/controllers/` skeleton added with pass-through wiring in main/search/excel/anti-pattern/diagnostics flows.
+- [ ] Next up: Phase 11 task 3 - view decoupling sweep to move remaining business logic out of `app/ui/*`.
+- [ ] Deferred until after Phase 11 gate: validate packaging outputs on native Windows and Ubuntu hosts.
 
 ## Phase Checklist
 - [x] Phase 1: Scaffolding and baseline project config
@@ -99,11 +104,45 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Phase 8: Smoke tests and AI-assisted generation flow
 - [x] Phase 9: Plan and documentation finalization
 - [ ] Phase 10: Cross-platform packaging and branding
+- [ ] Phase 11: Full MVC compliance refactor (model/view/controller separation + utility extraction)
+
+## Phase 11 Implementation Plan (One Task At A Time)
+### Goal
+- Complete migration to strict MVC boundaries where view widgets render and emit intent only, controllers orchestrate workflows, and model/services own business/data logic.
+
+### Sequenced Tasks
+1. Baseline MVC boundary audit
+   - Inventory business logic currently inside `app/ui/*`.
+   - Identify orchestration logic currently mixed between `main.py`, `app/ui/main_window.py`, and widget classes.
+   - Produce extraction map for Search, Library navigation, Anti-pattern scan, Diagnostics, and Settings workflows.
+2. Controller layer skeleton
+   - Add `app/controllers/` package and typed controller contracts.
+   - Create controller modules for search workflow, library navigation workflow, anti-pattern audit workflow, diagnostics workflow, and app lifecycle/settings workflow.
+   - Keep existing behavior unchanged while wiring pass-through delegation.
+3. View decoupling pass
+   - Refactor each UI widget to delegate business actions to controllers.
+   - Restrict view code to UI binding, state display, and signal forwarding.
+   - Remove direct non-view concerns from widgets (filesystem/git/process/domain logic).
+4. Model/service normalization pass
+   - Keep domain/data logic in model-side modules (`app/indexer/`, `app/search/`, `app/config.py`, and service/util packages).
+   - Extract shared utility helpers for path resolution, export operations, and error/report formatting where reused by multiple controllers.
+   - Enforce no PyQt dependencies in model/service utilities.
+5. Smoke test migration and stabilization
+   - Update smoke tests under `tests/smoke/` to validate behavior via controller seams and retained UI contracts.
+   - Adjust tests affected by dependency injection/controller wiring changes.
+   - Run full smoke suite and close regressions before marking the phase complete.
+
+### Phase 11 Exit Criteria
+- No business/domain logic remains embedded in view widgets.
+- Controllers own orchestration paths for Search, Library, Anti-pattern, Diagnostics, and Settings.
+- Smoke tests pass with updated coverage for controller-driven behavior.
+- `docs/PLAN.md` checklist and decisions log updated with completed migration notes.
 
 ## Architecture (MVC)
-- Model: app/config.py, app/indexer/, app/search/search_engine.py
-- View: app/ui/ widgets and dialogs
-- Controller: app/indexer/index_manager.py and app/ui/main_window.py orchestration
+- Model: `app/config.py`, `app/indexer/`, `app/search/`, and domain-oriented service/util modules with no Qt dependencies
+- View: `app/ui/` widgets/dialogs/.ui forms for rendering, user input capture, and signal emission only
+- Controller (target): `app/controllers/` workflow orchestrators and app lifecycle coordination
+- Controller (transition): `app/indexer/index_manager.py` and `app/ui/main_window.py` orchestration being migrated to `app/controllers/`
 - Runtime rule: main.py loads index data through IndexManager and retains state.file_corpus, state.symbols, and state.excel_rows in RAM for query operations.
 
 ## Directory Layout Target
@@ -165,6 +204,11 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-07-08: Removed independent integrations root behavior by treating project root as the single shared root for MVC + MCP, added root-change callback wiring in main window, and switched folder picker to non-native dialog mode to avoid Windows COM dialog crashes.
 - 2026-07-08: Applied full native integration mode to MVC tab by suppressing standalone shell surfaces and inheriting host tab theming to keep Librarian as the single unified interface shell.
 - 2026-07-08: Switched Windows packaging to PyInstaller one-file output and moved Windows runtime config/artifact defaults to `%LOCALAPPDATA%\\Project Librarian` for portable executable relocation without adjacent support folders.
+- 2026-07-08: Re-prioritized roadmap to execute a dedicated Phase 11 full MVC-compliance refactor in sequenced slices before final packaging validation.
+- 2026-07-08: Completed Phase 11 Task 1 boundary audit and confirmed controller extraction priorities in this order: Search, Main Window/Library, Anti-pattern, Diagnostics, Settings/Lifecycle.
+- 2026-07-08: Completed Phase 11 Task 2 by introducing `app/controllers/` seams and delegating key workflows from views to controller pass-through methods.
+- 2026-07-08: Advanced Phase 11 Task 3 with broader view decoupling in Search/Main/Excel/Anti-pattern/Settings by routing workflow logic through dedicated controllers.
+- 2026-07-08: Continued Phase 11 Task 3 by moving CSV export and anti-pattern scan orchestration out of views and into controller methods.
 
 ## Out Of Scope (Initial Build)
 - REPL and CLI parity with legacy script

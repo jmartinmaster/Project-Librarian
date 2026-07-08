@@ -38,8 +38,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from app.config import AppConfig, save_config
-from app.indexer.excel_indexer import discover_headers, list_excel_files
+from app.controllers.settings_controller import SettingsController
+from app.config import AppConfig
 
 
 class SettingsDialog(QDialog):
@@ -48,6 +48,7 @@ class SettingsDialog(QDialog):
     def __init__(self, config: AppConfig, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.config = config
+        self._controller = SettingsController()
 
         self.project_root_edit: QLineEdit
         self.output_dir_edit: QLineEdit
@@ -171,25 +172,11 @@ class SettingsDialog(QDialog):
 
     def _load_excel_columns_from_disk(self) -> None:
         self.excel_columns_list.clear()
-        folder_text = self.excel_folder_edit.text().strip()
-        folder_path = Path(folder_text)
-        if not folder_path.exists():
-            return
-
-        seen: set[str] = set()
-        skipped_files: list[dict[str, str]] = []
-        for file_path in list_excel_files(folder_path):
-            try:
-                headers = discover_headers(file_path, skipped_files=skipped_files)
-            except Exception:
-                headers = []
-            for header in headers:
-                if header in seen:
-                    continue
-                seen.add(header)
-                item = QListWidgetItem(header)
-                item.setCheckState(Qt.CheckState.Unchecked)
-                self.excel_columns_list.addItem(item)
+        headers = self._controller.discover_excel_columns(self.excel_folder_edit.text())
+        for header in headers:
+            item = QListWidgetItem(header)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self.excel_columns_list.addItem(item)
 
     def _save_and_accept(self) -> None:
         self.config.project_root = self.project_root_edit.text().strip()
@@ -207,7 +194,7 @@ class SettingsDialog(QDialog):
         ]
         self.config.external_editor_cmd = self.external_editor_edit.text().strip()
 
-        save_config(self.config)
+        self._controller.persist_config(self.config)
         self.accept()
 
     def _add_extension(self) -> None:

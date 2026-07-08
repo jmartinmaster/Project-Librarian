@@ -41,7 +41,8 @@ from PyQt6.QtWidgets import (
 )
 
 from app import APP_NAME, build_about_text
-from app.config import save_config
+from app.controllers.main_window_controller import MainWindowController
+from app.controllers.path_controller import PathController
 from app.indexer.index_manager import IndexManager
 from app.ui.excel_browser import ExcelBrowser
 from app.ui.search_browser import SearchBrowser
@@ -58,9 +59,16 @@ from app.services.mcp_server_manager import MCPServerManager
 class MainWindow(QMainWindow):
     """Top-level application window with primary tabs."""
 
-    def __init__(self, index_manager: IndexManager) -> None:
+    def __init__(
+        self,
+        index_manager: IndexManager,
+        controller: MainWindowController | None = None,
+        path_controller: PathController | None = None,
+    ) -> None:
         super().__init__()
         self.index_manager = index_manager
+        self._controller = controller or MainWindowController(index_manager=index_manager)
+        self._path_controller = path_controller or PathController(index_manager=index_manager)
         self._tabs: QTabWidget
         self._action_refresh_index: QAction
         self._action_preferences: QAction
@@ -168,7 +176,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(self, f"About {APP_NAME}", build_about_text())
 
     def _refresh_index(self) -> None:
-        started = self.index_manager.request_refresh_async()
+        started = self._controller.request_refresh()
         if started:
             self.statusBar().showMessage("Refreshing index in background...")
         else:
@@ -439,9 +447,7 @@ class MainWindow(QMainWindow):
             return ""
         path_text = str(payload.get("path", "")).strip()
         line_text = str(payload.get("line", "")).strip()
-        if path_text and line_text:
-            return f"{path_text}:{line_text}"
-        return path_text
+        return self._path_controller.reference_location(path_text=path_text, line_text=line_text)
 
     def _open_path(self, path_text: str) -> None:
         """Open a file path in the embedded MVC editor if it exists."""
@@ -466,22 +472,14 @@ class MainWindow(QMainWindow):
 
     def _resolve_path(self, path_text: str) -> Path | None:
         """Resolve relative index path against configured project root."""
-        if not path_text:
-            return None
-        candidate = Path(path_text)
-        if candidate.is_absolute():
-            return candidate
-        repo_root = Path(self.index_manager.config.project_root or Path.cwd())
-        return (repo_root / candidate).resolve()
+        return self._path_controller.resolve_path(path_text)
 
     def _open_settings(self) -> None:
         dialog = SettingsDialog(self.index_manager.config, self)
         if dialog.exec():
-            save_config(self.index_manager.config)
             self._on_project_root_changed(self.index_manager.config.project_root)
             self.integrations_browser.sync_from_config()
-            self.index_manager.start_refresh_worker(force_restart=True)
-            self._action_auto_refresh.setChecked(self.index_manager.is_refresh_worker_running())
+            self._action_auto_refresh.setChecked(self._controller.restart_auto_refresh())
             self._refresh_index()
 
     def _on_project_root_changed(self, project_root: str) -> None:
@@ -498,16 +496,12 @@ class MainWindow(QMainWindow):
 
     def _toggle_auto_refresh(self, enabled: bool) -> None:
         """Enable or disable interval-based auto-refresh worker."""
-        if enabled:
-            self.index_manager.start_refresh_worker(force_restart=True)
-        else:
-            self.index_manager.stop_refresh_worker()
-        self._action_auto_refresh.setChecked(self.index_manager.is_refresh_worker_running())
+        self._action_auto_refresh.setChecked(self._controller.toggle_auto_refresh(enabled))
         self._update_refresh_indicator()
 
     def _update_refresh_indicator(self) -> None:
         """Refresh status-bar labels for worker state and last refresh time."""
-        status = self.index_manager.refresh_status()
+        status = self._controller.refresh_status()
         refresh_count = int(status.get("refresh_count") or 0)
         worker_running = bool(status.get("worker_running"))
         refresh_in_progress = bool(status.get("refresh_in_progress"))
@@ -542,6 +536,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         """Stop background workers before window teardown."""
         self._status_timer.stop()
-        self.index_manager.stop_refresh_worker()
+        self._controller.stop_worker()
         self.mcp_server_manager.stop()
         super().closeEvent(event)

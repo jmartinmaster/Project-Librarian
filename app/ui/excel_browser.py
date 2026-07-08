@@ -30,15 +30,17 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from app.controllers.excel_controller import ExcelController
 from app.indexer.index_manager import IndexManager
 
 
 class ExcelBrowser(QWidget):
     """Widget for filtering in-memory Excel keyword row records."""
 
-    def __init__(self, index_manager: IndexManager) -> None:
+    def __init__(self, index_manager: IndexManager, controller: ExcelController | None = None) -> None:
         super().__init__()
         self.index_manager = index_manager
+        self._controller = controller or ExcelController(index_manager=index_manager)
         self.query_input: QLineEdit
         self.filter_button: QPushButton
         self.results_table: QTableWidget
@@ -69,16 +71,7 @@ class ExcelBrowser(QWidget):
 
     def run_filter(self) -> None:
         """Filter loaded Excel rows currently stored in memory."""
-        needle = self.query_input.text().strip().lower()
-        rows = self.index_manager.state.excel_rows
-        if needle:
-            rows = [
-                item
-                for item in rows
-                if needle in " ".join(
-                    [str(item.get("file", "")), str(item.get("field", "")), str(item.get("value", ""))]
-                ).lower()
-            ]
+        rows = self._controller.filter_rows(self.query_input.text())
 
         self.results_table.setRowCount(len(rows))
         for row_index, item in enumerate(rows):
