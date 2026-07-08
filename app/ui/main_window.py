@@ -48,6 +48,11 @@ from app.ui.search_browser import SearchBrowser
 from app.ui.settings_dialog import SettingsDialog
 from app.ui.anti_pattern_browser import AntiPatternBrowser
 from app.ui.diagnostics_browser import DiagnosticsBrowser
+from app.ui.mvc_editor_tab import MVCEditorTab
+from app.ui.workspace_browser import WorkspaceBrowser
+from app.ui.integrations_browser import IntegrationsBrowser
+from app.ui.path_utils import absolute_containing_folder
+from app.services.mcp_server_manager import MCPServerManager
 
 
 class MainWindow(QMainWindow):
@@ -72,10 +77,25 @@ class MainWindow(QMainWindow):
         self._library_tree: QTreeWidget
         self._status_timer = QTimer(self)
         self._last_applied_refresh_count = -1
-        self.search_browser = SearchBrowser(index_manager=self.index_manager)
+        self._last_reported_refresh_error = ""
+        self.mcp_server_manager = MCPServerManager(index_manager=self.index_manager)
+        self.search_browser = SearchBrowser(
+            index_manager=self.index_manager,
+            open_file_callback=self._open_in_mvc_editor,
+        )
         self.excel_browser = ExcelBrowser(index_manager=self.index_manager)
-        self.anti_pattern_browser = AntiPatternBrowser(index_manager=self.index_manager)
+        self.anti_pattern_browser = AntiPatternBrowser(
+            index_manager=self.index_manager,
+            open_file_callback=self._open_in_mvc_editor,
+        )
         self.diagnostics_browser = DiagnosticsBrowser(index_manager=self.index_manager)
+        self.mvc_editor_tab = MVCEditorTab(workspace_root=self.index_manager.config.project_root)
+        self.workspace_browser = WorkspaceBrowser(index_manager=self.index_manager)
+        self.integrations_browser = IntegrationsBrowser(
+            config=self.index_manager.config,
+            mcp_manager=self.mcp_server_manager,
+            on_project_root_changed=self._on_project_root_changed,
+        )
         self._load_ui()
         self._build_ui()
         self._build_menu()
@@ -106,9 +126,15 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self.excel_browser, "Excel Library")
         self._tabs.addTab(self.anti_pattern_browser, "Code Audit")
         self._tabs.addTab(self.diagnostics_browser, "Diagnostics")
+        self._tabs.addTab(self.mvc_editor_tab, "MVC Editor")
+        self._tabs.addTab(self.workspace_browser, "Workspace Tools")
+        self._tabs.addTab(self.integrations_browser, "Integrations")
         self.setCentralWidget(self._tabs)
         self._build_library_pane()
         self._rebuild_library_tree()
+        if self.index_manager.config.mcp_autostart:
+            self.mcp_server_manager.start()
+            self.integrations_browser.refresh_status("Auto-start enabled")
 
         icon_path = Path(__file__).resolve().parent / "assets" / "library_icon.svg"
         if icon_path.exists():
@@ -371,7 +397,8 @@ class MainWindow(QMainWindow):
         reference = self._payload_reference(payload)
 
         menu = QMenu(self)
-        open_action = menu.addAction("Open File")
+        open_action = menu.addAction("Open in MVC Editor")
+        open_external_action = menu.addAction("Open Externally")
         menu.addSeparator()
         copy_path_action = menu.addAction("Copy Path")
         copy_reference_action = menu.addAction("Copy Reference Location")
@@ -379,6 +406,7 @@ class MainWindow(QMainWindow):
 
         if not path_text:
             open_action.setEnabled(False)
+            open_external_action.setEnabled(False)
             copy_path_action.setEnabled(False)
             copy_reference_action.setEnabled(False)
 
@@ -388,8 +416,13 @@ class MainWindow(QMainWindow):
         if selected == open_action:
             self._open_path(path_text)
             return
+        if selected == open_external_action:
+            self._open_path_external(path_text)
+            return
         if selected == copy_path_action and path_text:
-            QApplication.clipboard().setText(path_text)
+            folder_path = absolute_containing_folder(path_text, self.index_manager.config.project_root or Path.cwd())
+            if folder_path:
+                QApplication.clipboard().setText(folder_path)
             return
         if selected == copy_reference_action and reference:
             QApplication.clipboard().setText(reference)
@@ -411,11 +444,25 @@ class MainWindow(QMainWindow):
         return path_text
 
     def _open_path(self, path_text: str) -> None:
+        """Open a file path in the embedded MVC editor if it exists."""
+        resolved = self._resolve_path(path_text)
+        if resolved is None or not resolved.exists():
+            return
+        self._open_in_mvc_editor(resolved)
+
+    def _open_path_external(self, path_text: str) -> None:
         """Open a file path in the desktop shell if it exists."""
         resolved = self._resolve_path(path_text)
         if resolved is None or not resolved.exists():
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(resolved)))
+
+    def _open_in_mvc_editor(self, path: Path, line_number: int | None = None) -> bool:
+        """Open a file path in the embedded MVC editor and focus that tab."""
+        opened = self.mvc_editor_tab.open_file(path, line_number=line_number)
+        if opened:
+            self._tabs.setCurrentWidget(self.mvc_editor_tab)
+        return opened
 
     def _resolve_path(self, path_text: str) -> Path | None:
         """Resolve relative index path against configured project root."""
@@ -431,9 +478,23 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self.index_manager.config, self)
         if dialog.exec():
             save_config(self.index_manager.config)
+            self._on_project_root_changed(self.index_manager.config.project_root)
+            self.integrations_browser.sync_from_config()
             self.index_manager.start_refresh_worker(force_restart=True)
             self._action_auto_refresh.setChecked(self.index_manager.is_refresh_worker_running())
             self._refresh_index()
+
+    def _on_project_root_changed(self, project_root: str) -> None:
+        """Synchronize all root-dependent integrations to the active library root."""
+        normalized = str(Path(project_root or Path.cwd()).resolve())
+        self.index_manager.config.project_root = normalized
+        self.mvc_editor_tab.set_workspace_root(normalized)
+        if self.mcp_server_manager.is_running():
+            self.mcp_server_manager.stop()
+            started, message = self.mcp_server_manager.start()
+            self.integrations_browser.refresh_status(
+                "MCP restarted for updated root" if started else f"MCP restart failed: {message}"
+            )
 
     def _toggle_auto_refresh(self, enabled: bool) -> None:
         """Enable or disable interval-based auto-refresh worker."""
@@ -453,6 +514,7 @@ class MainWindow(QMainWindow):
         interval = float(status.get("interval_seconds") or 0.0)
         last_refresh = status.get("last_refresh_at") or "--"
         skipped_count = int(status.get("skipped_count") or 0)
+        last_refresh_error = str(status.get("last_refresh_error") or "")
         worker_text = "running" if worker_running else "stopped"
 
         if refresh_count != self._last_applied_refresh_count:
@@ -471,6 +533,9 @@ class MainWindow(QMainWindow):
         self._auto_refresh_label.setText(f"Auto-Refresh: {worker_text} ({interval:.1f}s)")
         self._skipped_label.setText(f"Skipped: {skipped_count}")
         self._last_refresh_label.setText(f"Last Refresh: {last_refresh}")
+        if last_refresh_error and last_refresh_error != self._last_reported_refresh_error:
+            self.statusBar().showMessage(f"Refresh failed: {last_refresh_error}")
+        self._last_reported_refresh_error = last_refresh_error
         if hasattr(self, "_action_auto_refresh"):
             self._action_auto_refresh.setChecked(worker_running)
 
@@ -478,4 +543,5 @@ class MainWindow(QMainWindow):
         """Stop background workers before window teardown."""
         self._status_timer.stop()
         self.index_manager.stop_refresh_worker()
+        self.mcp_server_manager.stop()
         super().closeEvent(event)

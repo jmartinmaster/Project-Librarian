@@ -34,11 +34,10 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
    - `powershell -ExecutionPolicy Bypass -File scripts/build_windows.ps1`
 
 ## Output
-- Packaged app folder: `dist/ProjectLibrarian/`
-- Start executable: `dist/ProjectLibrarian/ProjectLibrarian.exe`
+- Packaged executable: `dist/ProjectLibrarian.exe`
 
 ## Notes
 - Build on Windows for Windows distribution.
 - `requirements-packaging.txt` now layers runtime dependencies with packaging-only tools so release builds stay aligned with the app runtime.
 - The package includes `.ui` forms and icon assets used by runtime UI.
-- On first launch with a fresh config, indexing starts from the folder where the executable was opened.
+- On Windows, config and generated index artifacts are stored under `%LOCALAPPDATA%\Project Librarian\`.

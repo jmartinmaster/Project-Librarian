@@ -45,6 +45,6 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [ ] `run.sh` is executable.
 - [ ] VS Code interpreter path points to `.venv/bin/python`.
 - [ ] Handoff notes include current phase and next work item.
-- [ ] Windows packaging script runs on Windows and outputs `dist/ProjectLibrarian/`.
+- [ ] Windows packaging script runs on Windows and outputs `dist/ProjectLibrarian.exe`.
 - [ ] Ubuntu packaging script runs and outputs `dist/ProjectLibrarian/`.
 - [ ] Ubuntu local installer script creates launcher and desktop entry.

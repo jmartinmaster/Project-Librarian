@@ -68,7 +68,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] UI fix complete: search results table now reliably renders visible columns and row-click selection.
 - [x] UX enhancement complete: double-click open and right-click context menus added for search/library items.
 - [x] UI enhancement complete: search results now include File Type (py/c/h/csv/etc) alongside Type.
-- [ ] UX requirement queued: copy actions should place full absolute containing-folder path on clipboard (no filename/extension).
+- [x] UX requirement complete: copy actions now place full absolute containing-folder path on clipboard (no filename/extension).
 - [x] Stability fix complete: invalid/malformed spreadsheet files are skipped safely during header discovery and row indexing.
 - [x] Observability enhancement complete: skipped-file count/status indicator and skipped-file listing added.
 - [x] Documentation/licensing complete: repository README added, packaging dependency docs refreshed, and GPLv3 headers added to authored files.
@@ -78,6 +78,15 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Settings fix complete: refresh interval now accepts `0` to disable auto-refresh instead of clamping back to a positive value.
 - [x] UI fix complete: Indexed Library pane refreshes after background indexing even for larger result sets.
 - [ ] Next up: validate packaging outputs on native Windows and Ubuntu hosts.
+- [x] Migration tranche complete: ported workspace assistant features from legacy monolith into modular service + UI tab buttons (git summary, docs draft, changelog draft, save output).
+- [x] Integration enhancement complete: top-level Integrations tab added for MVC Editor launch controls and MCP server settings/start-stop/probe controls.
+- [x] MCP foundation complete: modular local MCP-compatible server added with probe/status/search/refresh/shutdown endpoints.
+- [x] MVC embedding enhancement complete: in-app MVC Editor tab now includes direct Model/View/Controller editing sub-tabs with triad load/save.
+- [x] Unified workflow enhancement complete: library/search/audit file-open actions now route into embedded MVC Editor by default, with explicit external-open controls retained.
+- [x] MVC parity expansion complete: standalone MVC editor capabilities (workspace explorer, inspector/sync navigation, run console, triad discovery, and richer code editing) are now embedded into the integrated tab.
+- [x] Root coherence fix complete: Integrations, MVC Editor, and MCP runtime now share the same Librarian project root, and project-root changes propagate across running integrations.
+- [x] Native MVC shell integration complete: embedded MVC tab now drops standalone menu/toolbar/workspace tree/console chrome so Librarian controls and tree remain the single primary navigation shell.
+- [x] Windows packaging update complete: build scripts now emit a single-file `ProjectLibrarian.exe`, with Windows config/output defaults under `%LOCALAPPDATA%\\Project Librarian`.
 
 ## Phase Checklist
 - [x] Phase 1: Scaffolding and baseline project config
@@ -142,8 +151,21 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-04-27: Reduced IndexManager refresh lock scope to state publication only, added non-blocking async manual refresh requests, and stopped automatic heavy UI refresh work after each background indexing cycle.
 - 2026-04-27: Allowed a zero-second refresh interval in SettingsDialog so users can disable auto-refresh through the UI and persist that value correctly.
 - 2026-04-27: Removed the Indexed Library auto-refresh size gate so completed background refreshes always repopulate the sidebar; tree updates are now wrapped with setUpdatesEnabled for less repaint churn.
+- 2026-07-08: Fixed copy-path clipboard behavior across search/library/audit views to copy absolute containing-folder paths instead of filenames.
+- 2026-07-08: Added refresh error reporting in IndexManager/MainWindow so worker/manual refresh failures are surfaced instead of silently swallowed.
+- 2026-07-08: Switched config storage to platform-aware directories (APPDATA on Windows, Application Support on macOS, ~/.config on Linux).
+- 2026-07-08: Updated diagnostics subprocess cancellation and runner lifecycle to avoid Windows-only kill behavior and eliminate indefinite post-profile hangs.
+- 2026-07-08: Compared the legacy monolith feature surface and ported high-value workspace assistant flows into modular files (`app/services/workspace_service.py`, `app/ui/workspace_browser.py`) with button-driven UI wiring.
+- 2026-07-08: Added `Integrations` tab for external MVC Editor path/launch workflow plus MCP server setup, save, start/stop, and probe controls.
+- 2026-07-08: Ported a modular local MCP-compatible server runtime (`app/services/librarian_mcp_server.py`) and subprocess lifecycle manager (`app/services/mcp_server_manager.py`) wired to app config and autostart.
+- 2026-07-08: Added direct in-app MVC Editor embedding (`app/ui/mvc_editor_tab.py`) with triad file workflow and wired it as a primary top tab in the main window.
+- 2026-07-08: Unified file-open workflow so Search Browser, Indexed Library, and Code Audit open files in the embedded MVC Editor; kept explicit external-open path for user-controlled handoff.
+- 2026-07-08: Scope expanded to full standalone MVC editor feature parity inside Project Librarian before next compile/release handoff.
+- 2026-07-08: Imported standalone MVC Sync internals into `app/ui/mvc_sync/` and wrapped them in `MVCEditorTab` so in-app editing includes workspace explorer, triad discovery, inspector navigation, sync tooling, and run console while preserving Librarian open-routing.
+- 2026-07-08: Removed independent integrations root behavior by treating project root as the single shared root for MVC + MCP, added root-change callback wiring in main window, and switched folder picker to non-native dialog mode to avoid Windows COM dialog crashes.
+- 2026-07-08: Applied full native integration mode to MVC tab by suppressing standalone shell surfaces and inheriting host tab theming to keep Librarian as the single unified interface shell.
+- 2026-07-08: Switched Windows packaging to PyInstaller one-file output and moved Windows runtime config/artifact defaults to `%LOCALAPPDATA%\\Project Librarian` for portable executable relocation without adjacent support folders.
 
 ## Out Of Scope (Initial Build)
-- MCP server and HTTP dashboard
 - REPL and CLI parity with legacy script
 - Git operations UI and AI runtime status panels

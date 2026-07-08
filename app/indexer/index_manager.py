@@ -60,6 +60,7 @@ class IndexManager:
         self._worker_interval_seconds = max(0.0, float(self.config.refresh_interval_seconds))
         self._last_refresh_at: str | None = None
         self._refresh_count = 0
+        self._last_refresh_error: str | None = None
 
     def is_refresh_worker_running(self) -> bool:
         """Return True when the background refresh worker is currently active."""
@@ -75,6 +76,7 @@ class IndexManager:
                 "last_refresh_at": self._last_refresh_at,
                 "refresh_count": self._refresh_count,
                 "skipped_count": len(self.state.skipped_files),
+                "last_refresh_error": self._last_refresh_error,
             }
 
     def request_refresh_async(self) -> bool:
@@ -86,7 +88,7 @@ class IndexManager:
                 return False
 
             self._manual_refresh_thread = threading.Thread(
-                target=self.refresh,
+                target=self._run_manual_refresh,
                 name="librarian-refresh-request",
                 daemon=True,
             )
@@ -138,16 +140,28 @@ class IndexManager:
         if run_immediately and not self._worker_stop_event.is_set():
             try:
                 self.refresh()
-            except Exception:
-                # Keep worker alive despite transient refresh errors.
-                pass
+            except Exception as exc:
+                self._record_refresh_error(exc)
 
         while not self._worker_stop_event.wait(timeout=self._worker_interval_seconds):
             try:
                 self.refresh()
-            except Exception:
+            except Exception as exc:
+                self._record_refresh_error(exc)
                 # Keep worker alive despite transient refresh errors.
                 continue
+
+    def _record_refresh_error(self, exc: Exception) -> None:
+        """Store last refresh error text so the UI can surface failures."""
+        with self._refresh_lock:
+            self._last_refresh_error = f"{exc.__class__.__name__}: {exc}"
+
+    def _run_manual_refresh(self) -> None:
+        """Run a one-shot background refresh while preserving any raised error detail."""
+        try:
+            self.refresh()
+        except Exception as exc:
+            self._record_refresh_error(exc)
 
     def _repo_root(self) -> Path:
         return Path(self.config.project_root or Path.cwd()).resolve()
@@ -241,6 +255,10 @@ class IndexManager:
                     self.state = next_state
                     self._last_refresh_at = generated_at
                     self._refresh_count += 1
+                    self._last_refresh_error = None
                     return self.state
+            except Exception as exc:
+                self._record_refresh_error(exc)
+                raise
             finally:
                 self._refresh_in_progress.clear()

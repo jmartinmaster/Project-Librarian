@@ -39,7 +39,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app import APP_NAME, STARTUP_INDEX_NOTE
-from app.config import AppConfig, load_config
+from app.config import AppConfig, CONFIG_DIR, load_config, save_config
 from app.indexer.index_manager import IndexManager
 from app.ui.main_window import MainWindow
 
@@ -152,6 +152,9 @@ def main() -> int:
     config = load_config()
     if not config.project_root:
         config.project_root = str(Path.cwd())
+    if getattr(sys, "frozen", False) and Path(config.output_dir) == Path("build"):
+        config.output_dir = str((CONFIG_DIR / "build").resolve())
+        save_config(config)
 
     if sys.platform == "win32":
         # Ensure Windows taskbar groups this process under the app identity, not python.exe.

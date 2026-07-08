@@ -25,6 +25,7 @@ import os
 import json
 import threading
 import time
+import signal
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -193,12 +194,12 @@ try:
     
     print(json.dumps(result))
     sys.stdout.flush()
-    
-    # Keep main thread alive indefinitely for GUI applications
-    while True:
-        time.sleep(1)
-        if process.poll() is not None:
-            break
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except Exception:
+            process.kill()
 except Exception as e:
     import traceback
     script_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
@@ -328,10 +329,6 @@ if script_error:
 
 print(json.dumps(result))
 sys.stdout.flush()
-
-# Keep main thread alive indefinitely for GUI applications
-while True:
-    time.sleep(1)
 """
             try:
                 with open(self.temp_runner_path, "w", encoding="utf-8") as f:
@@ -398,10 +395,20 @@ while True:
         self._cleanup_temp_runner()
         pid = self.process.processId()
         if pid:
-            import subprocess
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
-        else:
-            self.process.kill()
+            if sys.platform == "win32":
+                import subprocess
+
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            else:
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGTERM)
+                except (ProcessLookupError, PermissionError, OSError):
+                    self.process.terminate()
+        self.process.kill()
         self.process.waitForFinished(1000)
 
     def _cleanup_temp_runner(self) -> None:

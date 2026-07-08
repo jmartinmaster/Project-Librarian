@@ -20,11 +20,32 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-CONFIG_DIR = Path.home() / ".config" / "project-librarian"
+
+def _default_config_dir() -> Path:
+    """Return an OS-appropriate persistent settings directory."""
+    if sys.platform == "win32":
+        appdata_local = os.environ.get("LOCALAPPDATA")
+        base = Path(appdata_local) if appdata_local else Path.home() / "AppData" / "Local"
+        return base / "Project Librarian"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Project Librarian"
+    return Path.home() / ".config" / "project-librarian"
+
+
+def _default_output_dir() -> str:
+    """Return default output directory for generated index artifacts."""
+    if sys.platform == "win32":
+        return str((_default_config_dir() / "build").resolve())
+    return "build"
+
+
+CONFIG_DIR = _default_config_dir()
 CONFIG_PATH = CONFIG_DIR / "config.json"
 
 
@@ -33,7 +54,7 @@ class AppConfig:
     """Persistent application settings for indexing and UI behavior."""
 
     project_root: str = ""
-    output_dir: str = "build"
+    output_dir: str = field(default_factory=_default_output_dir)
     excluded_dirs: list[str] = field(default_factory=lambda: [".git", ".venv", "__pycache__", "build"])
     file_extensions: list[str] = field(
         default_factory=lambda: [".py", ".c", ".h", ".md", ".json", ".txt", ".xlsx", ".csv"]
@@ -44,6 +65,12 @@ class AppConfig:
     excel_folder: str = ""
     excel_keyword_columns: list[str] = field(default_factory=list)
     external_editor_cmd: str = ""
+    mvc_editor_root: str = ""
+    mcp_host: str = "127.0.0.1"
+    mcp_port: int = 8765
+    mcp_auth_token: str = ""
+    mcp_transport: str = "streamable-http"
+    mcp_autostart: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary for the current config."""
@@ -56,6 +83,8 @@ class AppConfig:
         allowed = default.to_dict().keys()
         merged = default.to_dict()
         merged.update({key: value for key, value in payload.items() if key in allowed})
+        if sys.platform == "win32" and str(merged.get("output_dir", "")).strip().lower() == "build":
+            merged["output_dir"] = _default_output_dir()
         return cls(**merged)
 
 

@@ -41,6 +41,9 @@ def test_main_window_builds_tabs(qtbot, app_config):
     assert central.count() >= 2
     assert central.tabText(0) == "Search Browser"
     assert central.tabText(1) == "Excel Library"
+    assert "MVC Editor" in [central.tabText(index) for index in range(central.count())]
+    assert "Workspace Tools" in [central.tabText(index) for index in range(central.count())]
+    assert "Integrations" in [central.tabText(index) for index in range(central.count())]
     assert not window.windowIcon().isNull()
 
 
@@ -151,13 +154,14 @@ def test_library_double_click_opens_file(monkeypatch, qtbot, app_config):
     walk(files_root)
     assert target_item is not None
 
-    opened: dict[str, str] = {}
+    opened: dict[str, object] = {}
 
-    def fake_open_url(url):
-        opened["path"] = Path(url.toLocalFile()).name
+    def fake_open_in_mvc(path: Path, line_number: int | None = None) -> bool:
+        opened["path"] = path.name
+        opened["line"] = line_number
         return True
 
-    monkeypatch.setattr("app.ui.main_window.QDesktopServices.openUrl", fake_open_url)
+    monkeypatch.setattr(window, "_open_in_mvc_editor", fake_open_in_mvc)
 
     window._on_library_item_double_clicked(target_item, 0)
     assert opened.get("path") == "sample.py"

@@ -83,3 +83,25 @@ def test_search_browser_double_click_opens_file(monkeypatch, qtbot, app_config):
     assert browser.results_table.rowCount() > 0
     browser._on_result_double_clicked(0, 0)
     assert opened.get("path") == "sample.py"
+
+
+def test_search_browser_double_click_uses_open_file_callback(monkeypatch, qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    opened: dict[str, object] = {}
+
+    def open_in_app(path: Path, line_number: int | None) -> bool:
+        opened["path"] = path.name
+        opened["line"] = line_number
+        return True
+
+    browser = SearchBrowser(manager, open_file_callback=open_in_app)
+    qtbot.addWidget(browser)
+    browser.set_query("sample", scope="files", execute=True)
+
+    monkeypatch.setattr("app.ui.search_browser.launch_editor", lambda *args: (_ for _ in ()).throw(AssertionError("fallback used")))
+
+    assert browser.results_table.rowCount() > 0
+    browser._on_result_double_clicked(0, 0)
+    assert opened.get("path") == "sample.py"

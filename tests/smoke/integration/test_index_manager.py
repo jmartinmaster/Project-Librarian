@@ -197,3 +197,33 @@ def test_refresh_handles_non_utf8_and_malformed_python_files(app_config, sample_
     assert "ol" in state.file_corpus["latin1_text.txt"]
     assert any(item.get("path") == "broken_encoding.py" for item in state.skipped_files)
     assert manager.refresh_status()["skipped_count"] >= 1
+
+
+def test_request_refresh_async_records_last_refresh_error(monkeypatch, app_config):
+    manager = IndexManager(app_config)
+
+    def failing_refresh():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(manager, "refresh", failing_refresh)
+    started = manager.request_refresh_async()
+    assert started is True
+
+    time.sleep(0.05)
+    status = manager.refresh_status()
+    assert status["last_refresh_error"] == "RuntimeError: boom"
+
+
+def test_refresh_worker_records_last_refresh_error(monkeypatch, app_config):
+    manager = IndexManager(app_config)
+
+    def failing_refresh():
+        raise ValueError("worker-failure")
+
+    monkeypatch.setattr(manager, "refresh", failing_refresh)
+    manager.start_refresh_worker(interval_seconds=1.0, run_immediately=True)
+    time.sleep(0.05)
+    status = manager.refresh_status()
+    manager.stop_refresh_worker(join_timeout=1.0)
+
+    assert status["last_refresh_error"] == "ValueError: worker-failure"

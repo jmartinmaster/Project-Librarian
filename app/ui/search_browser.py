@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
 from PyQt6 import uic
 from PyQt6.QtCore import QPoint, Qt, QUrl
@@ -43,14 +44,20 @@ from PyQt6.QtWidgets import (
 from app.indexer.index_manager import IndexManager
 from app.search.search_engine import search_snapshot
 from app.ui.editor_launcher import launch_editor
+from app.ui.path_utils import absolute_containing_folder
 
 
 class SearchBrowser(QWidget):
     """Widget providing near-instant search over in-memory index state."""
 
-    def __init__(self, index_manager: IndexManager) -> None:
+    def __init__(
+        self,
+        index_manager: IndexManager,
+        open_file_callback: Callable[[Path, int | None], bool] | None = None,
+    ) -> None:
         super().__init__()
         self.index_manager = index_manager
+        self._open_file_callback = open_file_callback
         self.query_input: QLineEdit
         self.scope_combo: QComboBox
         self.changed_only: QCheckBox
@@ -212,7 +219,9 @@ class SearchBrowser(QWidget):
         if selected == open_action and has_selection:
             self._open_result_file(result)
         elif selected == copy_path_action and has_selection:
-            QApplication.clipboard().setText(path_text)
+            folder_path = absolute_containing_folder(path_text, self.index_manager.config.project_root or Path.cwd())
+            if folder_path:
+                QApplication.clipboard().setText(folder_path)
         elif selected == copy_ref_action and has_selection:
             QApplication.clipboard().setText(reference)
         elif selected == export_csv_action:
@@ -271,7 +280,11 @@ class SearchBrowser(QWidget):
         
         line = item.get("line")
         line_number = int(line) if line is not None and str(line).isdigit() else None
-        
+        if self._open_file_callback is not None:
+            handled = self._open_file_callback(resolved, line_number)
+            if handled:
+                return
+
         if launch_editor(resolved, line_number, self.index_manager.config):
             return
 

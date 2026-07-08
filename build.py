@@ -141,7 +141,7 @@ class WindowsBuilder:
         """Build Windows EXE package.
 
         Returns:
-            Path to the built executable directory.
+            Path to the built executable file.
 
         Raises:
             RuntimeError: If build fails.
@@ -165,15 +165,13 @@ class WindowsBuilder:
         self._run_pyinstaller()
 
         # Validate build output
-        exe_dir = self.config.dist_dir / self.config.app_name
-        exe_file = exe_dir / f"{self.config.app_name}.exe"
+        exe_file = self.config.dist_dir / f"{self.config.app_name}.exe"
 
         if not exe_file.exists():
             raise RuntimeError(f"PyInstaller failed: {exe_file} not created")
 
-        print(f"\n[OK] Windows EXE build complete: {exe_dir}")
-        print(f"  Executable: {exe_file}")
-        return exe_dir
+        print(f"\n[OK] Windows EXE build complete: {exe_file}")
+        return exe_file
 
     def _install_packaging_deps(self) -> None:
         """Install PyInstaller and related dependencies."""
@@ -207,6 +205,7 @@ class WindowsBuilder:
             "-m",
             "PyInstaller",
             "--noconfirm",
+            "--onefile",
             "--windowed",
             "--name",
             self.config.app_name,

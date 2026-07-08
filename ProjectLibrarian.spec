@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\main.py'],
+    ['C:\\Users\\jamie\\.copilot\\repos\\copilot-worktrees\\Project-Librarian\\jmartinmaster-turbo-robot\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\ui\\forms', 'app\\ui\\forms'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\ui\\assets', 'app\\ui\\assets')],
+    datas=[('C:\\Users\\jamie\\.copilot\\repos\\copilot-worktrees\\Project-Librarian\\jmartinmaster-turbo-robot\\app\\ui\\forms', 'app\\ui\\forms'), ('C:\\Users\\jamie\\.copilot\\repos\\copilot-worktrees\\Project-Librarian\\jmartinmaster-turbo-robot\\app\\ui\\assets', 'app\\ui\\assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -19,26 +19,20 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='ProjectLibrarian',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='ProjectLibrarian',
 )

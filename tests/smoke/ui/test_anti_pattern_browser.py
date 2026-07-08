@@ -176,3 +176,21 @@ def test_anti_pattern_browser_exports_csv(monkeypatch, qtbot, app_config, tmp_pa
     assert "Test Preset" in csv_content
     assert "test line content" in csv_content
 
+
+def test_anti_pattern_browser_open_uses_open_file_callback(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    opened: dict[str, object] = {}
+
+    def open_in_app(path: Path, line_number: int | None) -> bool:
+        opened["path"] = path.name
+        opened["line"] = line_number
+        return True
+
+    widget = AntiPatternBrowser(manager, open_file_callback=open_in_app)
+    qtbot.addWidget(widget)
+
+    widget._open_result_file({"path": "app/sample.py", "line": 2})
+    assert opened.get("path") == "sample.py"
+    assert opened.get("line") == 2

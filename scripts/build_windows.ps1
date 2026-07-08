@@ -28,10 +28,11 @@ if (-not (Test-Path $VenvPython)) {
 & $VenvPython -m pip install -r (Join-Path $RepoRoot "requirements-packaging.txt")
 & $VenvPython -m PyInstaller `
   --noconfirm `
+  --onefile `
   --windowed `
   --name ProjectLibrarian `
   --add-data "$RepoRoot\app\ui\forms;app\ui\forms" `
   --add-data "$RepoRoot\app\ui\assets;app\ui\assets" `
   (Join-Path $RepoRoot "main.py")
 
-Write-Host "Windows build complete: $RepoRoot\dist\ProjectLibrarian"
+Write-Host "Windows build complete: $RepoRoot\dist\ProjectLibrarian.exe"
