@@ -27,17 +27,17 @@ Project Librarian is a local PyQt6 desktop application for indexing source code 
 ### Search and Indexing
 - Indexes Python and C symbols.
 - Keeps file corpus, symbol metadata, and Excel keyword rows in memory for near-instant searching.
-- Provides a Search Browser, Excel Browser, and Indexed Library pane for browse-first navigation.
+- Provides a Search Browser tab, Excel Library tab, and Indexed Library dock for browse-first navigation.
 - Displays File Type alongside result type for quicker language and format identification.
 - Tracks skipped files so malformed or unreadable inputs do not crash refreshes.
 - Refreshes the index on demand and keeps it current with a configurable background worker.
 
 ### Workspace Assistant
 - Generates git summaries, documentation drafts, and changelog drafts from the active project root.
-- Saves generated output to the project folder through the Workspace tab.
+- Saves generated output to the project folder through the Workspace Tools tab.
 
 ### Integrations
-- Launches an external MVC Editor from a configurable executable path.
+- Launches an external MVC Editor from a configurable folder path (runs the editor’s `main.py`, using its `.venv` Python when available).
 - Controls a local MCP-compatible server (start, stop, probe, configure) from the Integrations tab.
 - Project root changes propagate automatically to all running integrations.
 
@@ -49,7 +49,7 @@ Project Librarian is a local PyQt6 desktop application for indexing source code 
 ### Code Audit and Diagnostics
 - Scans the project for anti-pattern occurrences with configurable rules.
 - Runs profiling and diagnostics sessions, with a subprocess-safe cancellation flow.
-- Surfaces results in dedicated Anti-pattern and Diagnostics browser tabs.
+- Surfaces results in dedicated Code Audit and Diagnostics tabs.
 
 ### MCP Server
 - Runs a modular local MCP-compatible server exposing probe, status, search, refresh, and shutdown endpoints.
@@ -57,7 +57,7 @@ Project Librarian is a local PyQt6 desktop application for indexing source code 
 
 ## Startup Behavior
 
-When Project Librarian starts with a fresh configuration, it uses the folder it was opened from as the initial index root. After you save a project root in settings, later launches reuse that saved location until you change it. The initial indexing run executes in the background so the UI is immediately responsive.
+When Project Librarian starts with a fresh configuration, it uses the folder it was opened from as the initial index root. After you save a project root in settings, later launches reuse that saved location until you change it. On first run (when no snapshot exists yet), Project Librarian builds the initial index and snapshot before launching the main window; subsequent refreshes run in the background so the UI stays responsive.
 
 Configuration is stored in a platform-aware location: `%APPDATA%\Project Librarian` on Windows, `~/Library/Application Support/Project Librarian` on macOS, and `~/.config/Project Librarian` on Linux.
 =======
