@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.ui.path_utils import absolute_containing_folder
+from app.services.path_utils import absolute_containing_folder
 
 
 def test_absolute_containing_folder_resolves_relative_file_path(tmp_path: Path):

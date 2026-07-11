@@ -52,7 +52,7 @@ from app.ui.diagnostics_browser import DiagnosticsBrowser
 from app.ui.mvc_editor_tab import MVCEditorTab
 from app.ui.workspace_browser import WorkspaceBrowser
 from app.ui.integrations_browser import IntegrationsBrowser
-from app.ui.path_utils import absolute_containing_folder
+from app.services.path_utils import absolute_containing_folder
 from app.services.mcp_server_manager import MCPServerManager
 
 
@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self.index_manager = index_manager
+        self._first_show = True
         self._controller = controller or MainWindowController(index_manager=index_manager)
         self._path_controller = path_controller or PathController(index_manager=index_manager)
         self._tabs: QTabWidget
@@ -97,7 +98,10 @@ class MainWindow(QMainWindow):
             open_file_callback=self._open_in_mvc_editor,
         )
         self.diagnostics_browser = DiagnosticsBrowser(index_manager=self.index_manager)
-        self.mvc_editor_tab = MVCEditorTab(workspace_root=self.index_manager.config.project_root)
+        self.mvc_editor_tab = MVCEditorTab(
+            workspace_root=self.index_manager.config.project_root,
+            mcp_manager=self.mcp_server_manager,
+        )
         self.workspace_browser = WorkspaceBrowser(index_manager=self.index_manager)
         self.integrations_browser = IntegrationsBrowser(
             config=self.index_manager.config,
@@ -188,7 +192,11 @@ class MainWindow(QMainWindow):
         self._library_dock = QDockWidget("Indexed Library", self)
         self._library_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
 
+        from PyQt6.QtWidgets import QSizePolicy
+        self._library_dock.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
         container = QWidget(self._library_dock)
+        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
@@ -532,6 +540,12 @@ class MainWindow(QMainWindow):
         self._last_reported_refresh_error = last_refresh_error
         if hasattr(self, "_action_auto_refresh"):
             self._action_auto_refresh.setChecked(worker_running)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if getattr(self, "_first_show", True):
+            self._first_show = False
+            QTimer.singleShot(100, lambda: self.resizeDocks([self._library_dock], [int(self.width() / 4)], Qt.Orientation.Horizontal))
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Stop background workers before window teardown."""

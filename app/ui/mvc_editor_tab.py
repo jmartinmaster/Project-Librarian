@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from app.services.mcp_server_manager import MCPServerManager
 from app.ui.mvc_sync.controller import EditorController
 from app.ui.mvc_sync.model import DocumentModel
 from app.ui.mvc_sync.view import EditorView
@@ -40,14 +41,14 @@ from app.ui.mvc_sync.view import EditorView
 class MVCEditorTab(QWidget):
     """Embedded MVC Sync Editor with file-open integration hooks."""
 
-    def __init__(self, workspace_root: str = "") -> None:
+    def __init__(self, workspace_root: str = "", mcp_manager: MCPServerManager | None = None) -> None:
         super().__init__()
         self.workspace_root = workspace_root
         self._current_file_path: Path | None = None
 
         self._model = DocumentModel()
         self._view = EditorView()
-        self._controller = EditorController(self._model, self._view)
+        self._controller = EditorController(self._model, self._view, mcp_manager=mcp_manager)
 
         self._build_ui()
         self._apply_native_integration_mode()
@@ -83,9 +84,12 @@ class MVCEditorTab(QWidget):
         self.save_current_button.setObjectName("mvcSaveCurrentFileButton")
         self.open_external_button = QPushButton("Open Externally", self)
         self.open_external_button.setObjectName("mvcOpenExternalButton")
+        self.trigger_ai_button = QPushButton("Trigger Local AI", self)
+        self.trigger_ai_button.setObjectName("mvcTriggerAIButton")
         current_row.addWidget(self.current_file_edit)
         current_row.addWidget(self.save_current_button)
         current_row.addWidget(self.open_external_button)
+        current_row.addWidget(self.trigger_ai_button)
         layout.addLayout(current_row)
 
         self._view.setParent(self)
@@ -97,6 +101,7 @@ class MVCEditorTab(QWidget):
 
         self.save_current_button.clicked.connect(self.save_current_file)
         self.open_external_button.clicked.connect(self.open_current_externally)
+        self.trigger_ai_button.clicked.connect(self.trigger_local_ai)
 
     def _apply_native_integration_mode(self) -> None:
         """Strip standalone MVC shell UI and align with Librarian-hosted experience."""
@@ -194,3 +199,23 @@ class MVCEditorTab(QWidget):
     def save_triad(self) -> None:
         """Compatibility shim for prior tests/callers."""
         self._controller.save_all_files()
+
+    def trigger_local_ai(self) -> None:
+        """Save triad files and trigger AI propagation across Model, View, and Controller."""
+        self.status_label.setText("Saving files and triggering local AI...")
+        self.save_current_file()
+        
+        self.trigger_ai_button.setEnabled(False)
+        self.status_label.setText("AI propagation in progress (background thread)...")
+        
+        def handle_result(ok: bool, msg: str):
+            self.trigger_ai_button.setEnabled(True)
+            from PyQt6.QtWidgets import QMessageBox
+            if ok:
+                self.status_label.setText(msg)
+                QMessageBox.information(self, "AI Code Generation", msg)
+            else:
+                self.status_label.setText(f"AI generation failed: {msg}")
+                QMessageBox.warning(self, "AI Code Generation Failed", msg)
+                
+        self._controller.run_ai_generation(handle_result)

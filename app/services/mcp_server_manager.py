@@ -63,6 +63,12 @@ class MCPServerManager:
         ]
         if config.mcp_auth_token.strip():
             args.extend(["--token", config.mcp_auth_token.strip()])
+        
+        # Determine transport argument: map streamable-http to sse
+        transport = (config.mcp_transport or "streamable-http").strip().lower()
+        if transport == "streamable-http":
+            transport = "sse"
+        args.extend(["--transport", transport])
         return args
 
     def start(self) -> tuple[bool, str]:

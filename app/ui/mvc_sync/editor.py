@@ -184,6 +184,7 @@ class PyCodeEditor(QPlainTextEdit):
         super().__init__(parent)
         self.line_number_area = LineNumberArea(self)
         self.target_line = None
+        self.target_range = None
         self.target_highlight_color = QColor("#3e302f")
 
         # Style font
@@ -282,8 +283,28 @@ class PyCodeEditor(QPlainTextEdit):
             selection.cursor.clearSelection()
             extra_selections.append(selection)
             
-        # 2. Bright target line highlight
-        if getattr(self, 'target_line', None) is not None:
+        # 2. Bright target range highlight
+        target_range = getattr(self, 'target_range', None)
+        if target_range is not None:
+            start_line, end_line = target_range
+            doc = self.document()
+            if start_line > 0 and end_line >= start_line:
+                for line_num in range(start_line, end_line + 1):
+                    block = doc.findBlockByLineNumber(line_num - 1)
+                    if block.isValid():
+                        selection = QTextEdit.ExtraSelection()
+                        selection.format.setBackground(self.target_highlight_color)
+                        selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
+                        
+                        cursor = self.textCursor()
+                        cursor.setPosition(block.position())
+                        cursor.clearSelection()
+                        selection.cursor = cursor
+                        
+                        extra_selections.append(selection)
+                        
+        # 3. Fallback to bright target line highlight
+        elif getattr(self, 'target_line', None) is not None:
             doc = self.document()
             block = doc.findBlockByLineNumber(self.target_line - 1)
             if block.isValid():
@@ -302,19 +323,29 @@ class PyCodeEditor(QPlainTextEdit):
 
     def highlight_target_line(self, line: int, color_hex: str = "#3e302f"):
         self.target_line = line
+        self.target_range = None
         self.target_highlight_color = QColor(color_hex)
         self.highlight_current_line()
 
-    def mousePressEvent(self, event):
-        # Clear target line highlight on manual mouse clicks
+    def highlight_target_range(self, start_line: int, end_line: int, color_hex: str = "#3e302f"):
         self.target_line = None
+        self.target_range = (start_line, end_line)
+        self.target_highlight_color = QColor(color_hex)
         self.highlight_current_line()
+
+    def clear_target_highlight(self):
+        self.target_line = None
+        self.target_range = None
+        self.highlight_current_line()
+
+    def mousePressEvent(self, event):
+        # Clear target range/line highlight on manual mouse clicks
+        self.clear_target_highlight()
         super().mousePressEvent(event)
 
     def keyPressEvent(self, event):
-        # Clear target line highlight on manual typing
-        self.target_line = None
-        self.highlight_current_line()
+        # Clear target range/line highlight on manual typing
+        self.clear_target_highlight()
         
         # Override Tab to insert 4 spaces
         if event.key() == Qt.Key.Key_Tab:
@@ -674,9 +705,9 @@ class EditorPane(QWidget):
         if block.isValid():
             # Get role-specific highlight color
             colors = {
-                'model': '#203d29',        # Soft green
-                'view': '#3d253a',         # Soft pink/magenta
-                'controller': '#1d2c40'    # Soft blue
+                'model': '#2e5038',        # Rich green
+                'view': '#54314d',         # Rich magenta/pink
+                'controller': '#2f4868'    # Rich blue
             }
             color_hex = colors.get(self.role, '#3e302f')
             self.editor.highlight_target_line(line, color_hex)

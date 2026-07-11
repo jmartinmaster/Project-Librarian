@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from app.config import AppConfig
-from app.ui.editor_launcher import launch_editor
+from app.services.editor_launcher import launch_editor
 
 
 def test_launch_editor_custom_cmd(monkeypatch, tmp_path):

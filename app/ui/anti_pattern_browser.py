@@ -49,8 +49,8 @@ from PyQt6.QtWidgets import (
 
 from app.controllers.anti_pattern_controller import AntiPatternController
 from app.indexer.index_manager import IndexManager
-from app.ui.editor_launcher import launch_editor
-from app.ui.path_utils import absolute_containing_folder
+from app.services.editor_launcher import launch_editor
+from app.services.path_utils import absolute_containing_folder
 
 
 class PresetDialog(QDialog):

@@ -28,10 +28,10 @@ def test_workspace_browser_buttons_render_output(monkeypatch, qtbot, app_config)
     widget = WorkspaceBrowser(manager)
     qtbot.addWidget(widget)
 
-    monkeypatch.setattr(widget.service, "format_git_summary", lambda: "Branch: main")
-    monkeypatch.setattr(widget.service, "generate_docs_draft", lambda changed_only=True: "# Docs Draft")
+    monkeypatch.setattr(widget._controller, "get_git_summary", lambda: "Branch: main")
+    monkeypatch.setattr(widget._controller, "generate_docs_draft", lambda changed_only=True: "# Docs Draft")
     monkeypatch.setattr(
-        widget.service,
+        widget._controller,
         "generate_changelog_draft",
         lambda version_text=None, release_date=None, changed_only=True: "## [Unreleased] - 2026-07-08",
     )

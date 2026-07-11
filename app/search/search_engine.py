@@ -165,19 +165,28 @@ def search_snapshot(
                 }
             )
 
-    if scope in {"all", "symbols"}:
+    if scope in {"all", "symbols", "ast", "cst"}:
         for symbol in symbols:
             score = _score_symbol_record(symbol, query, tokens, match_case, pattern)
             if score <= 0:
                 continue
+            
+            result_type = "symbol"
+            if scope == "ast":
+                result_type = "ast_node"
+            elif scope == "cst":
+                result_type = "cst_node"
+                
             results.append(
                 {
-                    "type": "symbol",
+                    "type": result_type,
                     "file_type": _file_type_from_path(str(symbol.get("path", ""))),
                     "path": symbol.get("path"),
                     "line": symbol.get("line"),
                     "title": symbol.get("qualified_name"),
                     "preview": symbol.get("signature") or symbol.get("kind"),
+                    "kind": symbol.get("kind"),
+                    "doc_summary": symbol.get("doc_summary", ""),
                     "score": score,
                 }
             )

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from PyQt6.QtCore import QObject, QProcess, QDir, pyqtSignal
+from PyQt6.QtCore import QObject, QProcess, QDir, pyqtSignal, QThread
 from PyQt6.QtWidgets import QFileDialog
 import os
 import ast
@@ -25,10 +25,11 @@ class EditorController(QObject):
     Coordinates file operations, updates AST mappings, synchronizes navigations,
     and runs subprocess execution for the user's project.
     """
-    def __init__(self, model, view):
+    def __init__(self, model, view, mcp_manager=None):
         super().__init__()
         self.model = model
         self.view = view
+        self.mcp_manager = mcp_manager
         
         self._sync_nav = True
         self._is_loading = False # Flag to ignore text changes during file loads
@@ -664,3 +665,48 @@ class EditorController(QObject):
         from app.ui.mvc_sync.about import AboutDialog
         dialog = AboutDialog(self.view)
         dialog.exec()
+
+    def run_ai_generation(self, callback) -> None:
+        """Run the AI generator in a background thread and handle the callback."""
+        import time
+        if self.mcp_manager and not self.mcp_manager.is_running():
+            self.mcp_manager.start()
+            time.sleep(0.5)
+
+        m_path = self.model.get_path('model')
+        v_path = self.model.get_path('view')
+        c_path = self.model.get_path('controller')
+
+        if not m_path or not v_path or not c_path:
+            callback(False, "Active MVC triad is not fully loaded/bound.")
+            return
+
+        self._ai_worker = AIGenerationWorker(m_path, v_path, c_path)
+
+        def on_finished(ok: bool, msg: str):
+            if ok:
+                self.open_file(c_path or m_path or v_path)
+            callback(ok, msg)
+
+        self._ai_worker.finished.connect(on_finished)
+        self._ai_worker.start()
+
+
+class AIGenerationWorker(QThread):
+    """Background worker for executing AI triad method propagation."""
+    finished = pyqtSignal(bool, str)
+
+    def __init__(self, model_path: str, view_path: str, controller_path: str) -> None:
+        super().__init__()
+        self.model_path = model_path
+        self.view_path = view_path
+        self.controller_path = controller_path
+
+    def run(self) -> None:
+        from app.services.ai_generator import AIGenerationService
+        generator = AIGenerationService()
+        try:
+            ok, message = generator.process_triad(self.model_path, self.view_path, self.controller_path)
+            self.finished.emit(ok, message)
+        except Exception as e:
+            self.finished.emit(False, str(e))

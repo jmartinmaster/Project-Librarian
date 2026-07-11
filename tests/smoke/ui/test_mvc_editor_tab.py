@@ -90,3 +90,23 @@ def test_mvc_editor_tab_opens_saves_and_launches_current_file(monkeypatch, qtbot
     monkeypatch.setattr("app.ui.mvc_editor_tab.QDesktopServices.openUrl", fake_open)
     widget.open_current_externally()
     assert external_calls["path"].endswith("single_file.py")
+
+
+def test_mvc_editor_tab_trigger_local_ai(monkeypatch, qtbot):
+    """Test that clicking the Trigger Local AI button saves file and calls controller run_ai_generation."""
+    widget = MVCEditorTab()
+    qtbot.addWidget(widget)
+
+    ai_called = False
+    def mock_run_ai(callback):
+        nonlocal ai_called
+        ai_called = True
+        callback(True, "AI Generation complete")
+
+    monkeypatch.setattr(widget._controller, "run_ai_generation", mock_run_ai)
+    monkeypatch.setattr("PyQt6.QtWidgets.QMessageBox.information", lambda *args: None)
+
+    widget.trigger_ai_button.click()
+    assert ai_called is True
+    assert "AI Generation complete" in widget.status_label.text()
+

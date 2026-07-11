@@ -35,6 +35,7 @@ def test_default_config_dir_uses_localappdata_on_windows(monkeypatch):
 def test_default_output_dir_uses_localappdata_on_windows(monkeypatch):
     monkeypatch.setattr(config_module.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\tester\AppData\Local")
+    monkeypatch.setattr(config_module.Path, "resolve", lambda self, *args, **kwargs: self)
 
     output_dir = config_module._default_output_dir()
     assert Path(output_dir) == Path(r"C:\Users\tester\AppData\Local") / "Project Librarian" / "build"

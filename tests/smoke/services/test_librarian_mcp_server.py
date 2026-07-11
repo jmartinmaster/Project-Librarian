@@ -148,3 +148,176 @@ def test_mcp_server_requires_token_when_configured(app_config):
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+
+
+def test_mcp_server_ast_and_cst_routes(app_config):
+    port = _free_port()
+    command = [
+        sys.executable,
+        "-m",
+        "app.services.librarian_mcp_server",
+        "--repo-root",
+        app_config.project_root,
+        "--output-dir",
+        "build",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+    ]
+    process = subprocess.Popen(  # noqa: S603 - controlled test command
+        command,
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        _wait_for_probe(port)
+
+        # 1. Test HTTP GET /api/ast for a known file
+        p_root = Path(app_config.project_root)
+        py_files = list(p_root.rglob("*.py"))
+        assert len(py_files) > 0, "No python files found in project root to parse"
+        target_rel = py_files[0].relative_to(p_root).as_posix()
+
+        endpoint = f"http://127.0.0.1:{port}/api/ast?path={target_rel}"
+        with urllib.request.urlopen(endpoint, timeout=2.0) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        assert "path" in payload
+        assert "classes" in payload
+        assert "functions" in payload
+
+        # 2. Test JSON-RPC search for scope=ast
+        rpc_endpoint = f"http://127.0.0.1:{port}/api/mcp-probe/jsonrpc"
+        req_body = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "mcp.search",
+            "params": {
+                "q": "app",
+                "scope": "ast"
+            }
+        }).encode("utf-8")
+        req = urllib.request.Request(rpc_endpoint, data=req_body, method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=2.0) as response:
+            res_payload = json.loads(response.read().decode("utf-8"))
+        assert res_payload["id"] == 42
+        assert "result" in res_payload
+        assert "results" in res_payload["result"]
+
+        # 3. Test JSON-RPC mcp.ast
+        ast_req_body = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 43,
+            "method": "mcp.ast",
+            "params": {
+                "path": target_rel
+            }
+        }).encode("utf-8")
+        ast_req = urllib.request.Request(rpc_endpoint, data=ast_req_body, method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(ast_req, timeout=2.0) as response:
+            ast_res_payload = json.loads(response.read().decode("utf-8"))
+        assert ast_res_payload["id"] == 43
+        assert "result" in ast_res_payload
+        assert ast_res_payload["result"]["path"] == target_rel
+
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def test_fastmcp_tools_and_resources_registration(app_config):
+    import asyncio
+    from app.services.librarian_mcp_server import mcp
+    import app.services.librarian_mcp_server as server_mod
+    from app.indexer.index_manager import IndexManager
+    
+    manager = IndexManager(config=app_config)
+    manager.refresh()
+    server_mod.manager = manager
+    
+    # Verify tools exist
+    tools = asyncio.run(mcp.list_tools())
+    tool_names = [t.name for t in tools]
+    assert "search_codebase" in tool_names
+    assert "audit_triad" in tool_names
+    assert "generate_triad_boilerplate" in tool_names
+
+    # Verify resource templates exist
+    templates = asyncio.run(mcp.list_resource_templates())
+    template_uris = [t.uriTemplate for t in templates]
+    assert "file:///{relative_path}" in template_uris
+
+
+def test_mcp_server_ai_generate_route(app_config, monkeypatch):
+    """Test the FastAPI route post_ai_generate with a mocked Ollama HTTP response."""
+    import asyncio
+    import app.services.librarian_mcp_server as server_mod
+    from app.services.librarian_mcp_server import post_ai_generate
+    from app.indexer.index_manager import IndexManager
+
+    manager = IndexManager(config=app_config)
+    manager.refresh()
+    server_mod.manager = manager
+
+    p_root = Path(app_config.project_root)
+    m_file = p_root / "book_model.py"
+    v_file = p_root / "book_view.py"
+    c_file = p_root / "book_controller.py"
+
+    m_file.write_text("class BookModel:\n    pass\n", encoding="utf-8")
+    v_file.write_text("class BookView:\n    # AI-request: add reset\n    pass\n", encoding="utf-8")
+    c_file.write_text("class BookController:\n    pass\n", encoding="utf-8")
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return False
+
+        def read(self):
+            inner_dict = {
+                "model_code": "class BookModel:\n    def reset(self):\n        pass\n",
+                "view_code": "class BookView:\n    # AI-addition (timestamp): add reset\n    pass\n",
+                "controller_code": "class BookController:\n    def handle_reset(self):\n        pass\n"
+            }
+            return json.dumps({"response": json.dumps(inner_dict)}).encode("utf-8")
+
+    def mock_urlopen(req, *args, **kwargs):
+        if hasattr(req, "full_url") and "/api/tags" in req.full_url:
+            class FakeTags:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *a):
+                    return False
+
+                def read(self):
+                    return b'{"models": [{"name": "qwen2.5-coder:7b"}]}'
+            return FakeTags()
+        return FakeResponse()
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    payload = {
+        "model_path": str(m_file),
+        "view_path": str(v_file),
+        "controller_path": str(c_file)
+    }
+
+    result = asyncio.run(post_ai_generate(payload))
+    assert result["success"] is True
+
+    m_content = m_file.read_text(encoding="utf-8")
+    v_content = v_file.read_text(encoding="utf-8")
+    c_content = c_file.read_text(encoding="utf-8")
+
+    assert "def reset(self):" in m_content
+    assert "AI-addition" in v_content
+    assert "def handle_reset(self):" in c_content
+

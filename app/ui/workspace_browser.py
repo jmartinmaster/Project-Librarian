@@ -32,17 +32,17 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from app.controllers.workspace_controller import WorkspaceController
 from app.indexer.index_manager import IndexManager
-from app.services.workspace_service import WorkspaceService
 
 
 class WorkspaceBrowser(QWidget):
     """Expose high-value monolith features through modular UI actions."""
 
-    def __init__(self, index_manager: IndexManager) -> None:
+    def __init__(self, index_manager: IndexManager, controller: WorkspaceController | None = None) -> None:
         super().__init__()
         self.index_manager = index_manager
-        self.service = WorkspaceService(index_manager=index_manager)
+        self._controller = controller or WorkspaceController(index_manager=index_manager)
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -98,18 +98,18 @@ class WorkspaceBrowser(QWidget):
 
     def show_git_summary(self) -> None:
         """Render git summary output."""
-        summary = self.service.format_git_summary()
+        summary = self._controller.get_git_summary()
         self._set_output(summary)
 
     def generate_docs_draft(self) -> None:
         """Generate and display documentation draft text."""
-        content = self.service.generate_docs_draft(changed_only=self._current_changed_only())
+        content = self._controller.generate_docs_draft(changed_only=self._current_changed_only())
         self._set_output(content)
 
     def generate_changelog_draft(self) -> None:
         """Generate and display changelog draft text."""
         version_text = self.version_input.text().strip() or None
-        content = self.service.generate_changelog_draft(
+        content = self._controller.generate_changelog_draft(
             version_text=version_text,
             changed_only=self._current_changed_only(),
         )
@@ -130,7 +130,6 @@ class WorkspaceBrowser(QWidget):
         if not file_path:
             return
         try:
-            with open(file_path, "w", encoding="utf-8") as handle:
-                handle.write(content + "\n")
+            self._controller.save_output(file_path, content)
         except OSError as exc:
             QMessageBox.critical(self, "Save Failed", f"Unable to save output:\n{exc}")

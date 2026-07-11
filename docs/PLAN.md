@@ -90,7 +90,9 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [ ] Phase 11 started: full MVC-compliance refactor planning and staged execution.
 - [x] Phase 11 task 1 complete: baseline MVC boundary audit finished and extraction map prepared.
 - [x] Phase 11 task 2 complete: `app/controllers/` skeleton added with pass-through wiring in main/search/excel/anti-pattern/diagnostics flows.
-- [ ] Next up: Phase 11 task 3 - view decoupling sweep to move remaining business logic out of `app/ui/*`.
+- [x] Phase 11 task 3 complete: view decoupling sweep to move remaining business logic out of `app/ui/*`.
+- [x] Phase 11 task 4 complete: model/service normalization pass to consolidate utility services.
+- [ ] Next up: Phase 11 task 5 - smoke test migration and stabilization.
 - [ ] Deferred until after Phase 11 gate: validate packaging outputs on native Windows and Ubuntu hosts.
 
 ## Phase Checklist
