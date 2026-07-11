@@ -22,6 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.indexer.index_manager import IndexManager
+from app.models.path_model import absolute_containing_folder
 
 
 class PathController:
@@ -47,3 +48,6 @@ class PathController:
             return f"{path_text}:{line_text}"
         return path_text
 
+    def containing_folder_path(self, path_text: str) -> str:
+        """Return absolute containing-folder path for clipboard actions."""
+        return absolute_containing_folder(path_text, self._index_manager.config.project_root or Path.cwd())

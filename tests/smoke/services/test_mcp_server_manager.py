@@ -22,7 +22,7 @@ from __future__ import annotations
 import subprocess
 
 from app.indexer.index_manager import IndexManager
-from app.services.mcp_server_manager import MCPServerManager
+from app.models.mcp_server_manager import MCPServerManager
 
 
 def test_mcp_manager_builds_command_with_token(app_config):
@@ -34,7 +34,7 @@ def test_mcp_manager_builds_command_with_token(app_config):
     mcp_manager = MCPServerManager(index_manager=manager)
     command = mcp_manager._build_command()
 
-    assert "app.services.librarian_mcp_server" in command
+    assert "app.models.librarian_mcp_server" in command
     assert "--host" in command and "127.0.0.1" in command
     assert "--port" in command and "9988" in command
     assert "--token" in command and "secret-token" in command
@@ -74,7 +74,7 @@ def test_mcp_manager_start_and_stop_flow(monkeypatch, app_config):
             self.running = False
 
     fake_process = FakeProcess()
-    monkeypatch.setattr("app.services.mcp_server_manager.subprocess.Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr("app.models.mcp_server_manager.subprocess.Popen", lambda *args, **kwargs: fake_process)
 
     mcp_manager = MCPServerManager(index_manager=manager)
     started, start_message = mcp_manager.start()
@@ -118,10 +118,42 @@ def test_mcp_manager_stop_kills_when_terminate_timeout(monkeypatch, app_config):
             self.killed = True
 
     fake_process = FakeProcess()
-    monkeypatch.setattr("app.services.mcp_server_manager.subprocess.Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr("app.models.mcp_server_manager.subprocess.Popen", lambda *args, **kwargs: fake_process)
 
     mcp_manager = MCPServerManager(index_manager=manager)
     mcp_manager.start()
     stopped, _ = mcp_manager.stop()
     assert stopped is True
     assert fake_process.killed is True
+
+
+def test_mcp_manager_start_uses_app_root_and_pythonpath(monkeypatch, app_config):
+    manager = IndexManager(app_config)
+    manager.config.project_root = app_config.project_root
+
+    captured_cwd = None
+    captured_env = None
+
+    class FakeProcess:
+        def poll(self):
+            return None
+
+    def fake_popen(command, cwd=None, env=None, **kwargs):
+        nonlocal captured_cwd, captured_env
+        captured_cwd = cwd
+        captured_env = env
+        return FakeProcess()
+
+    monkeypatch.setattr("app.models.mcp_server_manager.subprocess.Popen", fake_popen)
+
+    mcp_manager = MCPServerManager(index_manager=manager)
+    mcp_manager.start()
+
+    from pathlib import Path
+    expected_app_root = str(Path(__file__).resolve().parents[3])
+    assert captured_cwd is not None
+    assert Path(captured_cwd).resolve() == Path(expected_app_root).resolve()
+    assert captured_env is not None
+    assert "PYTHONPATH" in captured_env
+    assert expected_app_root in captured_env["PYTHONPATH"]
+

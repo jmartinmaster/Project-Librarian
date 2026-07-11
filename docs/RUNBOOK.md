@@ -43,7 +43,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
    - `bash scripts/install_ubuntu_local.sh`
 
 ## UI Editing Workflow (PyQt6 Designer)
-- UI form files are under `app/ui/forms/`.
+- UI form files are under `app/views/forms/`.
 - Runtime widgets load forms via `PyQt6.uic.loadUi`.
 - Edit `.ui` files for layout changes, keep business logic in Python modules.
 

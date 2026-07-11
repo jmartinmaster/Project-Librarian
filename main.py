@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import sys
+sys.coinit_flags = 2  # COINIT_APARTMENTTHREADED
 import ctypes
 from pathlib import Path
 import os
@@ -41,7 +42,7 @@ from PyQt6.QtWidgets import (
 from app import APP_NAME, STARTUP_INDEX_NOTE
 from app.config import AppConfig, CONFIG_DIR, load_config, save_config
 from app.indexer.index_manager import IndexManager
-from app.ui.main_window import MainWindow
+from app.views.main_window_view import MainWindowView
 
 
 def _build_splash_pixmap(icon: QIcon | None) -> QPixmap:
@@ -174,7 +175,7 @@ def main() -> int:
 
     manager = IndexManager(config=config)
 
-    # Check if snapshot exists. If not, build it before launching MainWindow.
+    # Check if snapshot exists. If not, build it before launching MainWindowView.
     repo_root = Path(config.project_root or Path.cwd()).resolve()
     output_candidate = Path(config.output_dir)
     output_dir = output_candidate if output_candidate.is_absolute() else repo_root / output_candidate
@@ -192,7 +193,7 @@ def main() -> int:
     app.processEvents()
     app.aboutToQuit.connect(manager.stop_refresh_worker)
 
-    window = MainWindow(index_manager=manager)
+    window = MainWindowView(index_manager=manager)
     window.show()
     splash.finish(window)
     manager.start_refresh_worker(run_immediately=True)

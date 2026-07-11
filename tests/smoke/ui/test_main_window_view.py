@@ -1,0 +1,218 @@
+# Copyright (C) 2026 Project Librarian contributors
+#
+# This file is part of Project Librarian.
+#
+# Project Librarian is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Project Librarian is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
+
+"""Smoke tests for main window construction."""
+
+from __future__ import annotations
+
+import threading
+import time
+from pathlib import Path
+
+from PyQt6.QtWidgets import QCheckBox, QLabel, QLineEdit, QMenu, QTreeWidget
+
+from app import build_about_text
+from app.indexer.index_manager import IndexManager, IndexState
+from app.views.main_window_view import MainWindowView
+
+
+def test_main_window_builds_tabs(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    central = window.centralWidget()
+    assert central.count() >= 2
+    assert central.tabText(0) == "Search Browser"
+    assert central.tabText(1) == "Excel Library"
+    assert "MVC Editor" in [central.tabText(index) for index in range(central.count())]
+    assert "Workspace Tools" in [central.tabText(index) for index in range(central.count())]
+    assert "Integrations" in [central.tabText(index) for index in range(central.count())]
+    assert not window.windowIcon().isNull()
+
+
+def test_main_window_shows_refresh_indicators_and_toggle(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    indicator_labels = [label.text() for label in window.statusBar().findChildren(QLabel)]
+    assert any(text.startswith("Auto-Refresh:") for text in indicator_labels)
+    assert any(text.startswith("Skipped:") for text in indicator_labels)
+    assert any(text.startswith("Last Refresh:") for text in indicator_labels)
+
+    window._toggle_auto_refresh(False)
+    assert not manager.is_refresh_worker_running()
+    window._toggle_auto_refresh(True)
+    assert manager.is_refresh_worker_running()
+    manager.stop_refresh_worker()
+
+
+def test_main_window_shows_library_navigation_pane(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    library_tree = window.findChild(QTreeWidget, "libraryTree")
+    assert library_tree is not None
+    assert library_tree.topLevelItemCount() == 4
+
+    root_titles = [library_tree.topLevelItem(index).text(0) for index in range(library_tree.topLevelItemCount())]
+    assert root_titles[0].startswith("Files (")
+    assert root_titles[1].startswith("Symbols (")
+    assert root_titles[2].startswith("Excel Rows (")
+    assert root_titles[3].startswith("Skipped Files (")
+
+
+def test_main_window_exposes_help_menu_and_about_text(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    help_menu = window.findChild(QMenu, "menuHelp")
+    assert help_menu is not None
+    assert any(action.text() == "About" for action in help_menu.actions())
+
+    about_text = build_about_text()
+    assert "PyQt6" in about_text
+    assert "folder where the application is opened" in about_text
+
+
+def test_library_navigation_filter_and_tree_toggle(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    library_tree = window.findChild(QTreeWidget, "libraryTree")
+    filter_input = window.findChild(QLineEdit, "libraryFilterInput")
+    tree_toggle = window.findChild(QCheckBox, "libraryTreeToggle")
+
+    assert library_tree is not None
+    assert filter_input is not None
+    assert tree_toggle is not None
+    assert tree_toggle.isChecked()
+
+    filter_input.setText("main_window_view.py")
+    files_root = library_tree.topLevelItem(0)
+    assert "/" in files_root.text(0)
+
+    tree_toggle.setChecked(False)
+    files_root_flat = library_tree.topLevelItem(0)
+    if files_root_flat.childCount() > 0:
+        assert files_root_flat.child(0).text(1) != ""
+
+
+def test_library_double_click_opens_file(monkeypatch, qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    library_tree = window.findChild(QTreeWidget, "libraryTree")
+    assert library_tree is not None
+
+    files_root = library_tree.topLevelItem(0)
+    assert files_root is not None
+
+    target_item = None
+
+    def walk(item):
+        nonlocal target_item
+        payload = item.data(0, 0x0100)
+        if isinstance(payload, dict) and payload.get("kind") == "file":
+            target_item = item
+            return
+        for idx in range(item.childCount()):
+            if target_item is None:
+                walk(item.child(idx))
+
+    walk(files_root)
+    assert target_item is not None
+
+    opened: dict[str, object] = {}
+
+    def fake_open_in_mvc(path: Path, line_number: int | None = None) -> bool:
+        opened["path"] = path.name
+        opened["line"] = line_number
+        return True
+
+    monkeypatch.setattr(window, "_open_in_mvc_editor", fake_open_in_mvc)
+
+    window._on_library_item_double_clicked(target_item, 0)
+    assert opened.get("path") == "sample.py"
+
+
+def test_main_window_refresh_requests_background_refresh(monkeypatch, qtbot, app_config):
+    manager = IndexManager(app_config)
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+
+    def fake_refresh():
+        refresh_started.set()
+        release_refresh.wait(timeout=1.0)
+        return manager.state
+
+    monkeypatch.setattr(manager, "refresh", fake_refresh)
+
+    start = time.perf_counter()
+    window._refresh_index()
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 0.1
+    assert refresh_started.wait(timeout=0.2)
+    assert "Refreshing index in background" in window.statusBar().currentMessage()
+
+    release_refresh.set()
+    time.sleep(0.05)
+
+
+def test_main_window_rebuilds_library_tree_for_large_refresh_results(qtbot, app_config):
+    manager = IndexManager(app_config)
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    manager.state = IndexState(
+        file_corpus={f"src/file_{index}.py": "print('x')" for index in range(55)},
+        symbols=[
+            {"name": f"symbol_{index}", "kind": "function", "path": f"src/file_{index % 55}.py", "line": index + 1}
+            for index in range(312)
+        ],
+        excel_rows=[],
+        skipped_files=[],
+    )
+    manager._refresh_count = 1
+
+    window._update_refresh_indicator()
+
+    library_tree = window.findChild(QTreeWidget, "libraryTree")
+    assert library_tree is not None
+    assert library_tree.topLevelItem(0).text(0) == "Files (55)"
+    assert library_tree.topLevelItem(1).text(0) == "Symbols (312)"

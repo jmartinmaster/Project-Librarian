@@ -55,7 +55,7 @@ def test_mcp_server_process_serves_probe_and_search(app_config):
     command = [
         sys.executable,
         "-m",
-        "app.services.librarian_mcp_server",
+        "app.models.librarian_mcp_server",
         "--repo-root",
         app_config.project_root,
         "--output-dir",
@@ -80,6 +80,47 @@ def test_mcp_server_process_serves_probe_and_search(app_config):
             f"http://127.0.0.1:{port}/api/search?q=sample&scope=files&limit=3",
             timeout=2.0,
         ) as response:
+            assert response.headers.get("Access-Control-Allow-Origin") == "*"
+            payload = json.loads(response.read().decode("utf-8"))
+        assert isinstance(payload.get("count"), int)
+        assert isinstance(payload.get("results"), list)
+
+        # Check OPTIONS request
+        req_options = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/search",
+            method="OPTIONS"
+        )
+        with urllib.request.urlopen(req_options, timeout=2.0) as response:
+            assert response.headers.get("Access-Control-Allow-Origin") == "*"
+            assert "POST" in response.headers.get("Access-Control-Allow-Methods", "")
+
+        # Check POST search request with JSON body
+        req_post = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/search",
+            data=json.dumps({"q": "sample", "scope": "files", "limit": 3}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req_post, timeout=2.0) as response:
+            assert response.headers.get("Access-Control-Allow-Origin") == "*"
+            payload = json.loads(response.read().decode("utf-8"))
+        assert isinstance(payload.get("count"), int)
+        assert isinstance(payload.get("results"), list)
+
+        # Test definition endpoint (GET)
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/definition?q=ping",
+            timeout=2.0,
+        ) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        assert isinstance(payload.get("count"), int)
+        assert isinstance(payload.get("results"), list)
+
+        # Test diagnostics endpoint (GET)
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/diagnostics",
+            timeout=2.0,
+        ) as response:
             payload = json.loads(response.read().decode("utf-8"))
         assert isinstance(payload.get("count"), int)
         assert isinstance(payload.get("results"), list)
@@ -98,7 +139,7 @@ def test_mcp_server_requires_token_when_configured(app_config):
     command = [
         sys.executable,
         "-m",
-        "app.services.librarian_mcp_server",
+        "app.models.librarian_mcp_server",
         "--repo-root",
         app_config.project_root,
         "--output-dir",

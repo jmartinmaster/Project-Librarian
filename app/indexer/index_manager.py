@@ -211,7 +211,7 @@ class IndexManager:
 
                 symbols: list[dict[str, object]] = []
                 if self.config.index_python:
-                    symbols.extend(index_python_symbols(repo_root, skipped_files=skipped_files))
+                    symbols.extend(index_python_symbols(repo_root, skipped_files=skipped_files, use_cst=self.config.use_cst))
                 if self.config.index_c:
                     symbols.extend(index_c_symbols(repo_root, skipped_files=skipped_files))
 

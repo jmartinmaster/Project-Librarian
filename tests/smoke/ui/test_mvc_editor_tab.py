@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.ui.mvc_editor_tab import MVCEditorTab
+from app.views.mvc_editor_tab import MVCEditorTab
 
 
 def test_mvc_editor_tab_exposes_model_view_controller_tabs(qtbot):
@@ -87,6 +87,38 @@ def test_mvc_editor_tab_opens_saves_and_launches_current_file(monkeypatch, qtbot
         external_calls["path"] = url.toLocalFile()
         return True
 
-    monkeypatch.setattr("app.ui.mvc_editor_tab.QDesktopServices.openUrl", fake_open)
+    monkeypatch.setattr("app.views.mvc_editor_tab.QDesktopServices.openUrl", fake_open)
     widget.open_current_externally()
     assert external_calls["path"].endswith("single_file.py")
+
+
+def test_mvc_editor_tab_autocomplete(qtbot):
+    widget = MVCEditorTab()
+    qtbot.addWidget(widget)
+    
+    assert widget.model_editor.completer() is not None
+    assert widget.view_editor.completer() is not None
+    assert widget.controller_editor.completer() is not None
+    
+    model = widget.model_editor.completer().model()
+    words = [model.index(i, 0).data() for i in range(model.rowCount())]
+    assert "class" in words
+    assert "QWidget" in words
+
+
+def test_mvc_editor_tab_create_triad(qtbot, tmp_path: Path):
+    workspace = tmp_path / "mvc_workspace"
+    workspace.mkdir()
+    
+    widget = MVCEditorTab(workspace_root=str(workspace))
+    qtbot.addWidget(widget)
+    
+    widget._controller.create_new_mvc_triad("DashboardWidget", str(workspace))
+    
+    assert (workspace / "models" / "dashboard_widget_model.py").exists()
+    assert (workspace / "views" / "dashboard_widget_view.py").exists()
+    assert (workspace / "controllers" / "dashboard_widget_controller.py").exists()
+    
+    assert "class DashboardWidgetModel(QObject):" in widget.model_editor.toPlainText()
+    assert "class DashboardWidgetView(QWidget):" in widget.view_editor.toPlainText()
+    assert "class DashboardWidgetController:" in widget.controller_editor.toPlainText()

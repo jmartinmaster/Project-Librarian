@@ -15,13 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
-"""Smoke tests for UI path helper behavior."""
+"""Smoke tests for shared path service helper behavior."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from app.ui.path_utils import absolute_containing_folder
+from app.models.path_model import absolute_containing_folder
 
 
 def test_absolute_containing_folder_resolves_relative_file_path(tmp_path: Path):

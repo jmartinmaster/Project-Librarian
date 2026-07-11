@@ -71,6 +71,7 @@ class AppConfig:
     mcp_auth_token: str = ""
     mcp_transport: str = "streamable-http"
     mcp_autostart: bool = False
+    use_cst: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary for the current config."""

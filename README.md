@@ -117,12 +117,12 @@ When Project Librarian starts with a fresh configuration, it uses the folder it 
 - `app/search/`: in-memory search engine
 <<<<<<< HEAD
 - `app/controllers/`: MVC workflow controllers for search, library, audit, diagnostics, and settings
-- `app/services/`: business-logic services for workspace, MCP server, anti-pattern, and diagnostics operations
-- `app/ui/`: PyQt6 windows, dialogs, forms, and assets
+- `app/models/`: business-logic services for workspace, MCP server, anti-pattern, and diagnostics operations
+- `app/views/`: PyQt6 windows, dialogs, forms, and assets
 =======
 - `app/controllers/`: MVC controller layer – orchestrates Search, Library, Anti-pattern, Diagnostics, and Settings workflows
-- `app/services/`: workspace assistant, anti-pattern analysis, diagnostics, MCP server, and server lifecycle manager
-- `app/ui/`: PyQt6 windows, dialogs, forms, and assets (Search Browser, Excel Browser, Indexed Library, Workspace Assistant, Integrations, MVC Editor)
+- `app/models/`: workspace assistant, anti-pattern analysis, diagnostics, MCP server, and server lifecycle manager
+- `app/views/`: PyQt6 windows, dialogs, forms, and assets (Search Browser, Excel Browser, Indexed Library, Workspace Assistant, Integrations, MVC Editor)
 >>>>>>> origin/main
 - `tests/smoke/`: smoke coverage for model, controller, and UI behavior
 - `docs/`: active build, run, release, and planning documents

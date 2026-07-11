@@ -27,7 +27,8 @@ from pathlib import Path
 
 from app.controllers.path_controller import PathController
 from app.indexer.index_manager import IndexManager
-from app.services.anti_pattern_service import load_anti_pattern_config, save_anti_pattern_config
+from app.models.anti_pattern_model import load_anti_pattern_config, save_anti_pattern_config
+from app.models.editor_model import launch_editor
 
 
 class AntiPatternController:
@@ -124,6 +125,10 @@ class AntiPatternController:
         """Build path:line reference text for clipboard actions."""
         return self._path_controller.reference_location(path_text=path_text, line_text=line_text)
 
+    def containing_folder_path(self, path_text: str) -> str:
+        """Return absolute containing-folder path for clipboard actions."""
+        return self._path_controller.containing_folder_path(path_text)
+
     def line_context(
         self,
         path: str,
@@ -144,6 +149,13 @@ class AntiPatternController:
             marker = ">" if ln == line_number else " "
             rendered.append(f"{marker} {ln:4d} | {lines[ln - 1]}")
         return "\n".join(rendered)
+
+    def open_external_editor(self, path_text: str, line_number: int | None) -> bool:
+        """Open a result path in configured external editor."""
+        resolved = self.resolve_result_path(path_text)
+        if resolved is None or not resolved.exists():
+            return False
+        return launch_editor(resolved, line_number, self._index_manager.config)
 
     @staticmethod
     def export_results_to_csv(results: list[dict[str, object]], file_path: str) -> None:

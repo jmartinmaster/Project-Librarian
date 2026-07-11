@@ -28,3 +28,29 @@ def test_index_python_symbols_finds_class_and_function(sample_repo):
     assert "Example" in names
     assert "Example.ping" in names
     assert "add" in names
+
+
+def test_index_python_symbols_cst_finds_class_and_function(sample_repo):
+    symbols = index_python_symbols(sample_repo, use_cst=True)
+    names = {item["qualified_name"] for item in symbols}
+    assert "Example" in names
+    assert "Example.ping" in names
+    assert "add" in names
+
+
+def test_index_python_symbols_cst_matches_ast(sample_repo):
+    symbols_ast = index_python_symbols(sample_repo, use_cst=False)
+    symbols_cst = index_python_symbols(sample_repo, use_cst=True)
+    
+    symbols_ast_sorted = sorted(symbols_ast, key=lambda x: x["qualified_name"])
+    symbols_cst_sorted = sorted(symbols_cst, key=lambda x: x["qualified_name"])
+    
+    assert len(symbols_ast_sorted) == len(symbols_cst_sorted)
+    for ast_sym, cst_sym in zip(symbols_ast_sorted, symbols_cst_sorted):
+        assert ast_sym["name"] == cst_sym["name"]
+        assert ast_sym["qualified_name"] == cst_sym["qualified_name"]
+        assert ast_sym["kind"] == cst_sym["kind"]
+        assert ast_sym["line"] == cst_sym["line"]
+        assert ast_sym["path"] == cst_sym["path"]
+        assert ast_sym["signature"].replace(" ", "") == cst_sym["signature"].replace(" ", "")
+
