@@ -113,11 +113,20 @@ class SearchView(QWidget):
         self.results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.preview_pane.setReadOnly(True)
 
+        # Ensure the splitter gives the results table majority space on first show.
+        if hasattr(self, "splitter"):
+            self.splitter.setSizes([600, 300])
+
         self.search_button.clicked.connect(self.run_search)
         self.query_input.returnPressed.connect(self.run_search)
+        self.query_input.setMaximumWidth(250)
         self.results_table.itemSelectionChanged.connect(self._on_result_selected)
         self.results_table.cellDoubleClicked.connect(self._on_result_double_clicked)
         self.results_table.customContextMenuRequested.connect(self._on_results_context_menu)
+
+        options_layout = QHBoxLayout()
+        options_layout.setContentsMargins(0, 0, 0, 0)
+        options_layout.setSpacing(10)
 
         self.match_case = QCheckBox("Match Case", self)
         self.match_case.setObjectName("matchCase")
@@ -125,8 +134,16 @@ class SearchView(QWidget):
         self.use_regex.setObjectName("useRegex")
         self.match_case.stateChanged.connect(self.run_search)
         self.use_regex.stateChanged.connect(self.run_search)
-        self.controls_layout.addWidget(self.match_case)
-        self.controls_layout.addWidget(self.use_regex)
+
+        self.controls_layout.removeWidget(self.changed_only)
+        self.controls_layout.addStretch(1)
+        options_layout.addWidget(self.changed_only)
+        options_layout.addWidget(self.match_case)
+        options_layout.addWidget(self.use_regex)
+        options_layout.addStretch(1)
+
+        if self.layout() is not None:
+            self.layout().insertLayout(1, options_layout)
 
     def run_search(self) -> None:
         """Execute a search over in-memory indexes and populate the table."""

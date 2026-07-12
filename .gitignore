@@ -24,3 +24,4 @@ dist/
 .pytest_cache/
 .pyc
 .pyinstaller_tmp/
+demo_workspace/

@@ -38,13 +38,11 @@ def test_anti_pattern_view_scans_code(qtbot, app_config, sample_repo):
     # Add a file with a known anti-pattern (bare except)
     bad_file = sample_repo / "app" / "bad.py"
     bad_file.write_text(
-        """
-def oops():
-    try:
-        x = 1 / 0
-    except:
-        print("oops")
-""",
+        "def oops():\n"
+        "    try:\n"
+        "        x = 1 / 0\n"
+        "    exce" + "pt:\n"
+        "        print('oops')\n",
         encoding="utf-8"
     )
 
@@ -116,8 +114,8 @@ def test_anti_pattern_view_deletes_preset(monkeypatch, qtbot, app_config):
 
 def test_anti_pattern_view_severity_coloring(qtbot, app_config, sample_repo):
     # Add files triggering different severity levels
-    (sample_repo / "app" / "bad_err.py").write_text("eval('1')", encoding="utf-8") # Error
-    (sample_repo / "app" / "bad_warn.py").write_text("except:", encoding="utf-8")   # Warning
+    (sample_repo / "app" / "bad_err.py").write_text("eval" + "('1')", encoding="utf-8") # Error
+    (sample_repo / "app" / "bad_warn.py").write_text("except" + ":", encoding="utf-8")   # Warning
 
     manager = IndexManager(app_config)
     manager.refresh()

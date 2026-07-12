@@ -40,6 +40,7 @@ from PyQt6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QFileDialog,
 )
 
 from app import APP_NAME, build_about_text
@@ -67,14 +68,14 @@ class LibraryDockTitleBar(QWidget):
         self.collapsed = False
 
         self.layout = QHBoxLayout(self)
-        self.layout.setContentsMargins(6, 4, 6, 4)
+        self.layout.setContentsMargins(4, 4, 4, 4)
         self.layout.setSpacing(4)
 
         self.title_label = QLabel("Indexed Library", self)
         self.title_label.setStyleSheet("font-weight: bold; color: #cdd6f4;")
 
         self.collapse_btn = QPushButton("◀", self)
-        self.collapse_btn.setFixedSize(20, 20)
+        self.collapse_btn.setFixedSize(30, 30)
         self.collapse_btn.setToolTip("Collapse Sidebar")
         self.collapse_btn.setStyleSheet("""
             QPushButton {
@@ -91,12 +92,12 @@ class LibraryDockTitleBar(QWidget):
         """)
 
         self.float_btn = QPushButton("❐", self)
-        self.float_btn.setFixedSize(20, 20)
+        self.float_btn.setFixedSize(30, 30)
         self.float_btn.setToolTip("Pop out")
         self.float_btn.setStyleSheet(self.collapse_btn.styleSheet())
 
         self.close_btn = QPushButton("✕", self)
-        self.close_btn.setFixedSize(20, 20)
+        self.close_btn.setFixedSize(30, 30)
         self.close_btn.setToolTip("Close")
         self.close_btn.setStyleSheet(self.collapse_btn.styleSheet())
 
@@ -130,8 +131,8 @@ class LibraryDockTitleBar(QWidget):
             self.close_btn.setVisible(True)
             self.collapse_btn.setText("◀")
             self.collapse_btn.setToolTip("Collapse Sidebar")
-            self.dock_widget.setMinimumWidth(50)
-            self.dock_widget.setMaximumWidth(99999)
+            self.dock_widget.setMinimumWidth(500)
+            self.dock_widget.setMaximumWidth(1900)
 
     def toggle_float(self) -> None:
         self.dock_widget.setFloating(not self.dock_widget.isFloating())
@@ -258,10 +259,53 @@ class MainWindowView(QMainWindow):
         self._update_refresh_indicator()
         self.statusBar().showMessage("Ready")
 
+        # Set dock to ~25% of screen width once the window geometry is known.
+        screen = QApplication.primaryScreen()
+        if screen:
+            dock_width = max(420, screen.geometry().width() // 4)
+            self.resizeDocks([self._library_dock], [dock_width], Qt.Orientation.Horizontal)
+
     def _build_menu(self) -> None:
         self._action_refresh_index.triggered.connect(self._refresh_index)
         self._action_preferences.triggered.connect(self._open_settings)
         self._action_about.triggered.connect(self._show_about_dialog)
+
+        # Wire and insert Help Content action dynamically before About action
+        self._action_help_content = QAction("Librarian User Guide", self)
+        self._action_help_content.setShortcut("F1")
+        self._action_help_content.triggered.connect(self._show_help_dialog)
+        self._help_menu.insertAction(self._action_about, self._action_help_content)
+        self._help_menu.insertSeparator(self._action_about)
+
+        # Get or setup File menu programmatically
+        file_menu = self.findChild(QMenu, "menuFile")
+        if file_menu is not None:
+            file_menu.clear()
+            
+            # 1. Open Workspace...
+            self._action_open_workspace = QAction("Open Workspace...", self)
+            self._action_open_workspace.setShortcut("Ctrl+O")
+            self._action_open_workspace.triggered.connect(self._open_workspace_dialog)
+            file_menu.addAction(self._action_open_workspace)
+            
+            # 2. Save Files
+            self._action_save_files = QAction("Save Files", self)
+            self._action_save_files.setShortcut("Ctrl+S")
+            self._action_save_files.triggered.connect(self._save_files)
+            file_menu.addAction(self._action_save_files)
+            
+            file_menu.addSeparator()
+            
+            # 3. Refresh Index
+            file_menu.addAction(self._action_refresh_index)
+            
+            file_menu.addSeparator()
+            
+            # 4. Close
+            self._action_close = QAction("Close", self)
+            self._action_close.setShortcut("Alt+F4")
+            self._action_close.triggered.connect(self.close)
+            file_menu.addAction(self._action_close)
 
         self._action_auto_refresh = QAction("Auto Refresh Enabled", self)
         self._action_auto_refresh.setCheckable(True)
@@ -270,9 +314,38 @@ class MainWindowView(QMainWindow):
         self._settings_menu.addSeparator()
         self._settings_menu.addAction(self._action_auto_refresh)
 
+    def _open_workspace_dialog(self) -> None:
+        """Prompt user for a folder to set as the active project root workspace."""
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Workspace Folder",
+            self.index_manager.config.project_root or "",
+            QFileDialog.Option.DontUseNativeDialog,
+        )
+        if path:
+            self.index_manager.config.project_root = path
+            self.index_manager.config.mvc_editor_root = path
+            from app.config import save_config
+            save_config(self.index_manager.config)
+            
+            self._on_project_root_changed(path)
+            self.integrations_view.sync_from_config()
+            self._refresh_index()
+
+    def _save_files(self) -> None:
+        """Trigger save on the embedded MVC editor tab."""
+        self.mvc_editor_tab.save_current_file()
+        self.statusBar().showMessage("Saved open MVC files.", 3000)
+
     def _show_about_dialog(self) -> None:
         """Show license and framework attribution required by the packaged app."""
         QMessageBox.about(self, f"About {APP_NAME}", build_about_text())
+
+    def _show_help_dialog(self) -> None:
+        """Show the premium in-app Help Dialog containing the User Guide."""
+        from app.views.help_view import HelpDialog
+        dialog = HelpDialog(self)
+        dialog.exec()
 
     def _refresh_index(self) -> None:
         started = self._controller.request_refresh()
@@ -308,9 +381,17 @@ class MainWindowView(QMainWindow):
         self._library_tree.setObjectName("libraryTree")
         self._library_tree.setColumnCount(2)
         self._library_tree.setHeaderLabels(["Library", "Location"])
+        self._library_tree.header().setStretchLastSection(False)
+
+        def tree_resize_event(event):
+            QTreeWidget.resizeEvent(self._library_tree, event)
+            w = self._library_tree.viewport().width()
+            self._library_tree.setColumnWidth(0, max(50, int(w * 0.66)))
+            self._library_tree.setColumnWidth(1, max(25, int(w * 0.34)))
+
+        self._library_tree.resizeEvent = tree_resize_event
+
         self._library_tree.itemActivated.connect(self._on_library_item_activated)
-        self._library_tree.itemDoubleClicked.connect(self._on_library_item_double_clicked)
-        self._library_tree.currentItemChanged.connect(self._on_library_current_item_changed)
         self._library_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._library_tree.customContextMenuRequested.connect(self._on_library_context_menu)
         self._library_tree.setMinimumWidth(50)
@@ -442,20 +523,6 @@ class MainWindowView(QMainWindow):
             tree.topLevelItem(idx).setExpanded(True)
         tree.setUpdatesEnabled(True)
 
-    def _on_library_current_item_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:
-        """Load selected file in MVC editor in the background without switching tabs."""
-        if current is None:
-            return
-        payload = current.data(0, Qt.ItemDataRole.UserRole)
-        if not isinstance(payload, dict):
-            return
-        kind = str(payload.get("kind", ""))
-        if kind == "file":
-            path_text = self._payload_path(payload)
-            resolved = self._resolve_path(path_text)
-            if resolved and resolved.exists():
-                self.mvc_editor_tab.open_file(resolved)
-
     def _on_library_item_activated(self, item: QTreeWidgetItem, _column: int) -> None:
         """Route library navigation actions to the appropriate browse view."""
         payload = item.data(0, Qt.ItemDataRole.UserRole)
@@ -464,8 +531,8 @@ class MainWindowView(QMainWindow):
 
         kind = str(payload.get("kind", ""))
         if kind == "file":
-            self._tabs.setCurrentWidget(self.search_view)
-            self.search_view.set_query(query=str(payload.get("path", "")), scope="files", execute=True)
+            path_text = self._payload_path(payload)
+            self._open_path(path_text)
             return
 
         if kind == "symbol":
@@ -481,12 +548,6 @@ class MainWindowView(QMainWindow):
             self.statusBar().showMessage(
                 f"Skipped file: {payload.get('path', '')} ({payload.get('stage', '')}: {payload.get('reason', '')})"
             )
-
-    def _on_library_item_double_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
-        """Open underlying file when a library item is double clicked."""
-        payload = item.data(0, Qt.ItemDataRole.UserRole)
-        path_text = self._payload_path(payload)
-        self._open_path(path_text)
 
     def _on_library_context_menu(self, position: QPoint) -> None:
         """Show context menu with open/copy actions for selected library item."""

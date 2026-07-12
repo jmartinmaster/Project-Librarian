@@ -200,6 +200,7 @@ class SettingsView(QDialog):
 
     def _save_and_accept(self) -> None:
         self.config.project_root = self.project_root_edit.text().strip()
+        self.config.mvc_editor_root = self.config.project_root
         self.config.output_dir = self.output_dir_edit.text().strip() or "build"
         self.config.refresh_interval_seconds = int(self.refresh_spin.value())
         self.config.index_python = self.index_python_check.isChecked()

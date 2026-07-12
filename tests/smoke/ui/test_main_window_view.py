@@ -163,7 +163,7 @@ def test_library_double_click_opens_file(monkeypatch, qtbot, app_config):
 
     monkeypatch.setattr(window, "_open_in_mvc_editor", fake_open_in_mvc)
 
-    window._on_library_item_double_clicked(target_item, 0)
+    window._on_library_item_activated(target_item, 0)
     assert opened.get("path") == "sample.py"
 
 

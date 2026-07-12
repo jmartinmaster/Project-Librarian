@@ -66,6 +66,12 @@ class ExcelView(QWidget):
         self.results_table.setHorizontalHeaderLabels(["File", "Sheet", "Row", "Field", "Value"])
         self.results_table.horizontalHeader().setStretchLastSection(True)
 
+        self.query_input.setMaximumWidth(250)
+        from PyQt6.QtWidgets import QHBoxLayout
+        controls_layout = self.findChild(QHBoxLayout, "controlsLayout")
+        if controls_layout is not None:
+            controls_layout.addStretch(1)
+
         self.filter_button.clicked.connect(self.run_filter)
         self.query_input.returnPressed.connect(self.run_filter)
 

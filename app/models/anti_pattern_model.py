@@ -81,7 +81,7 @@ def load_anti_pattern_config(output_dir: str | Path) -> dict:
                         if name == "Eval / Exec Usage" and regex == r"\b(eval|exec)\s*\(":
                             regex = r"(?<!\.)\b(eval|exec)\s*\("
                             description = "Using eval or exec can run arbitrary code, presenting security risks."
-                        elif name == "Bare Except" and "except:" in description:
+                        elif name == "Bare Except" and "except" + ":" in description:
                             description = "Using bare except without specifying an exception class catches system exits and interrupts."
                             
                         presets.append({

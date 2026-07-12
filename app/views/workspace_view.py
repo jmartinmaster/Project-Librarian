@@ -47,19 +47,22 @@ class WorkspaceView(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        controls = QHBoxLayout()
 
+        options_layout = QHBoxLayout()
         self.changed_only_checkbox = QCheckBox("Changed files only", self)
         self.changed_only_checkbox.setObjectName("workspaceChangedOnly")
         self.changed_only_checkbox.setChecked(True)
-        controls.addWidget(self.changed_only_checkbox)
+        options_layout.addWidget(self.changed_only_checkbox)
 
-        controls.addWidget(QLabel("Version:", self))
+        options_layout.addWidget(QLabel("Version:", self))
         self.version_input = QLineEdit(self)
         self.version_input.setObjectName("workspaceVersionInput")
         self.version_input.setPlaceholderText("Unreleased")
-        controls.addWidget(self.version_input)
+        self.version_input.setMaximumWidth(120)
+        options_layout.addWidget(self.version_input)
+        options_layout.addStretch(1)
 
+        buttons_layout = QHBoxLayout()
         self.git_summary_button = QPushButton("Show Git Summary", self)
         self.git_summary_button.setObjectName("workspaceGitSummaryButton")
         self.docs_draft_button = QPushButton("Generate Docs Draft", self)
@@ -70,13 +73,14 @@ class WorkspaceView(QWidget):
         self.save_output_button.setObjectName("workspaceSaveOutputButton")
         self.save_output_button.setEnabled(False)
 
-        controls.addWidget(self.git_summary_button)
-        controls.addWidget(self.docs_draft_button)
-        controls.addWidget(self.changelog_button)
-        controls.addWidget(self.save_output_button)
-        controls.addStretch(1)
+        buttons_layout.addWidget(self.git_summary_button)
+        buttons_layout.addWidget(self.docs_draft_button)
+        buttons_layout.addWidget(self.changelog_button)
+        buttons_layout.addWidget(self.save_output_button)
+        buttons_layout.addStretch(1)
 
-        layout.addLayout(controls)
+        layout.addLayout(options_layout)
+        layout.addLayout(buttons_layout)
 
         self.output = QPlainTextEdit(self)
         self.output.setObjectName("workspaceOutput")

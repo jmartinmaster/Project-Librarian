@@ -506,9 +506,13 @@ class EditorPane(QWidget):
                 border-top-right-radius: 6px;
             }}
         """)
-        header_layout = QHBoxLayout(self.header)
-        header_layout.setContentsMargins(8, 4, 8, 4)
-        header_layout.setSpacing(8)
+        header_layout = QVBoxLayout(self.header)
+        header_layout.setContentsMargins(6, 4, 6, 4)
+        header_layout.setSpacing(4)
+
+        row1_layout = QHBoxLayout()
+        row1_layout.setContentsMargins(0, 0, 0, 0)
+        row1_layout.setSpacing(6)
 
         # Editor Badge
         self.badge = QLabel(self.title.upper())
@@ -520,13 +524,12 @@ class EditorPane(QWidget):
             border-radius: 4px;
             padding: 2px 6px;
         """)
-        header_layout.addWidget(self.badge)
+        row1_layout.addWidget(self.badge)
 
         # File path label
         self.file_label = QLabel("No File Loaded")
         self.file_label.setStyleSheet("color: #a6adc8; font-weight: 500; font-size: 11px;")
-        header_layout.addWidget(self.file_label)
-        header_layout.addSpacing(8)
+        row1_layout.addWidget(self.file_label)
 
         # Folder button to select/associate a different file
         self.browse_btn_header = QPushButton("📁")
@@ -546,10 +549,12 @@ class EditorPane(QWidget):
             }}
         """)
         self.browse_btn_header.clicked.connect(lambda: self.browse_clicked.emit(self.role))
-        header_layout.addWidget(self.browse_btn_header)
-        header_layout.addSpacing(8)
+        row1_layout.addWidget(self.browse_btn_header)
+        row1_layout.addStretch(1)
 
-        header_layout.addStretch()
+        row2_layout = QHBoxLayout()
+        row2_layout.setContentsMargins(0, 0, 0, 0)
+        row2_layout.setSpacing(4)
 
         # Class / Method breadcrumbs
         self.class_combo = QComboBox()
@@ -605,10 +610,14 @@ class EditorPane(QWidget):
         """)
         self.ai_btn.clicked.connect(lambda: self.ai_clicked.emit(self.role))
 
-        header_layout.addWidget(self.class_combo)
-        header_layout.addWidget(QLabel(">"))
-        header_layout.addWidget(self.method_combo)
-        header_layout.addWidget(self.ai_btn)
+        row2_layout.addWidget(self.class_combo)
+        row2_layout.addWidget(QLabel(">"))
+        row2_layout.addWidget(self.method_combo)
+        row2_layout.addStretch(1)
+        row2_layout.addWidget(self.ai_btn)
+
+        header_layout.addLayout(row1_layout)
+        header_layout.addLayout(row2_layout)
 
         self.main_layout.addWidget(self.header)
 

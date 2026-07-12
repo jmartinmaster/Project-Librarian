@@ -34,9 +34,11 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QVBoxLayout,
     QWidget,
+    QScrollArea,
+    QFrame,
 )
 
-from app.config import AppConfig
+from app.config import AppConfig, save_config
 from app.controllers.integrations_controller import IntegrationsController
 from app.models.mcp_server_manager import MCPServerManager
 
@@ -59,9 +61,22 @@ class IntegrationsView(QWidget):
         self.sync_from_config()
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
-        mvc_group = QGroupBox("MVC Editor Integration", self)
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        main_layout.addWidget(scroll_area)
+
+        container = QWidget()
+        scroll_area.setWidget(container)
+
+        root = QVBoxLayout(container)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(12)
+
+        mvc_group = QGroupBox("MVC Editor Integration", container)
         mvc_layout = QVBoxLayout(mvc_group)
         mvc_form = QFormLayout()
         self.mvc_root_edit = QLineEdit(mvc_group)
@@ -83,7 +98,7 @@ class IntegrationsView(QWidget):
         mvc_buttons.addStretch(1)
         mvc_layout.addLayout(mvc_buttons)
 
-        mcp_group = QGroupBox("MCP Server Settings & Control", self)
+        mcp_group = QGroupBox("MCP Server Settings & Control", container)
         mcp_layout = QVBoxLayout(mcp_group)
         mcp_form = QFormLayout()
         self.mcp_host_edit = QLineEdit(mcp_group)
@@ -122,7 +137,7 @@ class IntegrationsView(QWidget):
         self.mcp_status_label.setObjectName("mcpStatusLabel")
         mcp_layout.addWidget(self.mcp_status_label)
 
-        ai_group = QGroupBox("Local AI Settings (Ollama)", self)
+        ai_group = QGroupBox("Local AI Settings (Ollama)", container)
         ai_layout = QVBoxLayout(ai_group)
         ai_form = QFormLayout()
         self.ai_url_edit = QLineEdit(ai_group)
@@ -189,6 +204,11 @@ class IntegrationsView(QWidget):
         )
         if path:
             self.mvc_root_edit.setText(path)
+            self.config.project_root = path
+            self.config.mvc_editor_root = path
+            save_config(self.config)
+            if self._on_project_root_changed is not None:
+                self._on_project_root_changed(path)
 
     def _open_mvc_folder(self) -> None:
         ok, msg = self._controller.open_mvc_folder(self.mvc_root_edit.text())

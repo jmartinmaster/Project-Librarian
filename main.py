@@ -194,7 +194,7 @@ def main() -> int:
     app.aboutToQuit.connect(manager.shutdown)
 
     window = MainWindowView(index_manager=manager)
-    window.show()
+    window.showMaximized()
     splash.finish(window)
     manager.start_refresh_worker(run_immediately=True)
     return app.exec()
@@ -358,6 +358,8 @@ def supervisor_main() -> int:
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     target_script_to_analyze = None
     analyze_duration = 0
     analyze_interval = 0
@@ -620,7 +622,10 @@ if __name__ == "__main__":
         else:
             sys.exit(0)
 
-    if bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1":
+    is_mp_child = multiprocessing.current_process().name != "MainProcess" or any(arg.startswith("--multiprocessing-") for arg in sys.argv)
+    if is_mp_child:
+        pass
+    elif bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1":
         raise SystemExit(main())
     else:
         raise SystemExit(supervisor_main())

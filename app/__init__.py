@@ -23,6 +23,9 @@ APP_LICENSE_NAME = "GNU General Public License v3.0 or later"
 PYQT_ATTRIBUTION = (
 	"Built with PyQt6. PyQt6 is available from Riverbank Computing under GPL and commercial licensing terms."
 )
+LIBCST_ATTRIBUTION = (
+	"This application optionally uses libcst for Concrete Syntax Tree (CST) parsing, which is licensed under the MIT License."
+)
 STARTUP_INDEX_NOTE = (
 	"If no saved project root is configured yet, indexing starts from the folder where the application is opened."
 )
@@ -37,6 +40,7 @@ def build_about_text() -> str:
 			STARTUP_INDEX_NOTE,
 			f"License: {APP_LICENSE_NAME}.",
 			PYQT_ATTRIBUTION,
+			LIBCST_ATTRIBUTION,
 			APP_COPYRIGHT,
 		]
 	)

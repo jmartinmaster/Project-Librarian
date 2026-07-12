@@ -5,7 +5,7 @@ a = Analysis(
     ['C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\ui\\forms', 'app\\ui\\forms'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\ui\\assets', 'app\\ui\\assets')],
+    datas=[('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\views\\forms', 'app\\views\\forms'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\views\\assets', 'app\\views\\assets'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\LICENSE', '.'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\LICENSE-MIT', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -54,7 +54,8 @@ def test_mvc_editor_tab_loads_and_saves_triad(qtbot, tmp_path: Path):
 
     widget = MVCEditorTab(workspace_root=str(workspace))
     qtbot.addWidget(widget)
-    widget.open_file(entrypoint)
+    with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
+        widget.open_file(entrypoint)
 
     assert "DocumentModel" in widget.model_editor.toPlainText()
     assert "EditorView" in widget.view_editor.toPlainText()
@@ -72,12 +73,15 @@ def test_mvc_editor_tab_opens_saves_and_launches_current_file(monkeypatch, qtbot
     widget = MVCEditorTab(workspace_root=str(tmp_path))
     qtbot.addWidget(widget)
 
-    opened = widget.open_file(target, line_number=2)
+    with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
+        opened = widget.open_file(target, line_number=2)
     assert opened
     assert widget.current_file_edit.text().endswith("single_file.py")
     assert widget.editor_tabs.tabText(widget.editor_tabs.currentIndex()) == "MVC Editor"
 
     widget.file_editor.setPlainText("updated\ncontent\n")
+    widget.save_current_file()
+    assert "updated" in target.read_text(encoding="utf-8")
     widget.save_current_file()
     assert "updated" in target.read_text(encoding="utf-8")
 
@@ -113,12 +117,13 @@ def test_mvc_editor_tab_create_triad(qtbot, tmp_path: Path):
     widget = MVCEditorTab(workspace_root=str(workspace))
     qtbot.addWidget(widget)
     
-    widget._controller.create_new_mvc_triad("DashboardWidget", str(workspace))
-    
+    with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
+        widget._controller.create_new_mvc_triad("DashboardWidget", str(workspace))
+
     assert (workspace / "models" / "dashboard_widget_model.py").exists()
     assert (workspace / "views" / "dashboard_widget_view.py").exists()
     assert (workspace / "controllers" / "dashboard_widget_controller.py").exists()
-    
+
     assert "class DashboardWidgetModel(QObject):" in widget.model_editor.toPlainText()
     assert "class DashboardWidgetView(QWidget):" in widget.view_editor.toPlainText()
     assert "class DashboardWidgetController:" in widget.controller_editor.toPlainText()

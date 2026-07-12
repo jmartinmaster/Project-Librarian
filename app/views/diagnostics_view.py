@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QFrame,
     QProgressBar,
+    QScrollArea,
 )
 import sys
 
@@ -305,6 +306,19 @@ class DiagnosticsView(QWidget):
         self.log_output = log_output
 
     def _build_ui(self) -> None:
+        controls_panel = self.findChild(QWidget, "controlsPanel")
+        if controls_panel is not None and self.main_splitter is not None:
+            scroll_area = QScrollArea(self.main_splitter)
+            scroll_area.setWidgetResizable(True)
+            scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+            
+            idx = self.main_splitter.indexOf(controls_panel)
+            controls_panel.setParent(None)
+            scroll_area.setWidget(controls_panel)
+            self.main_splitter.insertWidget(idx, scroll_area)
+            controls_panel.setMinimumHeight(0)
+            self.main_splitter.setSizes([320, 800])
+
         self.log_output.setReadOnly(True)
         # Apply monospaced font style for neat tracing output lists
         font = self.log_output.font()
