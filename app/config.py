@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
-"""Application configuration model for Project Librarian."""
+"""Application configuration model for The Librarian."""
 
 from __future__ import annotations
 
@@ -32,10 +32,10 @@ def _default_config_dir() -> Path:
     if sys.platform == "win32":
         appdata_local = os.environ.get("LOCALAPPDATA")
         base = Path(appdata_local) if appdata_local else Path.home() / "AppData" / "Local"
-        return base / "Project Librarian"
+        return base / "The Librarian"
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "Project Librarian"
-    return Path.home() / ".config" / "project-librarian"
+        return Path.home() / "Library" / "Application Support" / "The Librarian"
+    return Path.home() / ".config" / "the-librarian"
 
 
 def _default_output_dir() -> str:
@@ -72,6 +72,10 @@ class AppConfig:
     mcp_transport: str = "streamable-http"
     mcp_autostart: bool = False
     use_cst: bool = False
+    indexing_thread_count: int = 4
+    ai_url: str = "http://localhost:11434/api/generate"
+    ai_model: str = "qwen2.5-coder:14b"
+
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary for the current config."""

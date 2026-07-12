@@ -28,11 +28,13 @@ from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
     QDockWidget,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QMenu,
+    QPushButton,
     QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
@@ -53,6 +55,90 @@ from app.views.mvc_editor_tab import MVCEditorTab
 from app.views.workspace_view import WorkspaceView
 from app.views.integrations_view import IntegrationsView
 from app.models.mcp_server_manager import MCPServerManager
+
+
+class LibraryDockTitleBar(QWidget):
+    """Custom title bar for the Indexed Library dock widget to allow collapsing."""
+
+    def __init__(self, dock_widget: QDockWidget, content_widget: QWidget) -> None:
+        super().__init__(dock_widget)
+        self.dock_widget = dock_widget
+        self.content_widget = content_widget
+        self.collapsed = False
+
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(6, 4, 6, 4)
+        self.layout.setSpacing(4)
+
+        self.title_label = QLabel("Indexed Library", self)
+        self.title_label.setStyleSheet("font-weight: bold; color: #cdd6f4;")
+
+        self.collapse_btn = QPushButton("◀", self)
+        self.collapse_btn.setFixedSize(20, 20)
+        self.collapse_btn.setToolTip("Collapse Sidebar")
+        self.collapse_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #a6adc8;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #313244;
+                color: #f38ba8;
+                border-radius: 3px;
+            }
+        """)
+
+        self.float_btn = QPushButton("❐", self)
+        self.float_btn.setFixedSize(20, 20)
+        self.float_btn.setToolTip("Pop out")
+        self.float_btn.setStyleSheet(self.collapse_btn.styleSheet())
+
+        self.close_btn = QPushButton("✕", self)
+        self.close_btn.setFixedSize(20, 20)
+        self.close_btn.setToolTip("Close")
+        self.close_btn.setStyleSheet(self.collapse_btn.styleSheet())
+
+        self.layout.addWidget(self.title_label)
+        self.layout.addStretch()
+        self.layout.addWidget(self.collapse_btn)
+        self.layout.addWidget(self.float_btn)
+        self.layout.addWidget(self.close_btn)
+
+        self.collapse_btn.clicked.connect(self.toggle_collapse)
+        self.float_btn.clicked.connect(self.toggle_float)
+        self.close_btn.clicked.connect(self.dock_widget.close)
+
+        self.dock_widget.topLevelChanged.connect(self._on_top_level_changed)
+
+    def toggle_collapse(self) -> None:
+        self.collapsed = not self.collapsed
+        if self.collapsed:
+            self.content_widget.setVisible(False)
+            self.title_label.setVisible(False)
+            self.float_btn.setVisible(False)
+            self.close_btn.setVisible(False)
+            self.collapse_btn.setText("▶")
+            self.collapse_btn.setToolTip("Expand Sidebar")
+            self.dock_widget.setMinimumWidth(32)
+            self.dock_widget.setMaximumWidth(32)
+        else:
+            self.content_widget.setVisible(True)
+            self.title_label.setVisible(True)
+            self.float_btn.setVisible(True)
+            self.close_btn.setVisible(True)
+            self.collapse_btn.setText("◀")
+            self.collapse_btn.setToolTip("Collapse Sidebar")
+            self.dock_widget.setMinimumWidth(50)
+            self.dock_widget.setMaximumWidth(99999)
+
+    def toggle_float(self) -> None:
+        self.dock_widget.setFloating(not self.dock_widget.isFloating())
+
+    def _on_top_level_changed(self, floating: bool) -> None:
+        if floating and self.collapsed:
+            self.toggle_collapse()
 
 
 class MainWindowView(QMainWindow):
@@ -224,6 +310,7 @@ class MainWindowView(QMainWindow):
         self._library_tree.setHeaderLabels(["Library", "Location"])
         self._library_tree.itemActivated.connect(self._on_library_item_activated)
         self._library_tree.itemDoubleClicked.connect(self._on_library_item_double_clicked)
+        self._library_tree.currentItemChanged.connect(self._on_library_current_item_changed)
         self._library_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._library_tree.customContextMenuRequested.connect(self._on_library_context_menu)
         self._library_tree.setMinimumWidth(50)
@@ -232,6 +319,9 @@ class MainWindowView(QMainWindow):
 
         layout.addWidget(self._library_tree)
         self._library_dock.setWidget(container)
+
+        title_bar = LibraryDockTitleBar(self._library_dock, container)
+        self._library_dock.setTitleBarWidget(title_bar)
 
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._library_dock)
 
@@ -351,6 +441,20 @@ class MainWindowView(QMainWindow):
         for idx in range(tree.topLevelItemCount()):
             tree.topLevelItem(idx).setExpanded(True)
         tree.setUpdatesEnabled(True)
+
+    def _on_library_current_item_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:
+        """Load selected file in MVC editor in the background without switching tabs."""
+        if current is None:
+            return
+        payload = current.data(0, Qt.ItemDataRole.UserRole)
+        if not isinstance(payload, dict):
+            return
+        kind = str(payload.get("kind", ""))
+        if kind == "file":
+            path_text = self._payload_path(payload)
+            resolved = self._resolve_path(path_text)
+            if resolved and resolved.exists():
+                self.mvc_editor_tab.open_file(resolved)
 
     def _on_library_item_activated(self, item: QTreeWidgetItem, _column: int) -> None:
         """Route library navigation actions to the appropriate browse view."""

@@ -1,5 +1,6 @@
 from PyQt6.QtCore import QObject, pyqtSignal
 import ast
+import requests
 try:
     import libcst as cst
     from libcst.metadata import PositionProvider
@@ -45,6 +46,76 @@ class ASTChunkerWorker(QObject):
                     pass
 
             self.chunks_ready.emit(chunks)
+            
+        except Exception as e:
+            self.error.emit(str(e))
+        finally:
+            self.finished.emit()
+
+
+class AIRequestWorker(QObject):
+    """
+    Background worker that sends prompt & code edits to local AI endpoint.
+    """
+    finished = pyqtSignal()
+    success = pyqtSignal(str)
+    refused = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, url: str, model: str, source_code: str, instruction: str):
+        super().__init__()
+        self.url = url
+        self.model = model
+        self.source_code = source_code
+        self.instruction = instruction
+
+    def run(self) -> None:
+        try:
+            prompt = (
+                "You are an expert software developer.\n"
+                "Here is the source code of a file:\n"
+                "```python\n"
+                f"{self.source_code}\n"
+                "```\n\n"
+                f"Instruction: {self.instruction}\n\n"
+                "Rules:\n"
+                "1. Perform the changes requested by the instruction.\n"
+                "2. If you are unable to fulfill the request, or think you cannot do it (e.g. request is ambiguous, impossible, or out of scope), reply with exactly: 'I cannot fulfill this request.' and nothing else.\n"
+                "3. Otherwise, return the COMPLETE updated Python source code and nothing else. Do not wrap the code in markdown code blocks like ```python. Return only the raw executable Python code.\n"
+                "4. Make sure to remove or resolve the `#AI-request` comment in the updated code so it doesn't run again."
+            )
+            
+            payload = {
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False
+            }
+            
+            response = requests.post(self.url, json=payload, timeout=120)
+            response.raise_for_status()
+            data = response.json()
+            response_text = data.get("response", "").strip()
+            
+            if not response_text:
+                self.error.emit("Ollama returned an empty response.")
+                return
+            
+            refusal_marker = "I cannot fulfill this request."
+            if response_text.startswith(refusal_marker) or refusal_marker.lower() in response_text.lower()[:50]:
+                self.refused.emit("The AI model determined it cannot fulfill this request.")
+                return
+            
+            # Clean up potential markdown formatting from LLM
+            cleaned_code = response_text
+            if cleaned_code.startswith("```"):
+                lines = cleaned_code.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                cleaned_code = "\n".join(lines)
+            
+            self.success.emit(cleaned_code)
             
         except Exception as e:
             self.error.emit(str(e))

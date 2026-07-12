@@ -47,6 +47,8 @@ class IntegrationsController:
         port: int,
         token: str,
         autostart: bool,
+        ai_url: str = "",
+        ai_model: str = "",
     ) -> bool:
         """Save settings to config file.
         
@@ -61,6 +63,8 @@ class IntegrationsController:
         self.config.mcp_auth_token = token
         self.config.mcp_transport = "streamable-http"
         self.config.mcp_autostart = autostart
+        self.config.ai_url = ai_url or "http://localhost:11434/api/generate"
+        self.config.ai_model = ai_model or "qwen2.5-coder:14b"
         save_config(self.config)
         
         return bool(new_root and new_root != previous_root)

@@ -196,10 +196,31 @@ def _module_symbols_cst(
         return []
 
 
+def _process_single_python_file(
+    path: Path,
+    repo_root: Path,
+    use_cst: bool,
+) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
+    local_skipped: list[dict[str, str]] = []
+    try:
+        if path.stat().st_size > 5 * 1024 * 1024:
+            relative = path.relative_to(repo_root).as_posix()
+            _record_skip(local_skipped, path=path, repo_root=repo_root, reason="skip_large_file")
+            return [], local_skipped
+    except OSError:
+        pass
+    if use_cst:
+        symbols = _module_symbols_cst(path=path, repo_root=repo_root, skipped_files=local_skipped)
+    else:
+        symbols = _module_symbols(path=path, repo_root=repo_root, skipped_files=local_skipped)
+    return symbols, local_skipped
+
+
 def index_python_symbols(
     repo_root: Path,
     skipped_files: list[dict[str, str]] | None = None,
-    use_cst: bool = False,
+    use_cst: bool = True,
+    thread_count: int = 4,
 ) -> list[dict[str, object]]:
     """Index Python symbols for all source files beneath repo_root."""
     if use_cst:
@@ -215,18 +236,28 @@ def index_python_symbols(
                     "reason": "libcst_missing_fallback_to_ast",
                 })
 
+    paths: list[Path] = []
+    excluded = {".git", ".venv", "__pycache__", "build", "tests"}
+    import os
+    for root, dirs, files in os.walk(repo_root):
+        # Prune hidden directories and excluded directories in-place
+        dirs[:] = [d for d in dirs if d not in excluded and not d.startswith(".")]
+        for file in files:
+            if file.endswith(".py"):
+                paths.append(Path(root) / file)
+
+    from concurrent.futures import ProcessPoolExecutor
+
     symbols: list[dict[str, object]] = []
-    for path in repo_root.rglob("*.py"):
-        if any(part.startswith(".") for part in path.parts):
-            continue
-        if "tests" in path.parts:
-            continue
-        if "build" in path.parts or "__pycache__" in path.parts:
-            continue
-        
-        if use_cst:
-            symbols.extend(_module_symbols_cst(path=path, repo_root=repo_root, skipped_files=skipped_files))
-        else:
-            symbols.extend(_module_symbols(path=path, repo_root=repo_root, skipped_files=skipped_files))
+    with ProcessPoolExecutor(max_workers=max(1, thread_count)) as executor:
+        results = executor.map(_process_single_python_file, paths, [repo_root]*len(paths), [use_cst]*len(paths))
+        for file_symbols, local_skipped in results:
+            try:
+                symbols.extend(file_symbols)
+                if skipped_files is not None:
+                    skipped_files.extend(local_skipped)
+            except Exception:
+                pass
+
     return symbols
 

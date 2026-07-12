@@ -122,3 +122,48 @@ def test_mvc_editor_tab_create_triad(qtbot, tmp_path: Path):
     assert "class DashboardWidgetModel(QObject):" in widget.model_editor.toPlainText()
     assert "class DashboardWidgetView(QWidget):" in widget.view_editor.toPlainText()
     assert "class DashboardWidgetController:" in widget.controller_editor.toPlainText()
+
+
+def test_mvc_editor_tab_cst_method_ranges():
+    from app.config import AppConfig
+    from app.views.mvc_sync.model import DocumentModel
+
+    config = AppConfig(use_cst=True)
+    model = DocumentModel(config=config)
+
+    content = (
+        "class Dummy:\n"
+        "    # Comment 1\n"
+        "    def method_1(self):\n"
+        "        pass\n"
+        "        # Comment 2"
+    )
+
+    # 1. Parse with use_cst = True
+    model.parse_outline("model", content)
+    outline_cst = model.get_outline("model")
+
+    assert outline_cst is not None
+    assert len(outline_cst["classes"]) == 1
+    dummy_class = outline_cst["classes"][0]
+    assert dummy_class["name"] == "Dummy"
+    assert len(dummy_class["methods"]) == 1
+    method_1 = dummy_class["methods"][0]
+    assert method_1["name"] == "method_1"
+
+    # Range should include Comment 1 (line 2) and Comment 2 (line 5)
+    assert method_1["start_line"] == 2
+    assert method_1["end_line"] == 6
+
+    # 2. Parse with use_cst = False
+    config.use_cst = False
+    model.parse_outline("model", content)
+    outline_ast = model.get_outline("model")
+
+    assert outline_ast is not None
+    method_ast = outline_ast["classes"][0]["methods"][0]
+    assert method_ast["name"] == "method_1"
+    # Range should only include standard AST statements (line 3 to line 4)
+    assert method_ast["start_line"] == 3
+    assert method_ast["end_line"] == 4
+

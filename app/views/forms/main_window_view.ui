@@ -29,7 +29,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Project Librarian</string>
+   <string>The Librarian</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">

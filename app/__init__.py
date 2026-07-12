@@ -15,10 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
-"""Standalone Project Librarian application package."""
+"""Standalone The Librarian application package."""
 
-APP_NAME = "Project Librarian"
-APP_COPYRIGHT = "Copyright (C) 2026 Project Librarian contributors"
+APP_NAME = "The Librarian"
+APP_COPYRIGHT = "Copyright (C) 2026 The Librarian contributors"
 APP_LICENSE_NAME = "GNU General Public License v3.0 or later"
 PYQT_ATTRIBUTION = (
 	"Built with PyQt6. PyQt6 is available from Riverbank Computing under GPL and commercial licensing terms."

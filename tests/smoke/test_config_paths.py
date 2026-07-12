@@ -29,7 +29,7 @@ def test_default_config_dir_uses_localappdata_on_windows(monkeypatch):
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\tester\AppData\Local")
 
     config_dir = config_module._default_config_dir()
-    assert config_dir == Path(r"C:\Users\tester\AppData\Local") / "Project Librarian"
+    assert config_dir == Path(r"C:\Users\tester\AppData\Local") / "The Librarian"
 
 
 def test_default_output_dir_uses_localappdata_on_windows(monkeypatch):
@@ -37,7 +37,7 @@ def test_default_output_dir_uses_localappdata_on_windows(monkeypatch):
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\tester\AppData\Local")
 
     output_dir = config_module._default_output_dir()
-    assert Path(output_dir) == Path(r"C:\Users\tester\AppData\Local") / "Project Librarian" / "build"
+    assert Path(output_dir) == Path(r"C:\Users\tester\AppData\Local") / "The Librarian" / "build"
 
 
 def test_config_roundtrip_includes_integration_and_mcp_fields(tmp_path: Path):

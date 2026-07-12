@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
-"""Application entrypoint for standalone Project Librarian."""
+"""Application entrypoint for standalone The Librarian."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ def _show_startup_splash(app: QApplication, config: AppConfig, icon: QIcon | Non
     splash = QSplashScreen(_build_splash_pixmap(icon))
     launch_note = STARTUP_INDEX_NOTE if not config.project_root else f"Index root: {config.project_root}"
     splash.showMessage(
-        f"Starting Project Librarian...\n{launch_note}",
+        f"Starting The Librarian...\n{launch_note}",
         Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
         QColor("#2f261f"),
     )
@@ -117,7 +117,7 @@ def _show_rebuild_dialog(app: QApplication, manager: IndexManager) -> None:
 
     layout = QVBoxLayout(dialog)
     label = QLabel(
-        "First-time startup: Building Project Librarian search indexes and snapshot.\n"
+        "First-time startup: Building The Librarian search indexes and snapshot.\n"
         "This may take a moment...",
         dialog
     )
@@ -159,12 +159,12 @@ def main() -> int:
 
     if sys.platform == "win32":
         # Ensure Windows taskbar groups this process under the app identity, not python.exe.
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ProjectLibrarian.Desktop")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("TheLibrarian.Desktop")
 
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
-    app.setDesktopFileName("project-librarian")
+    app.setDesktopFileName("the-librarian")
     icon_path = Path(__file__).resolve().parent / "app" / "ui" / "assets" / "library_icon.svg"
     app_icon: QIcon | None = None
     if icon_path.exists():
@@ -191,7 +191,7 @@ def main() -> int:
         QColor("#2f261f"),
     )
     app.processEvents()
-    app.aboutToQuit.connect(manager.stop_refresh_worker)
+    app.aboutToQuit.connect(manager.shutdown)
 
     window = MainWindowView(index_manager=manager)
     window.show()
@@ -224,7 +224,7 @@ def show_crash_dialog(exit_code: int, traceback_str: str) -> bool:
         app = QApplication.instance()
         if not app:
             app = QApplication([])
-            app.setApplicationName("Project Librarian Supervisor")
+            app.setApplicationName("The Librarian Supervisor")
             icon_path = Path(__file__).resolve().parent / "app" / "ui" / "assets" / "library_icon.svg"
             if icon_path.exists():
                 app.setWindowIcon(QIcon(str(icon_path)))
@@ -244,7 +244,7 @@ def show_crash_dialog(exit_code: int, traceback_str: str) -> bool:
         header_layout.addWidget(icon_label)
         
         title_text = (
-            "<h3>Project Librarian Crashed</h3>"
+            "<h3>The Librarian Crashed</h3>"
             "<p>The application encountered a fatal error and had to close.</p>"
         )
         title_label = QLabel(title_text)
@@ -289,7 +289,7 @@ def show_crash_dialog(exit_code: int, traceback_str: str) -> bool:
             import ctypes
             ctypes.windll.user32.MessageBoxW(
                 0,
-                f"Project Librarian has crashed.\n\nExit Code: {exit_code}\n\nTraceback summary:\n{traceback_str[:500]}",
+                f"The Librarian has crashed.\n\nExit Code: {exit_code}\n\nTraceback summary:\n{traceback_str[:500]}",
                 "Application Crash Detected",
                 0x10 | 0x0  # MB_ICONERROR | MB_OK
             )

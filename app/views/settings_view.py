@@ -80,6 +80,7 @@ class SettingsView(QDialog):
         self.index_python_check.setChecked(config.index_python)
         self.use_cst_check.setChecked(config.use_cst)
         self.index_c_check.setChecked(config.index_c)
+        self.thread_count_spin.setValue(config.indexing_thread_count)
 
         self.project_root_edit.setText(config.project_root)
         self.output_dir_edit.setText(config.output_dir)
@@ -127,6 +128,15 @@ class SettingsView(QDialog):
         self.external_editor_edit.setPlaceholderText('e.g., code -g "{file}:{line}"')
         self.generalForm.addRow("External Editor Command:", self.external_editor_edit)
 
+        # Thread count setup
+        self.thread_count_spin = QSpinBox(self)
+        self.thread_count_spin.setObjectName("threadCountSpin")
+        self.thread_count_spin.setRange(1, 24)
+        import os
+        cores = os.cpu_count() or 4
+        self.thread_count_spin.setToolTip(f"Set indexing thread count. Recommended: do not exceed system cores ({cores}).")
+        self.generalForm.addRow(f"Indexing Thread Count (System Cores: {cores}):", self.thread_count_spin)
+
         self._button_box = self._require_widget(QDialogButtonBox, "buttonBox")
         self._project_root_browse_button = self._require_widget(QPushButton, "projectRootBrowseButton")
         self._output_dir_browse_button = self._require_widget(QPushButton, "outputDirBrowseButton")
@@ -159,17 +169,17 @@ class SettingsView(QDialog):
         return widget
 
     def _pick_project_root(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Select Project Root", self.project_root_edit.text())
+        path = QFileDialog.getExistingDirectory(self, "Select Project Root", self.project_root_edit.text(), options=QFileDialog.Option.DontUseNativeDialog)
         if path:
             self.project_root_edit.setText(path)
 
     def _pick_output_dir(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Select Output Directory", self.output_dir_edit.text())
+        path = QFileDialog.getExistingDirectory(self, "Select Output Directory", self.output_dir_edit.text(), options=QFileDialog.Option.DontUseNativeDialog)
         if path:
             self.output_dir_edit.setText(path)
 
     def _pick_excel_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Select Excel Folder", self.excel_folder_edit.text())
+        path = QFileDialog.getExistingDirectory(self, "Select Excel Folder", self.excel_folder_edit.text(), options=QFileDialog.Option.DontUseNativeDialog)
         if path:
             self.excel_folder_edit.setText(path)
 
@@ -204,6 +214,7 @@ class SettingsView(QDialog):
             if self.excel_columns_list.item(i).checkState() == Qt.CheckState.Checked
         ]
         self.config.external_editor_cmd = self.external_editor_edit.text().strip()
+        self.config.indexing_thread_count = int(self.thread_count_spin.value())
 
         self._controller.persist_config(self.config)
         self.accept()

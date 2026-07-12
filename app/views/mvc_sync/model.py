@@ -18,6 +18,14 @@ from PyQt6.QtCore import QObject, pyqtSignal
 import ast
 import os
 
+try:
+    import libcst as cst
+    from libcst.metadata import PositionProvider, MetadataWrapper
+except ImportError:
+    cst = None
+    PositionProvider = None
+    MetadataWrapper = None
+
 class DocumentModel(QObject):
     """
     Model representing the state of the MVC Editor.
@@ -34,8 +42,9 @@ class DocumentModel(QObject):
     connections_changed = pyqtSignal(list)          # list of detected connections/relations
     status_message_triggered = pyqtSignal(str)      # Message to display in status bar
 
-    def __init__(self):
+    def __init__(self, config=None):
         super().__init__()
+        self.config = config
         self._workspace_path = None
         self._triad_paths = {'model': None, 'view': None, 'controller': None}
         self._triad_contents = {'model': "", 'view': "", 'controller': ""}
@@ -94,10 +103,11 @@ class DocumentModel(QObject):
             view_path if view_path else "",
             controller_path if controller_path else ""
         )
+        self.connections_changed.emit([])
 
     # Set file content and parse its outline
     def set_content(self, role: str, content: str, mark_dirty: bool = True):
-        if self._triad_contents[role] != content:
+        if self._triad_contents[role] != content or self._triad_outlines[role] is None:
             self._triad_contents[role] = content
             self.content_changed.emit(role, content)
             
@@ -107,9 +117,8 @@ class DocumentModel(QObject):
             if mark_dirty:
                 self.set_dirty(role, True)
                 
-            # If controller code changed, re-analyze connections
-            if role == 'controller' or role == 'view':
-                self.update_connections()
+            # Re-analyze connections
+            self.update_connections()
 
     def set_dirty(self, role: str, is_dirty: bool):
         if self._triad_dirty[role] != is_dirty:
@@ -125,6 +134,90 @@ class DocumentModel(QObject):
             self._triad_outlines[role] = None
             self.outline_changed.emit(role, {})
             return True
+
+        use_cst = False
+        if self.config is not None:
+            use_cst = getattr(self.config, 'use_cst', False)
+
+        if use_cst and cst is not None:
+            try:
+                module = cst.parse_module(content)
+                wrapper = MetadataWrapper(module)
+
+                class OutlineCSTVisitor(cst.CSTVisitor):
+                    METADATA_DEPENDENCIES = (PositionProvider,)
+
+                    def __init__(self):
+                        super().__init__()
+                        self.classes = []
+                        self.functions = []
+                        self.class_stack = []
+
+                    def get_extended_range(self, node: cst.CSTNode):
+                        pos = self.get_metadata(PositionProvider, node)
+                        start_line = pos.start.line
+                        end_line = pos.end.line
+
+                        if node.leading_lines:
+                            first_leading = node.leading_lines[0]
+                            lpos = self.get_metadata(PositionProvider, first_leading)
+                            start_line = min(start_line, lpos.start.line)
+
+                        if hasattr(node, 'body') and isinstance(node.body, cst.IndentedBlock):
+                            if node.body.footer:
+                                last_footer = node.body.footer[-1]
+                                fpos = self.get_metadata(PositionProvider, last_footer)
+                                end_line = max(end_line, fpos.end.line)
+
+                        return start_line, end_line
+
+                    def visit_ClassDef(self, node: cst.ClassDef) -> bool:
+                        start_line, end_line = self.get_extended_range(node)
+                        class_info = {
+                            'name': node.name.value,
+                            'start_line': start_line,
+                            'end_line': end_line,
+                            'methods': []
+                        }
+                        if not self.class_stack:
+                            self.classes.append(class_info)
+                        self.class_stack.append(class_info)
+                        return True
+
+                    def leave_ClassDef(self, node: cst.ClassDef) -> None:
+                        self.class_stack.pop()
+
+                    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
+                        if len(self.class_stack) > 1:
+                            return False
+
+                        start_line, end_line = self.get_extended_range(node)
+                        args = [param.name.value for param in node.params.params if param.name.value != 'self']
+
+                        method_info = {
+                            'name': node.name.value,
+                            'start_line': start_line,
+                            'end_line': end_line,
+                            'args': args
+                        }
+
+                        if self.class_stack:
+                            self.class_stack[-1]['methods'].append(method_info)
+                        else:
+                            self.functions.append(method_info)
+
+                        return False
+
+                visitor = OutlineCSTVisitor()
+                wrapper.visit(visitor)
+
+                outline = {'classes': visitor.classes, 'functions': visitor.functions}
+                self._triad_outlines[role] = outline
+                self.outline_changed.emit(role, outline)
+                return True
+            except Exception:
+                # Fallback to AST on syntax or parser error
+                pass
 
         try:
             tree = ast.parse(content)
@@ -200,6 +293,32 @@ class DocumentModel(QObject):
         if old_cls != cls_name or old_method != method_name:
             self._triad_active_methods[role] = (cls_name, method_name)
             self.active_method_changed.emit(role, cls_name or "", method_name or "")
+
+    def get_active_block_range(self, role: str, line: int) -> tuple[int, int] | None:
+        """
+        Calculates the start and end lines of the class, method, or function
+        containing the given line number.
+        """
+        outline = self._triad_outlines[role]
+        if not outline:
+            return None
+
+        # Check classes first
+        for c in outline.get('classes', []):
+            if c['start_line'] <= line <= c['end_line']:
+                # Check methods inside this class
+                for m in c.get('methods', []):
+                    if m['start_line'] <= line <= m['end_line']:
+                        return m['start_line'], m['end_line']
+                # If inside class but not any specific method, return class range
+                return c['start_line'], c['end_line']
+
+        # Check global functions
+        for f in outline.get('functions', []):
+            if f['start_line'] <= line <= f['end_line']:
+                return f['start_line'], f['end_line']
+
+        return None
 
     def update_connections(self):
         """

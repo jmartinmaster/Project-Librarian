@@ -122,8 +122,20 @@ class IntegrationsView(QWidget):
         self.mcp_status_label.setObjectName("mcpStatusLabel")
         mcp_layout.addWidget(self.mcp_status_label)
 
+        ai_group = QGroupBox("Local AI Settings (Ollama)", self)
+        ai_layout = QVBoxLayout(ai_group)
+        ai_form = QFormLayout()
+        self.ai_url_edit = QLineEdit(ai_group)
+        self.ai_url_edit.setObjectName("aiUrlEdit")
+        self.ai_model_edit = QLineEdit(ai_group)
+        self.ai_model_edit.setObjectName("aiModelEdit")
+        ai_form.addRow("Ollama API URL:", self.ai_url_edit)
+        ai_form.addRow("Ollama Model Name:", self.ai_model_edit)
+        ai_layout.addLayout(ai_form)
+
         root.addWidget(mvc_group)
         root.addWidget(mcp_group)
+        root.addWidget(ai_group)
         root.addStretch(1)
 
         self.mvc_browse_button.clicked.connect(self._browse_mvc_root)
@@ -142,6 +154,8 @@ class IntegrationsView(QWidget):
         self.mcp_port_spin.setValue(int(self.config.mcp_port or 8765))
         self.mcp_token_edit.setText(self.config.mcp_auth_token or "")
         self.mcp_autostart_check.setChecked(bool(self.config.mcp_autostart))
+        self.ai_url_edit.setText(self.config.ai_url or "http://localhost:11434/api/generate")
+        self.ai_model_edit.setText(self.config.ai_model or "qwen2.5-coder:14b")
         self.refresh_status()
 
     def save_settings(self) -> None:
@@ -151,7 +165,9 @@ class IntegrationsView(QWidget):
             host=self.mcp_host_edit.text().strip(),
             port=int(self.mcp_port_spin.value()),
             token=self.mcp_token_edit.text().strip(),
-            autostart=self.mcp_autostart_check.isChecked()
+            autostart=self.mcp_autostart_check.isChecked(),
+            ai_url=self.ai_url_edit.text().strip(),
+            ai_model=self.ai_model_edit.text().strip(),
         )
         if root_changed and self._on_project_root_changed is not None:
             self._on_project_root_changed(self.mvc_root_edit.text().strip())

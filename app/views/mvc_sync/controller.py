@@ -45,7 +45,7 @@ class EditorController(QObject):
         self.model.dirty_changed.connect(self.handle_model_dirty_changed)
         self.model.outline_changed.connect(self.handle_model_outline_changed)
         self.model.active_method_changed.connect(self.handle_model_active_method_changed)
-        self.model.connections_changed.connect(self.view.populate_connections)
+        self.model.connections_changed.connect(self.handle_connections_changed)
         self.model.status_message_triggered.connect(self.view.show_status)
 
         # Connect view signals to controller actions
@@ -60,6 +60,7 @@ class EditorController(QObject):
         self.view.browse_sibling_requested.connect(self.browse_sibling_file)
         self.view.sync_nav_toggled.connect(self.set_sync_nav)
         self.view.about_triggered.connect(self.show_about_dialog)
+        self.view.inspector_refresh_triggered.connect(self.force_refresh_inspector)
 
         # Track cursor and text edits in editors
         self.view.model_pane.editor.cursorPositionChanged.connect(lambda: self.track_cursor('model'))
@@ -100,7 +101,7 @@ class EditorController(QObject):
 
     # Workspace Folder I/O
     def open_workspace(self):
-        dir_path = QFileDialog.getExistingDirectory(self.view, "Select Project Folder", self.model.workspace_path or "")
+        dir_path = QFileDialog.getExistingDirectory(self.view, "Select Project Folder", self.model.workspace_path or "", options=QFileDialog.Option.DontUseNativeDialog)
         if dir_path:
             self.model.workspace_path = dir_path
 
@@ -553,6 +554,67 @@ class EditorController(QObject):
                 
             self._is_loading = False
 
+    def handle_connections_changed(self, connections: list):
+        self.refresh_inspector(connections)
+
+    def refresh_inspector(self, connections=None):
+        """
+        Determines whether to show the multi-file MVC connections or the single-file method outline.
+        """
+        existing_roles = []
+        for role in ['model', 'view', 'controller']:
+            path = self.model.get_path(role)
+            if path and os.path.exists(path):
+                existing_roles.append(role)
+                
+        if len(existing_roles) == 1:
+            active_role = existing_roles[0]
+            outline = self.model.get_outline(active_role)
+            filename = os.path.basename(self.model.get_path(active_role))
+            self.view.set_inspector_title(f"METHOD INSPECTOR ({filename.upper()})")
+            
+            items = []
+            if outline:
+                for cls in outline.get('classes', []):
+                    items.append({
+                        'type': 'class',
+                        'name': cls['name'],
+                        'line': cls['start_line'],
+                        'role': active_role
+                    })
+                    for m in cls.get('methods', []):
+                        items.append({
+                            'type': 'method',
+                            'name': m['name'],
+                            'line': m['start_line'],
+                            'class_name': cls['name'],
+                            'role': active_role
+                        })
+                for func in outline.get('functions', []):
+                    items.append({
+                        'type': 'function',
+                        'name': func['name'],
+                        'line': func['start_line'],
+                        'role': active_role
+                    })
+            self.view.populate_methods(items)
+        else:
+            self.view.set_inspector_title("MVC SYNC INSPECTOR")
+            if connections is None:
+                connections = self.model.connections
+            self.view.populate_connections(connections)
+
+    def force_refresh_inspector(self):
+        """
+        Manually re-parses all active document outlines and updates connections.
+        """
+        for role in ['model', 'view', 'controller']:
+            content = self.model.get_content(role)
+            self.model.parse_outline(role, content)
+            
+        self.model.update_connections()
+        self.refresh_inspector()
+
     def update_view_dashboard(self):
         """
         Updates the status dashboard in the Workspace Tab.
@@ -614,6 +676,16 @@ class EditorController(QObject):
     def handle_model_outline_changed(self, role: str, outline: dict):
         pane = getattr(self.view, f"{role}_pane")
         pane.update_outline(outline)
+        self.refresh_inspector()
+        
+        # Force highlight check with the fresh outline
+        cursor = pane.editor.textCursor()
+        line = cursor.blockNumber() + 1
+        range_val = self.model.get_active_block_range(role, line)
+        if range_val:
+            pane.highlight_block_range(range_val[0], range_val[1])
+        else:
+            pane.clear_block_highlight()
 
     def handle_model_active_method_changed(self, role: str, class_name: str, method_name: str):
         pane = getattr(self.view, f"{role}_pane")
@@ -634,6 +706,13 @@ class EditorController(QObject):
         line = cursor.blockNumber() + 1
         self.model.update_active_location(role, line)
         
+        # Update active block highlight
+        range_val = self.model.get_active_block_range(role, line)
+        if range_val:
+            pane.highlight_block_range(range_val[0], range_val[1])
+        else:
+            pane.clear_block_highlight()
+            
         # Perform sync scrolling from Controller -> Model/View
         if role == 'controller' and self._sync_nav:
             _, method_name = self.model.get_active_method('controller')
@@ -701,6 +780,15 @@ class EditorController(QObject):
         """
         Handles double-click in MVC Inspector to jump editors to respective connection lines.
         """
+        t = conn.get('type')
+        if t in ('class', 'method', 'function'):
+            role = conn.get('role')
+            line = conn.get('line')
+            if role and line:
+                pane = getattr(self.view, f"{role}_pane")
+                pane.jump_to_line(line)
+            return
+
         # Jump in Controller (source of method_call / property_access) or Target of signal connections
         controller_pane = self.view.controller_pane
         controller_line = conn.get('line')

@@ -69,3 +69,32 @@ def test_settings_view_allows_zero_refresh_interval(monkeypatch, qtbot, tmp_path
 
     assert config.refresh_interval_seconds == 0
     assert written["interval"] == 0
+
+
+def test_settings_view_indexing_thread_count_roundtrip(monkeypatch, qtbot, tmp_path: Path):
+    config = AppConfig(indexing_thread_count=4)
+    dialog = SettingsView(config)
+    qtbot.addWidget(dialog)
+
+    written = {}
+
+    def fake_save_config(saved_config):
+        written["indexing_thread_count"] = saved_config.indexing_thread_count
+        return tmp_path / "config.json"
+
+    monkeypatch.setattr("app.controllers.settings_controller.save_config", fake_save_config)
+
+    # Verify initial value
+    assert dialog.thread_count_spin.value() == 4
+
+    # Verify range [1, 24]
+    assert dialog.thread_count_spin.minimum() == 1
+    assert dialog.thread_count_spin.maximum() == 24
+
+    # Update value and save
+    dialog.thread_count_spin.setValue(8)
+    dialog._save_and_accept()
+
+    assert config.indexing_thread_count == 8
+    assert written["indexing_thread_count"] == 8
+

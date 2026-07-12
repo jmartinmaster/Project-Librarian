@@ -72,6 +72,51 @@ class ConnectionItemWidget(QWidget):
         layout.addStretch()
 
 
+class MethodItemWidget(QWidget):
+    """
+    Custom widget to display classes, methods, or functions in the single-file Method Inspector.
+    """
+    def __init__(self, item_info: dict, parent=None):
+        super().__init__(parent)
+        self.item_info = item_info
+        
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+        
+        # Color definitions for type badges
+        colors = {
+            'class': ('#f9e2af', '#11111b', 'CLASS'),      # Yellow
+            'method': ('#89dceb', '#11111b', 'METHOD'),     # Sky
+            'function': ('#cba6f7', '#11111b', 'FUNC')      # Lavender
+        }
+        bg, fg, badge_text = colors.get(item_info['type'], ('#cdd6f4', '#11111b', 'ITEM'))
+        
+        badge = QLabel(badge_text)
+        badge.setStyleSheet(f"""
+            background-color: {bg};
+            color: {fg};
+            font-weight: bold;
+            font-size: 9px;
+            border-radius: 3px;
+            padding: 1px 4px;
+        """)
+        badge.setFixedWidth(55)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(badge)
+        
+        # Format text
+        if item_info['type'] == 'method' and item_info.get('class_name'):
+            display_text = f"{item_info['class_name']}.{item_info['name']}  (line {item_info['line']})"
+        else:
+            display_text = f"{item_info['name']}  (line {item_info['line']})"
+            
+        text_label = QLabel(display_text)
+        text_label.setStyleSheet("color: #cdd6f4; font-size: 11px; font-weight: 500;")
+        layout.addWidget(text_label)
+        layout.addStretch()
+
+
 class EditorView(QMainWindow):
     """
     Main View representing the high-fidelity dark-mode MVC Editor IDE.
@@ -89,6 +134,8 @@ class EditorView(QMainWindow):
     browse_sibling_requested = pyqtSignal(str)      # role
     sync_nav_toggled = pyqtSignal(bool)
     about_triggered = pyqtSignal()
+    ai_request_triggered = pyqtSignal(str) # role
+    inspector_refresh_triggered = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -429,6 +476,11 @@ class EditorView(QMainWindow):
         self.view_pane.browse_clicked.connect(self.browse_sibling_requested.emit)
         self.controller_pane.browse_clicked.connect(self.browse_sibling_requested.emit)
 
+        # Connect AI request signals inside panels to main layout signals
+        self.model_pane.ai_clicked.connect(self.ai_request_triggered.emit)
+        self.view_pane.ai_clicked.connect(self.ai_request_triggered.emit)
+        self.controller_pane.ai_clicked.connect(self.ai_request_triggered.emit)
+
         self.editors_splitter.addWidget(self.model_pane)
         self.editors_splitter.addWidget(self.view_pane)
         self.editors_splitter.addWidget(self.controller_pane)
@@ -442,9 +494,35 @@ class EditorView(QMainWindow):
         inspector_layout.setContentsMargins(6, 6, 6, 6)
         inspector_layout.setSpacing(6)
         
-        inspector_header = QLabel("MVC SYNC INSPECTOR")
-        inspector_header.setStyleSheet("color: #f5c2e7; font-weight: bold; font-size: 11px; letter-spacing: 1px;")
-        inspector_layout.addWidget(inspector_header)
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.inspector_header = QLabel("MVC SYNC INSPECTOR")
+        self.inspector_header.setStyleSheet("color: #f5c2e7; font-weight: bold; font-size: 11px; letter-spacing: 1px;")
+        header_layout.addWidget(self.inspector_header)
+        header_layout.addStretch()
+        
+        self.inspector_refresh_btn = QPushButton("↺")
+        self.inspector_refresh_btn.setFixedSize(20, 20)
+        self.inspector_refresh_btn.setToolTip("Force reload connections and method outline")
+        self.inspector_refresh_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #a6adc8;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #313244;
+                color: #f5c2e7;
+                border-radius: 3px;
+            }
+        """)
+        self.inspector_refresh_btn.clicked.connect(self.inspector_refresh_triggered.emit)
+        header_layout.addWidget(self.inspector_refresh_btn)
+        
+        inspector_layout.addLayout(header_layout)
         
         self.connections_list = QListWidget()
         self.connections_list.itemDoubleClicked.connect(self._on_connection_double_clicked)
@@ -649,6 +727,24 @@ class EditorView(QMainWindow):
         if ok and name.strip():
             self.create_triad_requested.emit(name.strip(), self.dir_model.rootPath())
 
+    def set_inspector_title(self, title: str):
+        self.inspector_header.setText(title)
+
+    def populate_methods(self, methods: list):
+        """
+        Populates the Inspector list with classes, methods, and functions.
+        """
+        self.connections_list.clear()
+        for method in methods:
+            item = QListWidgetItem(self.connections_list)
+            # Size hint to give spacing
+            item.setSizeHint(MethodItemWidget(method).sizeHint())
+            self.connections_list.addItem(item)
+            
+            # Set the custom widget
+            widget = MethodItemWidget(method, self.connections_list)
+            self.connections_list.setItemWidget(item, widget)
+
     def populate_connections(self, connections: list):
         """
         Populates the Inspector list with cross-references.
@@ -668,6 +764,8 @@ class EditorView(QMainWindow):
         widget = self.connections_list.itemWidget(item)
         if widget and isinstance(widget, ConnectionItemWidget):
             self.connection_double_clicked.emit(widget.conn)
+        elif widget and isinstance(widget, MethodItemWidget):
+            self.connection_double_clicked.emit(widget.item_info)
 
     def _on_sync_toggled(self, state):
         self.sync_nav_toggled.emit(state == 2) # 2 corresponds to Checked in Qt

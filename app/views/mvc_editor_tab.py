@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QCompleter,
+    QMessageBox,
 )
 
 from typing import TYPE_CHECKING
@@ -51,7 +52,7 @@ class MVCEditorTab(QWidget):
         self._index_manager = index_manager
         self._current_file_path: Path | None = None
 
-        self._model = DocumentModel()
+        self._model = DocumentModel(config=self._index_manager.config if self._index_manager else None)
         self._view = EditorView()
         self._controller = EditorController(self._model, self._view)
 
@@ -61,6 +62,7 @@ class MVCEditorTab(QWidget):
 
         self._view.file_selected.connect(self._remember_current_file)
         self._model.triad_changed.connect(self._sync_current_file_from_model)
+        self._view.ai_request_triggered.connect(self.process_ai_request)
 
         # Compatibility aliases for existing callers/tests.
         self.editor_tabs = self._view.main_tabs
@@ -91,9 +93,12 @@ class MVCEditorTab(QWidget):
         self.save_current_button.setObjectName("mvcSaveCurrentFileButton")
         self.open_external_button = QPushButton("Open Externally", self)
         self.open_external_button.setObjectName("mvcOpenExternalButton")
+        self.ai_request_button = QPushButton("Process #AI-request", self)
+        self.ai_request_button.setObjectName("mvcAIRequestButton")
         current_row.addWidget(self.current_file_edit)
         current_row.addWidget(self.save_current_button)
         current_row.addWidget(self.open_external_button)
+        current_row.addWidget(self.ai_request_button)
         layout.addLayout(current_row)
 
         self._view.setParent(self)
@@ -105,6 +110,7 @@ class MVCEditorTab(QWidget):
 
         self.save_current_button.clicked.connect(self.save_current_file)
         self.open_external_button.clicked.connect(self.open_current_externally)
+        self.ai_request_button.clicked.connect(lambda: self.process_ai_request(None))
 
     def _apply_native_integration_mode(self) -> None:
         """Strip standalone MVC shell UI and align with Librarian-hosted experience."""
@@ -234,3 +240,110 @@ class MVCEditorTab(QWidget):
             completer = QCompleter(unique_words, self)
             completer.setModel(QStringListModel(unique_words, completer))
             editor.setCompleter(completer)
+
+    def process_ai_request(self, role: str | None = None) -> None:
+        """
+        Extracts the #AI-request comment from the target pane/role,
+        initiates the background thread calling local AI, and replaces
+        the editor's content on success.
+        """
+        config = self._index_manager.config if self._index_manager else None
+        if not config:
+            from app.config import load_config
+            config = load_config()
+            
+        url = getattr(config, "ai_url", "http://localhost:11434/api/generate")
+        model = getattr(config, "ai_model", "qwen2.5-coder:14b")
+
+        target_role = role
+        if not target_role:
+            active = self._get_active_editor()
+            if active:
+                target_role = active[0]
+            else:
+                for r in ['controller', 'view', 'model']:
+                    pane = getattr(self._view, f"{r}_pane")
+                    code = pane.editor.toPlainText()
+                    if self._extract_ai_request(code) is not None:
+                        target_role = r
+                        break
+        
+        if not target_role:
+            QMessageBox.warning(self, "No Active Editor", "Please place your cursor inside the editor you want to edit.")
+            return
+
+        pane = getattr(self._view, f"{target_role}_pane")
+        code = pane.editor.toPlainText()
+        instruction = self._extract_ai_request(code)
+        
+        if not instruction:
+            QMessageBox.warning(
+                self, 
+                "No Request Found", 
+                "Could not find any `#AI-request: <instruction>` comment in this file.\n\n"
+                "Please add a comment like:\n"
+                "#AI-request: Add a helper method to calculate sums"
+            )
+            return
+
+        self.status_label.setText(f"Sending request to local AI ({model})...")
+        self.ai_request_button.setEnabled(False)
+        pane.ai_btn.setEnabled(False)
+
+        from app.views.mvc_sync.worker import AIRequestWorker
+        from PyQt6.QtCore import QThread
+        
+        self._ai_thread = QThread()
+        self._ai_worker = AIRequestWorker(url, model, code, instruction)
+        self._ai_worker.moveToThread(self._ai_thread)
+        
+        self._ai_thread.started.connect(self._ai_worker.run)
+        
+        self._ai_worker.success.connect(lambda updated_code: self._on_ai_success(target_role, updated_code))
+        self._ai_worker.refused.connect(self._on_ai_refused)
+        self._ai_worker.error.connect(self._on_ai_error)
+        
+        self._ai_worker.finished.connect(self._ai_thread.quit)
+        self._ai_worker.finished.connect(self._ai_worker.deleteLater)
+        self._ai_thread.finished.connect(self._ai_thread.deleteLater)
+        self._ai_worker.finished.connect(lambda: self.ai_request_button.setEnabled(True))
+        self._ai_worker.finished.connect(lambda: pane.ai_btn.setEnabled(True))
+        
+        self._ai_thread.start()
+
+    def _get_active_editor(self) -> tuple[str, QWidget] | None:
+        if self._view.model_pane.editor.hasFocus():
+            return 'model', self._view.model_pane
+        elif self._view.view_pane.editor.hasFocus():
+            return 'view', self._view.view_pane
+        elif self._view.controller_pane.editor.hasFocus():
+            return 'controller', self._view.controller_pane
+        return None
+
+    def _extract_ai_request(self, code: str) -> str | None:
+        for line in code.splitlines():
+            trimmed = line.strip()
+            if trimmed.startswith("#AI-request:") or trimmed.startswith("# AI-request:"):
+                parts = trimmed.split(":", 1)
+                if len(parts) > 1:
+                    return parts[1].strip()
+        return None
+
+    def _on_ai_success(self, role: str, updated_code: str) -> None:
+        pane = getattr(self._view, f"{role}_pane")
+        pane.editor.setPlainText(updated_code)
+        self._model.set_content(role, updated_code, mark_dirty=True)
+        self.status_label.setText("AI edit applied successfully.")
+
+    def _on_ai_refused(self, reason: str) -> None:
+        QMessageBox.information(self, "AI Declined Request", reason)
+        self.status_label.setText("Local AI declined to perform this edit.")
+
+    def _on_ai_error(self, error_msg: str) -> None:
+        QMessageBox.warning(
+            self, 
+            "AI Request Failed", 
+            f"An error occurred calling the local AI:\n\n{error_msg}\n\n"
+            "Please verify that Ollama is running and your model is downloaded."
+        )
+        self.status_label.setText("AI request failed.")

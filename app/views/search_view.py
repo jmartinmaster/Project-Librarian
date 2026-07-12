@@ -258,18 +258,24 @@ class SearchView(QWidget):
         path_text = str(item.get("path", "")).strip()
         resolved = self._resolve_path(path_text)
         if resolved is None or not resolved.exists():
+            # If the path doesn't exist, log a message to status bar or print it
+            print(f"[SearchBrowser] Warning: Could not resolve path to open: {path_text}")
             return
         
         line = item.get("line")
         line_number = int(line) if line is not None and str(line).isdigit() else None
+        
+        # 1. Attempt to open in embedded MVC editor tab via callback
         if self._open_file_callback is not None:
             handled = self._open_file_callback(resolved, line_number)
             if handled:
                 return
 
+        # 2. Fallback to configured external editor (e.g. VS Code, Sublime)
         if self._controller.open_external_editor(path_text, line_number):
             return
 
+        # 3. Final fallback: open with system default handler
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(resolved)))
 
     def _reference_location(self, item: dict[str, object]) -> str:

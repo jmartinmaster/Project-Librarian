@@ -58,6 +58,20 @@ class PythonHighlighter(QSyntaxHighlighter):
         number_format = QTextCharFormat()
         number_format.setForeground(QColor("#f5a97f"))  # Soft orange
 
+        operator_format = QTextCharFormat()
+        operator_format.setForeground(QColor("#94e2d5"))  # Teal
+
+        call_format = QTextCharFormat()
+        call_format.setForeground(QColor("#89dceb"))  # Sky
+
+        self_format = QTextCharFormat()
+        self_format.setForeground(QColor("#fab387"))  # Peach
+        self_format.setFontItalic(True)
+
+        # 1. Function calls and operators (added first so keywords can override them)
+        self.highlighting_rules.append((QRegularExpression(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()"), call_format))
+        self.highlighting_rules.append((QRegularExpression(r"[\+\-\*\/\%\=\!\<\>\&\|\^\~]"), operator_format))
+
         # Python keywords
         keywords = [
             "False", "None", "True", "and", "as", "assert", "async", "await",
@@ -72,10 +86,13 @@ class PythonHighlighter(QSyntaxHighlighter):
 
         # Common builtins
         builtins = ["print", "len", "range", "str", "int", "float", "list", 
-                    "dict", "set", "tuple", "super", "self", "open", "Exception"]
+                    "dict", "set", "tuple", "super", "open", "Exception"]
         for word in builtins:
             pattern = QRegularExpression(rf"\b{word}\b")
             self.highlighting_rules.append((pattern, builtin_format))
+
+        # self parameter
+        self.highlighting_rules.append((QRegularExpression(r"\bself\b"), self_format))
 
         # Comments
         self.highlighting_rules.append((QRegularExpression(r"#[^\n]*"), comment_format))
@@ -180,11 +197,16 @@ class PyCodeEditor(QPlainTextEdit):
     line number painting, tab-to-spaces auto-handling, auto-indentation,
     and current line highlighting.
     """
+    ai_request_triggered = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.line_number_area = LineNumberArea(self)
         self.target_line = None
         self.target_highlight_color = QColor("#3e302f")
+        self.block_start_line = None
+        self.block_end_line = None
+        self.block_highlight_color = QColor("#181825")
         self._completer = None
 
         # Style font
@@ -274,16 +296,35 @@ class PyCodeEditor(QPlainTextEdit):
     def highlight_current_line(self):
         extra_selections = []
         
-        # 1. Subtle current line cursor highlight
+        # 1. Block range highlight (for the active method/class) - lowest layer
+        block_start = getattr(self, 'block_start_line', None)
+        block_end = getattr(self, 'block_end_line', None)
+        if block_start is not None and block_end is not None:
+            doc = self.document()
+            for l in range(block_start, block_end + 1):
+                block = doc.findBlockByLineNumber(l - 1)
+                if block.isValid():
+                    selection = QTextEdit.ExtraSelection()
+                    selection.format.setBackground(self.block_highlight_color)
+                    selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
+                    
+                    cursor = self.textCursor()
+                    cursor.setPosition(block.position())
+                    cursor.clearSelection()
+                    selection.cursor = cursor
+                    
+                    extra_selections.append(selection)
+
+        # 2. Subtle current line cursor highlight - middle layer
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            selection.format.setBackground(QColor("#1e1e2e"))  # Subtle active-line highlight
+            selection.format.setBackground(QColor("#252636"))  # Subtle active-line highlight
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
             selection.cursor.clearSelection()
             extra_selections.append(selection)
             
-        # 2. Bright target line highlight
+        # 3. Bright target line highlight - top layer
         if getattr(self, 'target_line', None) is not None:
             doc = self.document()
             block = doc.findBlockByLineNumber(self.target_line - 1)
@@ -355,6 +396,12 @@ class PyCodeEditor(QPlainTextEdit):
             if event.key() in (Qt.Key.Key_Enter, Qt.Key.Key_Return, Qt.Key.Key_Escape, Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
                 event.ignore()
                 return
+
+        isAIShortcut = (event.modifiers() & Qt.KeyboardModifier.ControlModifier) and event.key() == Qt.Key.Key_I
+        if isAIShortcut:
+            self.ai_request_triggered.emit()
+            event.accept()
+            return
 
         isShortcut = (event.modifiers() & Qt.KeyboardModifier.ControlModifier) and event.key() == Qt.Key.Key_Space
         if not self._completer or not isShortcut:
@@ -432,6 +479,7 @@ class EditorPane(QWidget):
     jump_to_line_requested = pyqtSignal(int)
     create_clicked = pyqtSignal(str) # role
     browse_clicked = pyqtSignal(str) # role
+    ai_clicked = pyqtSignal(str) # role
 
     def __init__(self, role: str, title: str, accent_color: str, parent=None):
         super().__init__(parent)
@@ -478,6 +526,29 @@ class EditorPane(QWidget):
         self.file_label = QLabel("No File Loaded")
         self.file_label.setStyleSheet("color: #a6adc8; font-weight: 500; font-size: 11px;")
         header_layout.addWidget(self.file_label)
+        header_layout.addSpacing(8)
+
+        # Folder button to select/associate a different file
+        self.browse_btn_header = QPushButton("📁")
+        self.browse_btn_header.setFixedSize(18, 18)
+        self.browse_btn_header.setToolTip("Select / Associate different file")
+        self.browse_btn_header.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: #a6adc8;
+                border: none;
+                font-size: 10px;
+            }}
+            QPushButton:hover {{
+                background-color: #313244;
+                color: {self.accent_color};
+                border-radius: 3px;
+            }}
+        """)
+        self.browse_btn_header.clicked.connect(lambda: self.browse_clicked.emit(self.role))
+        header_layout.addWidget(self.browse_btn_header)
+        header_layout.addSpacing(8)
+
         header_layout.addStretch()
 
         # Class / Method breadcrumbs
@@ -515,14 +586,35 @@ class EditorPane(QWidget):
             }
         """)
 
+        self.ai_btn = QPushButton("🤖 AI Edit")
+        self.ai_btn.setToolTip("Process #AI-request comments in this file (Ctrl+I)")
+        self.ai_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #313244;
+                color: #cdd6f4;
+                border: 1px solid #45475a;
+                border-radius: 4px;
+                padding: 1px 6px;
+                font-size: 11px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {self.accent_color};
+                color: #11111b;
+            }}
+        """)
+        self.ai_btn.clicked.connect(lambda: self.ai_clicked.emit(self.role))
+
         header_layout.addWidget(self.class_combo)
         header_layout.addWidget(QLabel(">"))
         header_layout.addWidget(self.method_combo)
+        header_layout.addWidget(self.ai_btn)
 
         self.main_layout.addWidget(self.header)
 
         # 2. Text Editor
         self.editor = PyCodeEditor()
+        self.editor.ai_request_triggered.connect(lambda: self.ai_clicked.emit(self.role))
         self.highlighter = PythonHighlighter(self.editor.document())
         self.main_layout.addWidget(self.editor)
 
@@ -744,3 +836,27 @@ class EditorPane(QWidget):
             
             # Request connection highlights from Controller
             self.jump_to_line_requested.emit(line)
+
+    def highlight_block_range(self, start_line: int, end_line: int):
+        """
+        Highlights the block's line range using role-specific color.
+        """
+        self.editor.block_start_line = start_line
+        self.editor.block_end_line = end_line
+        
+        # Determine background block color based on role
+        colors = {
+            'model': QColor("#142218"),       # Soft dark green
+            'view': QColor("#241623"),        # Soft dark pink
+            'controller': QColor("#121b27")   # Soft dark blue
+        }
+        self.editor.block_highlight_color = colors.get(self.role, QColor("#1c1d30"))
+        self.editor.highlight_current_line()
+
+    def clear_block_highlight(self):
+        """
+        Clears the block highlight.
+        """
+        self.editor.block_start_line = None
+        self.editor.block_end_line = None
+        self.editor.highlight_current_line()
