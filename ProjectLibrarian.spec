@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\main.py'],
+    ['/home/jamie/Documents/Github/Project_Librarian/main.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\views\\forms', 'app\\views\\forms'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\app\\views\\assets', 'app\\views\\assets'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\LICENSE', '.'), ('C:\\Users\\jamie\\OneDrive\\Personel\\Documents\\GitHub\\Project-Librarian\\LICENSE-MIT', '.')],
+    datas=[('/home/jamie/Documents/Github/Project_Librarian/app/views/forms', 'app/views/forms'), ('/home/jamie/Documents/Github/Project_Librarian/app/views/assets', 'app/views/assets'), ('/home/jamie/Documents/Github/Project_Librarian/LICENSE', '.'), ('/home/jamie/Documents/Github/Project_Librarian/LICENSE-MIT', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -19,20 +19,26 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='ProjectLibrarian',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='ProjectLibrarian',
 )

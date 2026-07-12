@@ -360,6 +360,60 @@ def supervisor_main() -> int:
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
+
+    # 1. Intercept PyInstaller-based execution of app modules via python -m syntax.
+    if "-m" in sys.argv:
+        try:
+            idx = sys.argv.index("-m")
+            if idx + 1 < len(sys.argv):
+                module_name = sys.argv[idx + 1]
+                # Strip out -m and module name from sys.argv so argparse behaves correctly
+                new_argv = sys.argv[:idx] + sys.argv[idx + 2:]
+                sys.argv = new_argv
+                
+                if module_name == "app.models.librarian_mcp_server":
+                    from app.models.librarian_mcp_server import main as mcp_main
+                    mcp_main()
+                    sys.exit(0)
+                else:
+                    import runpy
+                    runpy.run_module(module_name, run_name="__main__", alter_sys=True)
+                    sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
+    # Dead code imports so PyInstaller static analyzer bundles the modules
+    if False:
+        from app.models import librarian_mcp_server
+
+    # 1b. Intercept PyInstaller-based multiprocessing child processes (since freeze_support() is a no-op on Linux/macOS)
+    if "-c" in sys.argv:
+        try:
+            idx = sys.argv.index("-c")
+            if idx + 1 < len(sys.argv):
+                code = sys.argv[idx + 1]
+                if "multiprocessing" in code:
+                    # Execute the bootstrapper code in the __main__ context and exit
+                    exec(code, globals())
+                    sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
+    # 2. Intercept executing a standalone .py script path directly (e.g. from the diagnostics runner)
+    if len(sys.argv) > 1 and sys.argv[1].endswith(".py") and os.path.isfile(sys.argv[1]):
+        import runpy
+        try:
+            runpy.run_path(sys.argv[1], run_name="__main__")
+            sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
     target_script_to_analyze = None
     analyze_duration = 0
     analyze_interval = 0
