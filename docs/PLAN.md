@@ -77,7 +77,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Stability fix complete: refresh status polling and manual refresh requests no longer block the UI thread during long indexing runs.
 - [x] Settings fix complete: refresh interval now accepts `0` to disable auto-refresh instead of clamping back to a positive value.
 - [x] UI fix complete: Indexed Library pane refreshes after background indexing even for larger result sets.
-- [ ] Next up: validate packaging outputs on native Windows and Ubuntu hosts.
+- [/] Next up: validate packaging outputs on native Windows and Ubuntu hosts (Windows validated, Ubuntu pending).
 - [x] Migration tranche complete: ported workspace assistant features from legacy monolith into modular service + UI tab buttons (git summary, docs draft, changelog draft, save output).
 - [x] Integration enhancement complete: top-level Integrations tab added for MVC Editor launch controls and MCP server settings/start-stop/probe controls.
 - [x] MCP foundation complete: modular local MCP-compatible server added with probe/status/search/refresh/shutdown endpoints.
@@ -88,13 +88,14 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Native MVC shell integration complete: embedded MVC tab now drops standalone menu/toolbar/workspace tree/console chrome so Librarian controls and tree remain the single primary navigation shell.
 - [x] Windows packaging update complete: build scripts now emit a single-file `ProjectLibrarian.exe`, with Windows config/output defaults under `%LOCALAPPDATA%\\Project Librarian`.
 - [x] Phase 11 complete: full MVC-compliance refactor planning and staged execution.
-- [x] Phase 11 task 1 complete: baseline MVC boundary audit finished and extraction map prepared.
-- [x] Phase 11 task 2 complete: `app/controllers/` skeleton added with pass-through wiring in main/search/excel/anti-pattern/diagnostics flows.
-- [x] Phase 11 task 3 complete: core view decoupling sweep moved workflow logic from UI widgets into controllers.
-- [x] Phase 11 task 4 complete: model/service utilities normalized and Qt coupling removed from non-view layers.
-- [x] Phase 11 task 5 complete: smoke coverage migrated to include controller seams and explicit MVC boundary expectations.
-- [x] Phase 11 task 6 complete: full smoke phase gate run passed and migration notes finalized.
-- [ ] Next up: validate packaging outputs on native Windows and Ubuntu hosts.
+- [x] Phase 11 task 1 complete: `app/controllers/` extraction map prepared.
+- [x] Phase 11 task 2 complete: controllers skeleton added.
+- [x] Phase 11 task 3 complete: views decoupling.
+- [x] Phase 11 task 4 complete: models normalization and utility extraction.
+- [x] Phase 11 task 5 complete: smoke tests update.
+- [x] Phase 11 task 6 complete: full smoke suite execution and pass.
+- [x] Phase 12 complete: update repository documentation (README.md, runbook, checklist) and implement premium in-app Help System (F1) user guide.
+- [/] Next up: validate packaging outputs on native Windows and Ubuntu hosts (Windows validated, Ubuntu pending).
 
 ## Phase Checklist
 - [x] Phase 1: Scaffolding and baseline project config
@@ -106,8 +107,9 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Phase 7: Entry point integration
 - [x] Phase 8: Smoke tests and AI-assisted generation flow
 - [x] Phase 9: Plan and documentation finalization
-- [ ] Phase 10: Cross-platform packaging and branding
+- [/] Phase 10: Cross-platform packaging and branding (Windows completed, Ubuntu pending validation)
 - [x] Phase 11: Full MVC compliance refactor (model/view/controller separation + utility extraction)
+- [x] Phase 12: Documentation finalization and in-app Help System
 
 ## Phase 11 Implementation Plan (One Task At A Time)
 ### Goal
@@ -220,6 +222,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-07-08: Closed Phase 11 Task 4 by moving the Qt-based diagnostics subprocess runner into `app/views/diagnostics_runner.py`, leaving controller/service/model-side modules free of PyQt dependencies.
 - 2026-07-08: Completed Phase 11 Task 5 by adding smoke coverage for controller seam delegation and explicit non-view-layer PyQt boundary enforcement.
 - 2026-07-08: Completed Phase 11 Task 6 phase gate with full smoke suite pass after MVC migration updates.
+- 2026-07-12: Added Phase 12 for updating README.md and active docs with new architecture/features, and implementing a searchable, themed in-app User Guide (shortcut F1).
 
 ## Out Of Scope (Initial Build)
 - REPL and CLI parity with legacy script
