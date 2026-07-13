@@ -23,7 +23,7 @@ import json
 import urllib.request
 from pathlib import Path
 
-from app.services.ai_generator import AIGenerationService
+from app.models.ai_generator import AIGenerationService
 
 
 def test_ai_generator_scans_and_replaces(tmp_path, monkeypatch):
@@ -45,9 +45,12 @@ def test_ai_generator_scans_and_replaces(tmp_path, monkeypatch):
 
         def read(self):
             inner_dict = {
-                "model_code": "class BookModel:\n    def reset(self):\n        pass\n",
-                "view_code": "class BookView:\n    # AI-addition (timestamp): add a refresh button to clear list\n    pass\n",
-                "controller_code": "class BookController:\n    def handle_reset(self):\n        pass\n"
+                "model_imports": "import sys",
+                "model_additions": "    def reset(self):\n        pass",
+                "view_imports": "",
+                "view_additions": "",
+                "controller_imports": "",
+                "controller_additions": "    def handle_reset(self):\n        pass"
             }
             outer_dict = {
                 "response": json.dumps(inner_dict)
@@ -80,7 +83,9 @@ def test_ai_generator_scans_and_replaces(tmp_path, monkeypatch):
     v_content = v_file.read_text(encoding="utf-8")
     c_content = c_file.read_text(encoding="utf-8")
 
+    assert "import sys" in m_content
     assert "def reset(self):" in m_content
     assert "AI-addition" in v_content
     assert "AI-request" not in v_content
     assert "def handle_reset(self):" in c_content
+

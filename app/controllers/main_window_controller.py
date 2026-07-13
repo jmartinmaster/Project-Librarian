@@ -19,10 +19,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.indexer.index_manager import IndexManager
+from app.models.mcp_server_manager import MCPServerManager
 
 
-class MainWindowController:
+class MainWindowViewController:
     """Controller for refresh, worker lifecycle, and status metadata."""
 
     def __init__(self, index_manager: IndexManager) -> None:
@@ -53,3 +56,79 @@ class MainWindowController:
         """Stop background refresh worker."""
         self._index_manager.stop_refresh_worker()
 
+    def matching_files(self, filter_text: str) -> tuple[list[str], int]:
+        """Return filtered file paths and total file count."""
+        state = self._index_manager.state
+        sorted_files = sorted(state.file_corpus.keys())
+        if not filter_text:
+            return sorted_files, len(state.file_corpus)
+        matching = [
+            rel_path
+            for rel_path in sorted_files
+            if filter_text in rel_path.lower() or filter_text in Path(rel_path).name.lower()
+        ]
+        return matching, len(state.file_corpus)
+
+    def matching_symbols(self, filter_text: str) -> tuple[list[dict[str, object]], int]:
+        """Return filtered symbols and total symbol count."""
+        state = self._index_manager.state
+        if not filter_text:
+            return state.symbols, len(state.symbols)
+        matching = [
+            symbol
+            for symbol in state.symbols
+            if filter_text in str(symbol.get("name", "")).lower()
+            or filter_text in str(symbol.get("path", "")).lower()
+            or filter_text in str(symbol.get("kind", "")).lower()
+        ]
+        return matching, len(state.symbols)
+
+    def matching_excel_rows(self, filter_text: str) -> tuple[list[dict[str, object]], int]:
+        """Return filtered excel rows and total excel row count."""
+        state = self._index_manager.state
+        if not filter_text:
+            return state.excel_rows, len(state.excel_rows)
+        matching = [
+            row
+            for row in state.excel_rows
+            if filter_text in str(row.get("file", "")).lower()
+            or filter_text in str(row.get("field", "")).lower()
+            or filter_text in str(row.get("value", "")).lower()
+        ]
+        return matching, len(state.excel_rows)
+
+    def matching_skipped_files(self, filter_text: str) -> tuple[list[dict[str, str]], int]:
+        """Return filtered skipped files and total skipped file count."""
+        state = self._index_manager.state
+        all_skipped_files = state.skipped_files
+        if not filter_text:
+            return all_skipped_files, len(all_skipped_files)
+        matching = [
+            item
+            for item in all_skipped_files
+            if filter_text in str(item.get("path", "")).lower()
+            or filter_text in str(item.get("reason", "")).lower()
+            or filter_text in str(item.get("stage", "")).lower()
+        ]
+        return matching, len(all_skipped_files)
+
+    def refresh_summary_text(self) -> str:
+        """Return status-bar summary text for current indexed state."""
+        state = self._index_manager.state
+        return (
+            "Refreshed: "
+            f"files={len(state.file_corpus)} symbols={len(state.symbols)} "
+            f"excel_rows={len(state.excel_rows)} skipped={len(state.skipped_files)}"
+        )
+
+    def synchronize_project_root(self, project_root: str, mcp_manager: MCPServerManager) -> tuple[str, str | None]:
+        """Apply project root and restart MCP manager when required."""
+        normalized = str(Path(project_root or Path.cwd()).resolve())
+        self._index_manager.config.project_root = normalized
+        if not mcp_manager.is_running():
+            return normalized, None
+        mcp_manager.stop()
+        started, message = mcp_manager.start()
+        if started:
+            return normalized, "MCP restarted for updated root"
+        return normalized, f"MCP restart failed: {message}"

@@ -77,7 +77,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Stability fix complete: refresh status polling and manual refresh requests no longer block the UI thread during long indexing runs.
 - [x] Settings fix complete: refresh interval now accepts `0` to disable auto-refresh instead of clamping back to a positive value.
 - [x] UI fix complete: Indexed Library pane refreshes after background indexing even for larger result sets.
-- [ ] Next up: validate packaging outputs on native Windows and Ubuntu hosts.
+- [/] Next up: validate packaging outputs on native Windows and Ubuntu hosts (Windows validated, Ubuntu pending).
 - [x] Migration tranche complete: ported workspace assistant features from legacy monolith into modular service + UI tab buttons (git summary, docs draft, changelog draft, save output).
 - [x] Integration enhancement complete: top-level Integrations tab added for MVC Editor launch controls and MCP server settings/start-stop/probe controls.
 - [x] MCP foundation complete: modular local MCP-compatible server added with probe/status/search/refresh/shutdown endpoints.
@@ -87,13 +87,15 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Root coherence fix complete: Integrations, MVC Editor, and MCP runtime now share the same Librarian project root, and project-root changes propagate across running integrations.
 - [x] Native MVC shell integration complete: embedded MVC tab now drops standalone menu/toolbar/workspace tree/console chrome so Librarian controls and tree remain the single primary navigation shell.
 - [x] Windows packaging update complete: build scripts now emit a single-file `ProjectLibrarian.exe`, with Windows config/output defaults under `%LOCALAPPDATA%\\Project Librarian`.
-- [ ] Phase 11 started: full MVC-compliance refactor planning and staged execution.
-- [x] Phase 11 task 1 complete: baseline MVC boundary audit finished and extraction map prepared.
-- [x] Phase 11 task 2 complete: `app/controllers/` skeleton added with pass-through wiring in main/search/excel/anti-pattern/diagnostics flows.
-- [x] Phase 11 task 3 complete: view decoupling sweep to move remaining business logic out of `app/ui/*`.
-- [x] Phase 11 task 4 complete: model/service normalization pass to consolidate utility services.
-- [ ] Next up: Phase 11 task 5 - smoke test migration and stabilization.
-- [ ] Deferred until after Phase 11 gate: validate packaging outputs on native Windows and Ubuntu hosts.
+- [x] Phase 11 complete: full MVC-compliance refactor planning and staged execution.
+- [x] Phase 11 task 1 complete: `app/controllers/` extraction map prepared.
+- [x] Phase 11 task 2 complete: controllers skeleton added.
+- [x] Phase 11 task 3 complete: views decoupling.
+- [x] Phase 11 task 4 complete: models normalization and utility extraction.
+- [x] Phase 11 task 5 complete: smoke tests update.
+- [x] Phase 11 task 6 complete: full smoke suite execution and pass.
+- [x] Phase 12 complete: update repository documentation (README.md, runbook, checklist) and implement premium in-app Help System (F1) user guide.
+- [/] Next up: validate packaging outputs on native Windows and Ubuntu hosts (Windows validated, Ubuntu pending).
 
 ## Phase Checklist
 - [x] Phase 1: Scaffolding and baseline project config
@@ -105,8 +107,9 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Phase 7: Entry point integration
 - [x] Phase 8: Smoke tests and AI-assisted generation flow
 - [x] Phase 9: Plan and documentation finalization
-- [ ] Phase 10: Cross-platform packaging and branding
-- [ ] Phase 11: Full MVC compliance refactor (model/view/controller separation + utility extraction)
+- [/] Phase 10: Cross-platform packaging and branding (Windows completed, Ubuntu pending validation)
+- [x] Phase 11: Full MVC compliance refactor (model/view/controller separation + utility extraction)
+- [x] Phase 12: Documentation finalization and in-app Help System
 
 ## Phase 11 Implementation Plan (One Task At A Time)
 ### Goal
@@ -114,8 +117,8 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
 ### Sequenced Tasks
 1. Baseline MVC boundary audit
-   - Inventory business logic currently inside `app/ui/*`.
-   - Identify orchestration logic currently mixed between `main.py`, `app/ui/main_window.py`, and widget classes.
+   - Inventory business logic currently inside `app/views/*`.
+   - Identify orchestration logic currently mixed between `main.py`, `app/views/main_window_view.py`, and widget classes.
    - Produce extraction map for Search, Library navigation, Anti-pattern scan, Diagnostics, and Settings workflows.
 2. Controller layer skeleton
    - Add `app/controllers/` package and typed controller contracts.
@@ -142,15 +145,15 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
 ## Architecture (MVC)
 - Model: `app/config.py`, `app/indexer/`, `app/search/`, and domain-oriented service/util modules with no Qt dependencies
-- View: `app/ui/` widgets/dialogs/.ui forms for rendering, user input capture, and signal emission only
+- View: `app/views/` widgets/dialogs/.ui forms for rendering, user input capture, and signal emission only
 - Controller (target): `app/controllers/` workflow orchestrators and app lifecycle coordination
-- Controller (transition): `app/indexer/index_manager.py` and `app/ui/main_window.py` orchestration being migrated to `app/controllers/`
+- Controller (transition): `app/indexer/index_manager.py` and `app/views/main_window_view.py` orchestration being migrated to `app/controllers/`
 - Runtime rule: main.py loads index data through IndexManager and retains state.file_corpus, state.symbols, and state.excel_rows in RAM for query operations.
 
 ## Directory Layout Target
 - app/indexer/ for indexing logic
 - app/search/ for search scoring and query behavior
-- app/ui/ for presentation layer
+- app/views/ for presentation layer
 - app/dev_tools/ for support scripts
 - tests/smoke/ for organized smoke tests
 - docs/ for active planning and guidance
@@ -190,19 +193,19 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-04-18: Added repository README, refreshed packaging requirements/docs, added splash/About attribution text, and applied GPLv3 headers across authored files except read-only reference modules.
 - 2026-04-27: Moved initial startup refresh off the UI thread by enabling immediate background worker refresh and UI auto-sync on refresh-count changes.
 - 2026-04-27: Reduced IndexManager refresh lock scope to state publication only, added non-blocking async manual refresh requests, and stopped automatic heavy UI refresh work after each background indexing cycle.
-- 2026-04-27: Allowed a zero-second refresh interval in SettingsDialog so users can disable auto-refresh through the UI and persist that value correctly.
+- 2026-04-27: Allowed a zero-second refresh interval in SettingsView so users can disable auto-refresh through the UI and persist that value correctly.
 - 2026-04-27: Removed the Indexed Library auto-refresh size gate so completed background refreshes always repopulate the sidebar; tree updates are now wrapped with setUpdatesEnabled for less repaint churn.
 - 2026-07-08: Fixed copy-path clipboard behavior across search/library/audit views to copy absolute containing-folder paths instead of filenames.
-- 2026-07-08: Added refresh error reporting in IndexManager/MainWindow so worker/manual refresh failures are surfaced instead of silently swallowed.
+- 2026-07-08: Added refresh error reporting in IndexManager/MainWindowView so worker/manual refresh failures are surfaced instead of silently swallowed.
 - 2026-07-08: Switched config storage to platform-aware directories (APPDATA on Windows, Application Support on macOS, ~/.config on Linux).
 - 2026-07-08: Updated diagnostics subprocess cancellation and runner lifecycle to avoid Windows-only kill behavior and eliminate indefinite post-profile hangs.
-- 2026-07-08: Compared the legacy monolith feature surface and ported high-value workspace assistant flows into modular files (`app/services/workspace_service.py`, `app/ui/workspace_browser.py`) with button-driven UI wiring.
+- 2026-07-08: Compared the legacy monolith feature surface and ported high-value workspace assistant flows into modular files (`app/models/workspace_model.py`, `app/views/workspace_view.py`) with button-driven UI wiring.
 - 2026-07-08: Added `Integrations` tab for external MVC Editor path/launch workflow plus MCP server setup, save, start/stop, and probe controls.
-- 2026-07-08: Ported a modular local MCP-compatible server runtime (`app/services/librarian_mcp_server.py`) and subprocess lifecycle manager (`app/services/mcp_server_manager.py`) wired to app config and autostart.
-- 2026-07-08: Added direct in-app MVC Editor embedding (`app/ui/mvc_editor_tab.py`) with triad file workflow and wired it as a primary top tab in the main window.
+- 2026-07-08: Ported a modular local MCP-compatible server runtime (`app/models/librarian_mcp_server.py`) and subprocess lifecycle manager (`app/models/mcp_server_manager.py`) wired to app config and autostart.
+- 2026-07-08: Added direct in-app MVC Editor embedding (`app/views/mvc_editor_tab.py`) with triad file workflow and wired it as a primary top tab in the main window.
 - 2026-07-08: Unified file-open workflow so Search Browser, Indexed Library, and Code Audit open files in the embedded MVC Editor; kept explicit external-open path for user-controlled handoff.
 - 2026-07-08: Scope expanded to full standalone MVC editor feature parity inside Project Librarian before next compile/release handoff.
-- 2026-07-08: Imported standalone MVC Sync internals into `app/ui/mvc_sync/` and wrapped them in `MVCEditorTab` so in-app editing includes workspace explorer, triad discovery, inspector navigation, sync tooling, and run console while preserving Librarian open-routing.
+- 2026-07-08: Imported standalone MVC Sync internals into `app/views/mvc_sync/` and wrapped them in `MVCEditorTab` so in-app editing includes workspace explorer, triad discovery, inspector navigation, sync tooling, and run console while preserving Librarian open-routing.
 - 2026-07-08: Removed independent integrations root behavior by treating project root as the single shared root for MVC + MCP, added root-change callback wiring in main window, and switched folder picker to non-native dialog mode to avoid Windows COM dialog crashes.
 - 2026-07-08: Applied full native integration mode to MVC tab by suppressing standalone shell surfaces and inheriting host tab theming to keep Librarian as the single unified interface shell.
 - 2026-07-08: Switched Windows packaging to PyInstaller one-file output and moved Windows runtime config/artifact defaults to `%LOCALAPPDATA%\\Project Librarian` for portable executable relocation without adjacent support folders.
@@ -211,6 +214,15 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-07-08: Completed Phase 11 Task 2 by introducing `app/controllers/` seams and delegating key workflows from views to controller pass-through methods.
 - 2026-07-08: Advanced Phase 11 Task 3 with broader view decoupling in Search/Main/Excel/Anti-pattern/Settings by routing workflow logic through dedicated controllers.
 - 2026-07-08: Continued Phase 11 Task 3 by moving CSV export and anti-pattern scan orchestration out of views and into controller methods.
+- 2026-07-08: Closed Phase 11 Task 3 and started Task 4 by moving editor launch utility into `app/models/editor_model.py` and shifting additional diagnostics/main-window utility logic into controllers.
+- 2026-07-08: Continued Task 4 utility normalization by moving shared path helpers to `app/models/path_model.py` and removing remaining non-widget utility modules from `app/views`.
+- 2026-07-08: Continued Task 4 decoupling by routing copy-path containing-folder resolution through path/feature controllers instead of direct view-to-service calls.
+- 2026-07-08: Continued Task 4 by moving diagnostics profiling actions/output formatting and main-window root-sync/refresh-summary orchestration into controllers.
+- 2026-07-08: Continued Task 4 by routing external editor launch fallback from search/anti-pattern views through controllers instead of direct service imports in widgets.
+- 2026-07-08: Closed Phase 11 Task 4 by moving the Qt-based diagnostics subprocess runner into `app/views/diagnostics_runner.py`, leaving controller/service/model-side modules free of PyQt dependencies.
+- 2026-07-08: Completed Phase 11 Task 5 by adding smoke coverage for controller seam delegation and explicit non-view-layer PyQt boundary enforcement.
+- 2026-07-08: Completed Phase 11 Task 6 phase gate with full smoke suite pass after MVC migration updates.
+- 2026-07-12: Added Phase 12 for updating README.md and active docs with new architecture/features, and implementing a searchable, themed in-app User Guide (shortcut F1).
 
 ## Out Of Scope (Initial Build)
 - REPL and CLI parity with legacy script

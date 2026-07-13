@@ -33,8 +33,8 @@ fi
   --noconfirm \
   --windowed \
   --name ProjectLibrarian \
-  --add-data "${REPO_ROOT}/app/ui/forms:app/ui/forms" \
-  --add-data "${REPO_ROOT}/app/ui/assets:app/ui/assets" \
+  --add-data "${REPO_ROOT}/app/views/forms:app/views/forms" \
+  --add-data "${REPO_ROOT}/app/views/assets:app/views/assets" \
   "${REPO_ROOT}/main.py"
 
 echo "Ubuntu build complete: ${REPO_ROOT}/dist/ProjectLibrarian"

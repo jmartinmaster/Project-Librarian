@@ -15,11 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
-"""Application entrypoint for standalone Project Librarian."""
+"""Application entrypoint for standalone The Librarian."""
 
 from __future__ import annotations
 
 import sys
+sys.coinit_flags = 2  # COINIT_APARTMENTTHREADED
 import ctypes
 from pathlib import Path
 import os
@@ -41,7 +42,7 @@ from PyQt6.QtWidgets import (
 from app import APP_NAME, STARTUP_INDEX_NOTE
 from app.config import AppConfig, CONFIG_DIR, load_config, save_config
 from app.indexer.index_manager import IndexManager
-from app.ui.main_window import MainWindow
+from app.views.main_window_view import MainWindowView
 
 
 def _build_splash_pixmap(icon: QIcon | None) -> QPixmap:
@@ -81,7 +82,7 @@ def _show_startup_splash(app: QApplication, config: AppConfig, icon: QIcon | Non
     splash = QSplashScreen(_build_splash_pixmap(icon))
     launch_note = STARTUP_INDEX_NOTE if not config.project_root else f"Index root: {config.project_root}"
     splash.showMessage(
-        f"Starting Project Librarian...\n{launch_note}",
+        f"Starting The Librarian...\n{launch_note}",
         Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
         QColor("#2f261f"),
     )
@@ -116,7 +117,7 @@ def _show_rebuild_dialog(app: QApplication, manager: IndexManager) -> None:
 
     layout = QVBoxLayout(dialog)
     label = QLabel(
-        "First-time startup: Building Project Librarian search indexes and snapshot.\n"
+        "First-time startup: Building The Librarian search indexes and snapshot.\n"
         "This may take a moment...",
         dialog
     )
@@ -158,12 +159,12 @@ def main() -> int:
 
     if sys.platform == "win32":
         # Ensure Windows taskbar groups this process under the app identity, not python.exe.
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ProjectLibrarian.Desktop")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("TheLibrarian.Desktop")
 
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
-    app.setDesktopFileName("project-librarian")
+    app.setDesktopFileName("the-librarian")
     icon_path = Path(__file__).resolve().parent / "app" / "ui" / "assets" / "library_icon.svg"
     app_icon: QIcon | None = None
     if icon_path.exists():
@@ -174,7 +175,7 @@ def main() -> int:
 
     manager = IndexManager(config=config)
 
-    # Check if snapshot exists. If not, build it before launching MainWindow.
+    # Check if snapshot exists. If not, build it before launching MainWindowView.
     repo_root = Path(config.project_root or Path.cwd()).resolve()
     output_candidate = Path(config.output_dir)
     output_dir = output_candidate if output_candidate.is_absolute() else repo_root / output_candidate
@@ -190,10 +191,10 @@ def main() -> int:
         QColor("#2f261f"),
     )
     app.processEvents()
-    app.aboutToQuit.connect(manager.stop_refresh_worker)
+    app.aboutToQuit.connect(manager.shutdown)
 
-    window = MainWindow(index_manager=manager)
-    window.show()
+    window = MainWindowView(index_manager=manager)
+    window.showMaximized()
     splash.finish(window)
     manager.start_refresh_worker(run_immediately=True)
     return app.exec()
@@ -223,7 +224,7 @@ def show_crash_dialog(exit_code: int, traceback_str: str) -> bool:
         app = QApplication.instance()
         if not app:
             app = QApplication([])
-            app.setApplicationName("Project Librarian Supervisor")
+            app.setApplicationName("The Librarian Supervisor")
             icon_path = Path(__file__).resolve().parent / "app" / "ui" / "assets" / "library_icon.svg"
             if icon_path.exists():
                 app.setWindowIcon(QIcon(str(icon_path)))
@@ -243,7 +244,7 @@ def show_crash_dialog(exit_code: int, traceback_str: str) -> bool:
         header_layout.addWidget(icon_label)
         
         title_text = (
-            "<h3>Project Librarian Crashed</h3>"
+            "<h3>The Librarian Crashed</h3>"
             "<p>The application encountered a fatal error and had to close.</p>"
         )
         title_label = QLabel(title_text)
@@ -288,7 +289,7 @@ def show_crash_dialog(exit_code: int, traceback_str: str) -> bool:
             import ctypes
             ctypes.windll.user32.MessageBoxW(
                 0,
-                f"Project Librarian has crashed.\n\nExit Code: {exit_code}\n\nTraceback summary:\n{traceback_str[:500]}",
+                f"The Librarian has crashed.\n\nExit Code: {exit_code}\n\nTraceback summary:\n{traceback_str[:500]}",
                 "Application Crash Detected",
                 0x10 | 0x0  # MB_ICONERROR | MB_OK
             )
@@ -357,6 +358,62 @@ def supervisor_main() -> int:
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
+
+    # 1. Intercept PyInstaller-based execution of app modules via python -m syntax.
+    if "-m" in sys.argv:
+        try:
+            idx = sys.argv.index("-m")
+            if idx + 1 < len(sys.argv):
+                module_name = sys.argv[idx + 1]
+                # Strip out -m and module name from sys.argv so argparse behaves correctly
+                new_argv = sys.argv[:idx] + sys.argv[idx + 2:]
+                sys.argv = new_argv
+                
+                if module_name == "app.models.librarian_mcp_server":
+                    from app.models.librarian_mcp_server import main as mcp_main
+                    mcp_main()
+                    sys.exit(0)
+                else:
+                    import runpy
+                    runpy.run_module(module_name, run_name="__main__", alter_sys=True)
+                    sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
+    # Dead code imports so PyInstaller static analyzer bundles the modules
+    if False:
+        from app.models import librarian_mcp_server
+
+    # 1b. Intercept PyInstaller-based multiprocessing child processes (since freeze_support() is a no-op on Linux/macOS)
+    if "-c" in sys.argv:
+        try:
+            idx = sys.argv.index("-c")
+            if idx + 1 < len(sys.argv):
+                code = sys.argv[idx + 1]
+                if "multiprocessing" in code:
+                    # Execute the bootstrapper code in the __main__ context and exit
+                    exec(code, globals())
+                    sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
+    # 2. Intercept executing a standalone .py script path directly (e.g. from the diagnostics runner)
+    if len(sys.argv) > 1 and sys.argv[1].endswith(".py") and os.path.isfile(sys.argv[1]):
+        import runpy
+        try:
+            runpy.run_path(sys.argv[1], run_name="__main__")
+            sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
     target_script_to_analyze = None
     analyze_duration = 0
     analyze_interval = 0
@@ -619,7 +676,10 @@ if __name__ == "__main__":
         else:
             sys.exit(0)
 
-    if bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1":
+    is_mp_child = multiprocessing.current_process().name != "MainProcess" or any(arg.startswith("--multiprocessing-") for arg in sys.argv)
+    if is_mp_child:
+        pass
+    elif bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1":
         raise SystemExit(main())
     else:
         raise SystemExit(supervisor_main())

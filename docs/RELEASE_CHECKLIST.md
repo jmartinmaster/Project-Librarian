@@ -20,31 +20,32 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 # Release Readiness Checklist
 
 ## Environment
-- [ ] `.venv` exists and dependencies install successfully from `requirements.txt`.
-- [ ] App starts with `./run.sh`.
-- [ ] App starts with `.venv/bin/python main.py`.
+- [x] `.venv` exists and dependencies install successfully from `requirements.txt`.
+- [x] App starts with `./run.sh`.
+- [x] App starts with `.venv/bin/python main.py`.
 
 ## Functional Validation
-- [ ] Search browser returns file/symbol/excel results.
-- [ ] Search result preview shows line context.
-- [ ] Settings dialog saves project/indexing/excel settings.
-- [ ] Auto-refresh status indicator updates in main window.
-- [ ] Auto-refresh toggle enables/disables worker safely.
+- [x] Search browser returns file/symbol/excel results.
+- [x] Search result preview shows line context.
+- [x] Settings dialog saves project/indexing/excel settings.
+- [x] Auto-refresh status indicator updates in main window.
+- [x] Auto-refresh toggle enables/disables worker safely.
+- [x] Help Dialog opens via `F1` shortcut or Help -> Librarian User Guide menu item, and displays the guide.
 
 ## Test Validation
-- [ ] Smoke suite passes: `.venv/bin/python -m pytest tests/smoke -v`.
-- [ ] New/changed features include smoke tests under `tests/smoke/`.
+- [x] Smoke suite passes: `.venv/bin/python -m pytest tests/smoke -v`.
+- [x] New/changed features include smoke tests under `tests/smoke/`.
 
 ## Project Hygiene
-- [ ] `docs/PLAN.md` current status and checklist are up to date.
-- [ ] Active docs are kept in `docs/`; stale docs archived/removed.
-- [ ] Generated outputs are stored under `build/` only.
-- [ ] No modifications were made to `project_librarian.py` or `symbol_index.py`.
+- [x] `docs/PLAN.md` current status and checklist are up to date.
+- [x] Active docs are kept in `docs/`; stale docs archived/removed.
+- [x] Generated outputs are stored under `build/` only.
+- [x] No modifications were made to `project_librarian.py` or `symbol_index.py`.
 
 ## Packaging/Handoff
-- [ ] `run.sh` is executable.
-- [ ] VS Code interpreter path points to `.venv/bin/python`.
-- [ ] Handoff notes include current phase and next work item.
-- [ ] Windows packaging script runs on Windows and outputs `dist/ProjectLibrarian.exe`.
-- [ ] Ubuntu packaging script runs and outputs `dist/ProjectLibrarian/`.
-- [ ] Ubuntu local installer script creates launcher and desktop entry.
+- [x] `run.sh` is executable.
+- [x] VS Code interpreter path points to `.venv/bin/python`.
+- [x] Handoff notes include current phase and next work item.
+- [x] Windows packaging script runs on Windows and outputs `dist/ProjectLibrarian.exe`.
+- [x] Ubuntu packaging script runs and outputs `dist/ProjectLibrarian/`.
+- [x] Ubuntu local installer script creates launcher and desktop entry.

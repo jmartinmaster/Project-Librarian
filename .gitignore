@@ -16,7 +16,7 @@
 # along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
 .venv/
-__pycache__/
+__pycache__/*
 *.pyc
 build/
 dist/
@@ -24,3 +24,6 @@ dist/
 .pytest_cache/
 .pyc
 .pyinstaller_tmp/
+demo_workspace/
+tests/__pycache__/
+

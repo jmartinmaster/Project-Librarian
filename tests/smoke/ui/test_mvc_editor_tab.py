@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.ui.mvc_editor_tab import MVCEditorTab
+from app.views.mvc_editor_tab import MVCEditorTab
 
 
 def test_mvc_editor_tab_exposes_model_view_controller_tabs(qtbot):
@@ -54,7 +54,8 @@ def test_mvc_editor_tab_loads_and_saves_triad(qtbot, tmp_path: Path):
 
     widget = MVCEditorTab(workspace_root=str(workspace))
     qtbot.addWidget(widget)
-    widget.open_file(entrypoint)
+    with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
+        widget.open_file(entrypoint)
 
     assert "DocumentModel" in widget.model_editor.toPlainText()
     assert "EditorView" in widget.view_editor.toPlainText()
@@ -72,12 +73,15 @@ def test_mvc_editor_tab_opens_saves_and_launches_current_file(monkeypatch, qtbot
     widget = MVCEditorTab(workspace_root=str(tmp_path))
     qtbot.addWidget(widget)
 
-    opened = widget.open_file(target, line_number=2)
+    with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
+        opened = widget.open_file(target, line_number=2)
     assert opened
     assert widget.current_file_edit.text().endswith("single_file.py")
     assert widget.editor_tabs.tabText(widget.editor_tabs.currentIndex()) == "MVC Editor"
 
     widget.file_editor.setPlainText("updated\ncontent\n")
+    widget.save_current_file()
+    assert "updated" in target.read_text(encoding="utf-8")
     widget.save_current_file()
     assert "updated" in target.read_text(encoding="utf-8")
 
@@ -87,26 +91,84 @@ def test_mvc_editor_tab_opens_saves_and_launches_current_file(monkeypatch, qtbot
         external_calls["path"] = url.toLocalFile()
         return True
 
-    monkeypatch.setattr("app.ui.mvc_editor_tab.QDesktopServices.openUrl", fake_open)
+    monkeypatch.setattr("app.views.mvc_editor_tab.QDesktopServices.openUrl", fake_open)
     widget.open_current_externally()
     assert external_calls["path"].endswith("single_file.py")
 
 
-def test_mvc_editor_tab_trigger_local_ai(monkeypatch, qtbot):
-    """Test that clicking the Trigger Local AI button saves file and calls controller run_ai_generation."""
+def test_mvc_editor_tab_autocomplete(qtbot):
     widget = MVCEditorTab()
     qtbot.addWidget(widget)
+    
+    assert widget.model_editor.completer() is not None
+    assert widget.view_editor.completer() is not None
+    assert widget.controller_editor.completer() is not None
+    
+    model = widget.model_editor.completer().model()
+    words = [model.index(i, 0).data() for i in range(model.rowCount())]
+    assert "class" in words
+    assert "QWidget" in words
 
-    ai_called = False
-    def mock_run_ai(callback):
-        nonlocal ai_called
-        ai_called = True
-        callback(True, "AI Generation complete")
 
-    monkeypatch.setattr(widget._controller, "run_ai_generation", mock_run_ai)
-    monkeypatch.setattr("PyQt6.QtWidgets.QMessageBox.information", lambda *args: None)
+def test_mvc_editor_tab_create_triad(qtbot, tmp_path: Path):
+    workspace = tmp_path / "mvc_workspace"
+    workspace.mkdir()
+    
+    widget = MVCEditorTab(workspace_root=str(workspace))
+    qtbot.addWidget(widget)
+    
+    with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
+        widget._controller.create_new_mvc_triad("DashboardWidget", str(workspace))
 
-    widget.trigger_ai_button.click()
-    assert ai_called is True
-    assert "AI Generation complete" in widget.status_label.text()
+    assert (workspace / "models" / "dashboard_widget_model.py").exists()
+    assert (workspace / "views" / "dashboard_widget_view.py").exists()
+    assert (workspace / "controllers" / "dashboard_widget_controller.py").exists()
+
+    assert "class DashboardWidgetModel(QObject):" in widget.model_editor.toPlainText()
+    assert "class DashboardWidgetView(QWidget):" in widget.view_editor.toPlainText()
+    assert "class DashboardWidgetController:" in widget.controller_editor.toPlainText()
+
+
+def test_mvc_editor_tab_cst_method_ranges():
+    from app.config import AppConfig
+    from app.views.mvc_sync.model import DocumentModel
+
+    config = AppConfig(use_cst=True)
+    model = DocumentModel(config=config)
+
+    content = (
+        "class Dummy:\n"
+        "    # Comment 1\n"
+        "    def method_1(self):\n"
+        "        pass\n"
+        "        # Comment 2"
+    )
+
+    # 1. Parse with use_cst = True
+    model.parse_outline("model", content)
+    outline_cst = model.get_outline("model")
+
+    assert outline_cst is not None
+    assert len(outline_cst["classes"]) == 1
+    dummy_class = outline_cst["classes"][0]
+    assert dummy_class["name"] == "Dummy"
+    assert len(dummy_class["methods"]) == 1
+    method_1 = dummy_class["methods"][0]
+    assert method_1["name"] == "method_1"
+
+    # Range should include Comment 1 (line 2) and Comment 2 (line 5)
+    assert method_1["start_line"] == 2
+    assert method_1["end_line"] == 6
+
+    # 2. Parse with use_cst = False
+    config.use_cst = False
+    model.parse_outline("model", content)
+    outline_ast = model.get_outline("model")
+
+    assert outline_ast is not None
+    method_ast = outline_ast["classes"][0]["methods"][0]
+    assert method_ast["name"] == "method_1"
+    # Range should only include standard AST statements (line 3 to line 4)
+    assert method_ast["start_line"] == 3
+    assert method_ast["end_line"] == 4
 

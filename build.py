@@ -88,8 +88,8 @@ class BuildConfig:
         self.scripts_dir = self.repo_root / "scripts"
         self.pyinstaller_tmp = self.repo_root / ".pyinstaller_tmp"
         self.main_entrypoint = self.repo_root / "main.py"
-        self.forms_dir = self.repo_root / "app" / "ui" / "forms"
-        self.assets_dir = self.repo_root / "app" / "ui" / "assets"
+        self.forms_dir = self.repo_root / "app" / "views" / "forms"
+        self.assets_dir = self.repo_root / "app" / "views" / "assets"
         self.requirements_packaging = self.repo_root / "requirements-packaging.txt"
 
         # Project metadata
@@ -210,9 +210,13 @@ class WindowsBuilder:
             "--name",
             self.config.app_name,
             "--add-data",
-            f"{self.config.forms_dir};app\\ui\\forms",
+            f"{self.config.forms_dir};app\\views\\forms",
             "--add-data",
-            f"{self.config.assets_dir};app\\ui\\assets",
+            f"{self.config.assets_dir};app\\views\\assets",
+            "--add-data",
+            f"{self.config.repo_root / 'LICENSE'};.",
+            "--add-data",
+            f"{self.config.repo_root / 'LICENSE-MIT'};.",
             "--workpath",
             str(self.config.pyinstaller_tmp),
             "--distpath",
@@ -312,9 +316,13 @@ class DebBuilder:
             "--name",
             self.config.app_name,
             "--add-data",
-            f"{self.config.forms_dir}:app/ui/forms",
+            f"{self.config.forms_dir}:app/views/forms",
             "--add-data",
-            f"{self.config.assets_dir}:app/ui/assets",
+            f"{self.config.assets_dir}:app/views/assets",
+            "--add-data",
+            f"{self.config.repo_root / 'LICENSE'}:.",
+            "--add-data",
+            f"{self.config.repo_root / 'LICENSE-MIT'}:.",
             "--workpath",
             str(self.config.pyinstaller_tmp),
             "--distpath",

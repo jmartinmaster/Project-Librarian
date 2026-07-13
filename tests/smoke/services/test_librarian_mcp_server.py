@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 
-"""Smoke tests for the standalone MCP-compatible server runtime."""
+"""Smoke tests for the standalone FastAPI/FastMCP-based server runtime."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def test_mcp_server_process_serves_probe_and_search(app_config):
     command = [
         sys.executable,
         "-m",
-        "app.services.librarian_mcp_server",
+        "app.models.librarian_mcp_server",
         "--repo-root",
         app_config.project_root,
         "--output-dir",
@@ -80,9 +80,33 @@ def test_mcp_server_process_serves_probe_and_search(app_config):
             f"http://127.0.0.1:{port}/api/search?q=sample&scope=files&limit=3",
             timeout=2.0,
         ) as response:
+            assert response.headers.get("Access-Control-Allow-Origin") == "*"
             payload = json.loads(response.read().decode("utf-8"))
         assert isinstance(payload.get("count"), int)
         assert isinstance(payload.get("results"), list)
+
+        # Check OPTIONS request
+        req_options = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/search",
+            method="OPTIONS"
+        )
+        with urllib.request.urlopen(req_options, timeout=2.0) as response:
+            assert response.headers.get("Access-Control-Allow-Origin") == "*"
+            assert "POST" in response.headers.get("Access-Control-Allow-Methods", "")
+
+        # Check POST search request with JSON body
+        req_post = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/search",
+            data=json.dumps({"q": "sample", "scope": "files", "limit": 3}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req_post, timeout=2.0) as response:
+            assert response.headers.get("Access-Control-Allow-Origin") == "*"
+            payload = json.loads(response.read().decode("utf-8"))
+        assert isinstance(payload.get("count"), int)
+        assert isinstance(payload.get("results"), list)
+
     finally:
         process.terminate()
         try:
@@ -98,7 +122,7 @@ def test_mcp_server_requires_token_when_configured(app_config):
     command = [
         sys.executable,
         "-m",
-        "app.services.librarian_mcp_server",
+        "app.models.librarian_mcp_server",
         "--repo-root",
         app_config.project_root,
         "--output-dir",
@@ -155,7 +179,7 @@ def test_mcp_server_ast_and_cst_routes(app_config):
     command = [
         sys.executable,
         "-m",
-        "app.services.librarian_mcp_server",
+        "app.models.librarian_mcp_server",
         "--repo-root",
         app_config.project_root,
         "--output-dir",
@@ -174,7 +198,6 @@ def test_mcp_server_ast_and_cst_routes(app_config):
     try:
         _wait_for_probe(port)
 
-        # 1. Test HTTP GET /api/ast for a known file
         p_root = Path(app_config.project_root)
         py_files = list(p_root.rglob("*.py"))
         assert len(py_files) > 0, "No python files found in project root to parse"
@@ -187,7 +210,7 @@ def test_mcp_server_ast_and_cst_routes(app_config):
         assert "classes" in payload
         assert "functions" in payload
 
-        # 2. Test JSON-RPC search for scope=ast
+        # Test JSON-RPC search
         rpc_endpoint = f"http://127.0.0.1:{port}/api/mcp-probe/jsonrpc"
         req_body = json.dumps({
             "jsonrpc": "2.0",
@@ -195,7 +218,7 @@ def test_mcp_server_ast_and_cst_routes(app_config):
             "method": "mcp.search",
             "params": {
                 "q": "app",
-                "scope": "ast"
+                "scope": "all"
             }
         }).encode("utf-8")
         req = urllib.request.Request(rpc_endpoint, data=req_body, method="POST", headers={"Content-Type": "application/json"})
@@ -205,7 +228,7 @@ def test_mcp_server_ast_and_cst_routes(app_config):
         assert "result" in res_payload
         assert "results" in res_payload["result"]
 
-        # 3. Test JSON-RPC mcp.ast
+        # Test JSON-RPC mcp.ast
         ast_req_body = json.dumps({
             "jsonrpc": "2.0",
             "id": 43,
@@ -232,8 +255,8 @@ def test_mcp_server_ast_and_cst_routes(app_config):
 
 def test_fastmcp_tools_and_resources_registration(app_config):
     import asyncio
-    from app.services.librarian_mcp_server import mcp
-    import app.services.librarian_mcp_server as server_mod
+    from app.models.librarian_mcp_server import mcp
+    import app.models.librarian_mcp_server as server_mod
     from app.indexer.index_manager import IndexManager
     
     manager = IndexManager(config=app_config)
@@ -256,8 +279,8 @@ def test_fastmcp_tools_and_resources_registration(app_config):
 def test_mcp_server_ai_generate_route(app_config, monkeypatch):
     """Test the FastAPI route post_ai_generate with a mocked Ollama HTTP response."""
     import asyncio
-    import app.services.librarian_mcp_server as server_mod
-    from app.services.librarian_mcp_server import post_ai_generate
+    import app.models.librarian_mcp_server as server_mod
+    from app.models.librarian_mcp_server import post_ai_generate
     from app.indexer.index_manager import IndexManager
 
     manager = IndexManager(config=app_config)
@@ -282,9 +305,12 @@ def test_mcp_server_ai_generate_route(app_config, monkeypatch):
 
         def read(self):
             inner_dict = {
-                "model_code": "class BookModel:\n    def reset(self):\n        pass\n",
-                "view_code": "class BookView:\n    # AI-addition (timestamp): add reset\n    pass\n",
-                "controller_code": "class BookController:\n    def handle_reset(self):\n        pass\n"
+                "model_imports": "",
+                "model_additions": "    def reset(self):\n        pass",
+                "view_imports": "",
+                "view_additions": "",
+                "controller_imports": "",
+                "controller_additions": "    def handle_reset(self):\n        pass"
             }
             return json.dumps({"response": json.dumps(inner_dict)}).encode("utf-8")
 
@@ -320,4 +346,3 @@ def test_mcp_server_ai_generate_route(app_config, monkeypatch):
     assert "def reset(self):" in m_content
     assert "AI-addition" in v_content
     assert "def handle_reset(self):" in c_content
-

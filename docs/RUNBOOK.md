@@ -43,7 +43,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
    - `bash scripts/install_ubuntu_local.sh`
 
 ## UI Editing Workflow (PyQt6 Designer)
-- UI form files are under `app/ui/forms/`.
+- UI form files are under `app/views/forms/`.
 - Runtime widgets load forms via `PyQt6.uic.loadUi`.
 - Edit `.ui` files for layout changes, keep business logic in Python modules.
 
@@ -51,6 +51,14 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - Worker interval is controlled by `refresh_interval_seconds` in settings.
 - Worker status is shown in the main window status bar.
 - Worker can be toggled in the Settings menu via `Auto Refresh Enabled`.
+
+## Process-Level Indexing Notes
+- CPU-heavy parsing and indexing run out-of-process via Python's `ProcessPoolExecutor`.
+- The maximum worker count is configured under the "indexing threads" spinbox in Settings -> Preferences (stored as `indexing_thread_count` in the configuration).
+- Offloading files to subprocesses ensures the PyQt6 user interface remains completely responsive.
+
+## In-App Help System
+- Access the searchable Librarian User Guide by pressing the `F1` shortcut or selecting `Help -> Librarian User Guide` in the main menu bar.
 
 ## Troubleshooting
 - If `python main.py` fails due to system/snap Python mismatch, run with venv:

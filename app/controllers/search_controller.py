@@ -20,8 +20,11 @@
 from __future__ import annotations
 
 import csv
+from pathlib import Path
 
+from app.controllers.path_controller import PathController
 from app.indexer.index_manager import IndexManager
+from app.models.editor_model import launch_editor
 from app.search.search_engine import search_snapshot
 
 
@@ -30,6 +33,7 @@ class SearchController:
 
     def __init__(self, index_manager: IndexManager) -> None:
         self._index_manager = index_manager
+        self._path_controller = PathController(index_manager=index_manager)
 
     def run_search(
         self,
@@ -92,3 +96,10 @@ class SearchController:
                         item.get("preview", ""),
                     ]
                 )
+
+    def open_external_editor(self, path_text: str, line_number: int | None) -> bool:
+        """Open a result path in configured external editor."""
+        resolved = self._path_controller.resolve_path(path_text)
+        if resolved is None or not resolved.exists():
+            return False
+        return launch_editor(Path(resolved), line_number, self._index_manager.config)

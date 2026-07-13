@@ -30,6 +30,28 @@ from app.indexer.c_indexer import index_c_symbols
 from app.indexer.excel_indexer import index_excel_rows
 from app.indexer.python_indexer import index_python_symbols
 
+
+def _read_one_file_for_corpus(path: Path, repo_root: Path) -> tuple[str, str | None, list[dict[str, str]]]:
+    local_skipped: list[dict[str, str]] = []
+    rel_path = path.relative_to(repo_root).as_posix()
+    try:
+        # Skip files larger than 5MB to prevent memory explosion or hanging
+        if path.stat().st_size > 5 * 1024 * 1024:
+            local_skipped.append({"path": rel_path, "stage": "file_corpus", "reason": "skip_large_file"})
+            return rel_path, None, local_skipped
+        text = path.read_text(encoding="utf-8", errors="replace")
+        return rel_path, text, local_skipped
+    except OSError as exc:
+        local_skipped.append(
+            {
+                "path": rel_path,
+                "stage": "file_corpus",
+                "reason": f"read_error:{exc.__class__.__name__}",
+            }
+        )
+        return rel_path, None, local_skipped
+
+
 SNAPSHOT_NAME = "librarian-snapshot.json"
 CORPUS_NAME = "search-corpus.json"
 HISTORY_NAME = "change-history.jsonl"
@@ -54,6 +76,7 @@ class IndexManager:
         self._refresh_lock = threading.RLock()
         self._refresh_run_lock = threading.Lock()
         self._worker_stop_event = threading.Event()
+        self._exit_event = threading.Event()
         self._refresh_in_progress = threading.Event()
         self._worker_thread: threading.Thread | None = None
         self._manual_refresh_thread: threading.Thread | None = None
@@ -135,6 +158,15 @@ class IndexManager:
         if worker is not None and worker.is_alive():
             worker.join(timeout=max(0.0, float(join_timeout)))
 
+    def shutdown(self) -> None:
+        """Fully stop the manager and all running refreshes during app exit."""
+        self._exit_event.set()
+        self.stop_refresh_worker()
+        manual_thread = self._manual_refresh_thread
+        self._manual_refresh_thread = None
+        if manual_thread is not None and manual_thread.is_alive():
+            manual_thread.join(timeout=2.0)
+
     def _worker_loop(self, run_immediately: bool = False) -> None:
         """Run periodic refresh cycles until stopped."""
         if run_immediately and not self._worker_stop_event.is_set():
@@ -174,30 +206,41 @@ class IndexManager:
         return output_path
 
     def _build_file_corpus(self, repo_root: Path, skipped_files: list[dict[str, str]]) -> dict[str, str]:
-        corpus: dict[str, str] = {}
         allowed = {ext.lower() for ext in self.config.file_extensions}
         excluded = set(self.config.excluded_dirs)
+        paths = []
 
-        for path in repo_root.rglob("*"):
-            if not path.is_file():
-                continue
-            if any(part in excluded for part in path.parts):
-                continue
-            if path.suffix.lower() not in allowed:
-                continue
-            try:
-                # Preserve indexing progress even when repositories contain mixed encodings.
-                text = path.read_text(encoding="utf-8", errors="replace")
-            except OSError as exc:
-                skipped_files.append(
-                    {
-                        "path": path.relative_to(repo_root).as_posix(),
-                        "stage": "file_corpus",
-                        "reason": f"read_error:{exc.__class__.__name__}",
-                    }
-                )
-                continue
-            corpus[path.relative_to(repo_root).as_posix()] = text
+        import os
+        for root, dirs, files in os.walk(repo_root):
+            if self._exit_event.is_set():
+                break
+            dirs[:] = [d for d in dirs if d not in excluded and not d.startswith(".")]
+            for file in files:
+                ext = os.path.splitext(file)[1].lower()
+                if ext in allowed:
+                    paths.append(Path(root) / file)
+
+        corpus: dict[str, str] = {}
+        # Using ProcessPoolExecutor to offload CPU-bound parsing/reading to separate processes.
+        # This bypasses the Python GIL and ensures the PyQt6 UI thread remains fully responsive.
+        from concurrent.futures import ProcessPoolExecutor
+        thread_count = getattr(self.config, 'indexing_thread_count', 4)
+        with ProcessPoolExecutor(max_workers=max(1, thread_count)) as executor:
+            # We map across the module-level function because sub-processes require picklable top-level functions.
+            results = executor.map(_read_one_file_for_corpus, paths, [repo_root] * len(paths))
+            for res in results:
+                # Cancel pending futures instantly if the application is shutting down.
+                if self._exit_event.is_set():
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+                if res is None:
+                    continue
+                rel_path, text, local_skipped = res
+                if text is not None:
+                    corpus[rel_path] = text
+                if local_skipped and skipped_files is not None:
+                    skipped_files.extend(local_skipped)
+
         return corpus
 
     def refresh(self) -> IndexState:
@@ -210,10 +253,20 @@ class IndexManager:
                 skipped_files: list[dict[str, str]] = []
 
                 symbols: list[dict[str, object]] = []
+                thread_count = getattr(self.config, 'indexing_thread_count', 4)
                 if self.config.index_python:
-                    symbols.extend(index_python_symbols(repo_root, skipped_files=skipped_files))
+                    symbols.extend(index_python_symbols(
+                        repo_root,
+                        skipped_files=skipped_files,
+                        use_cst=self.config.use_cst,
+                        thread_count=thread_count,
+                    ))
                 if self.config.index_c:
-                    symbols.extend(index_c_symbols(repo_root, skipped_files=skipped_files))
+                    symbols.extend(index_c_symbols(
+                        repo_root,
+                        skipped_files=skipped_files,
+                        thread_count=thread_count,
+                    ))
 
                 excel_rows: list[dict[str, object]] = []
                 if self.config.excel_folder:

@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (C) 2026 Project Librarian contributors
+
+This file is part of Project Librarian.
+
+Project Librarian is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Project Librarian is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
+-->
+<ui version="4.0">
+ <class>DiagnosticsView</class>
+ <widget class="QWidget" name="DiagnosticsView">
+  <layout class="QHBoxLayout" name="horizontalLayout">
+   <item>
+    <widget class="QSplitter" name="mainSplitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QWidget" name="controlsPanel" native="true">
+      <property name="maximumSize">
+       <size>
+        <width>320</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <layout class="QVBoxLayout" name="controlsLayout">
+       <item>
+        <widget class="QLabel" name="tracingLabel">
+         <property name="text">
+          <string>Memory Tracing</string>
+         </property>
+         <property name="font">
+          <font>
+           <bold>true</bold>
+          </font>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="statusLabel">
+         <property name="text">
+          <string>Status: Tracing Inactive</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="tracingButtonsLayout">
+         <item>
+          <widget class="QPushButton" name="startTracingBtn">
+           <property name="text">
+            <string>Start Tracing</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="stopTracingBtn">
+           <property name="text">
+            <string>Stop Tracing</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="snapshotName">
+         <property name="placeholderText">
+          <string>Snapshot Name (Optional)</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="takeSnapshotBtn">
+         <property name="text">
+          <string>Take Snapshot</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="spacer1">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>12</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QLabel" name="compareLabel">
+         <property name="text">
+          <string>Snapshot Comparison</string>
+         </property>
+         <property name="font">
+          <font>
+           <bold>true</bold>
+          </font>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="oldSnapLabel">
+         <property name="text">
+          <string>Baseline (Old):</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="oldSnapCombo"/>
+       </item>
+       <item>
+        <widget class="QLabel" name="newSnapLabel">
+         <property name="text">
+          <string>Comparison (New):</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="newSnapCombo"/>
+       </item>
+       <item>
+        <widget class="QPushButton" name="compareBtn">
+         <property name="text">
+          <string>Compare Snapshots</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="spacer2">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>12</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QLabel" name="leaksLabel">
+         <property name="text">
+          <string>Navigation Leak Tester</string>
+         </property>
+         <property name="font">
+          <font>
+           <bold>true</bold>
+          </font>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="cyclesLayout">
+         <item>
+          <widget class="QLabel" name="cyclesLabel">
+           <property name="text">
+            <string>Cycles:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="cyclesSpinBox">
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>5</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QPushButton" name="runLeakTestBtn">
+         <property name="text">
+          <string>Run Leak Test</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Expanding</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QPlainTextEdit" name="logOutput"/>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -22,6 +22,13 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+try:
+    import libcst as cst
+    from libcst.metadata import PositionProvider
+except ImportError:
+    cst = None
+    PositionProvider = None
+
 
 def _function_signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     """Return a lightweight signature string for a function-like node."""
@@ -102,15 +109,155 @@ def _module_symbols(
     return symbols
 
 
-def index_python_symbols(repo_root: Path, skipped_files: list[dict[str, str]] | None = None) -> list[dict[str, object]]:
+_BaseVisitor = cst.CSTVisitor if cst is not None else object
+_PositionProvider = PositionProvider if PositionProvider is not None else object
+
+
+class _CSTSymbolVisitor(_BaseVisitor):
+    METADATA_DEPENDENCIES = (_PositionProvider,) if PositionProvider is not None else ()
+
+    def __init__(self, relative_path: str) -> None:
+        super().__init__()
+        self.relative_path = relative_path
+        self.symbols: list[dict[str, object]] = []
+        self.current_class: str | None = None
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> bool:
+        pos = self.get_metadata(PositionProvider, node)
+        docstring = node.get_docstring() or ""
+        doc_summary = docstring.strip().splitlines()[0].strip() if docstring else ""
+        self.symbols.append(
+            {
+                "name": node.name.value,
+                "qualified_name": node.name.value,
+                "kind": "class",
+                "line": pos.start.line,
+                "path": self.relative_path,
+                "signature": node.name.value,
+                "doc_summary": doc_summary,
+            }
+        )
+        self.current_class = node.name.value
+        return True
+
+    def leave_ClassDef(self, node: cst.ClassDef) -> None:
+        self.current_class = None
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
+        pos = self.get_metadata(PositionProvider, node)
+        docstring = node.get_docstring() or ""
+        doc_summary = docstring.strip().splitlines()[0].strip() if docstring else ""
+        
+        arg_names = []
+        for param in node.params.params:
+            arg_names.append(param.name.value)
+        sig = f"{node.name.value}({', '.join(arg_names)})"
+
+        if self.current_class:
+            kind = "method"
+            qualified_name = f"{self.current_class}.{node.name.value}"
+        else:
+            kind = "function"
+            qualified_name = node.name.value
+
+        self.symbols.append(
+            {
+                "name": node.name.value,
+                "qualified_name": qualified_name,
+                "kind": kind,
+                "line": pos.start.line,
+                "path": self.relative_path,
+                "signature": sig,
+                "doc_summary": doc_summary,
+            }
+        )
+        return False
+
+
+def _module_symbols_cst(
+    path: Path,
+    repo_root: Path,
+    skipped_files: list[dict[str, str]] | None = None,
+) -> list[dict[str, object]]:
+    """Extract class and function symbols from one Python file using libcst."""
+    import libcst as cst
+    from libcst.metadata import MetadataWrapper, PositionProvider
+
+    try:
+        source = path.read_text(encoding="utf-8", errors="replace")
+        module = cst.parse_module(source)
+        wrapper = MetadataWrapper(module)
+        relative_path = path.relative_to(repo_root).as_posix()
+        visitor = _CSTSymbolVisitor(relative_path)
+        wrapper.visit(visitor)
+        return visitor.symbols
+    except Exception as exc:
+        _record_skip(skipped_files, path=path, repo_root=repo_root, reason=f"cst_error:{exc.__class__.__name__}")
+        return []
+
+
+def _process_single_python_file(
+    path: Path,
+    repo_root: Path,
+    use_cst: bool,
+) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
+    local_skipped: list[dict[str, str]] = []
+    try:
+        if path.stat().st_size > 5 * 1024 * 1024:
+            relative = path.relative_to(repo_root).as_posix()
+            _record_skip(local_skipped, path=path, repo_root=repo_root, reason="skip_large_file")
+            return [], local_skipped
+    except OSError:
+        pass
+    if use_cst:
+        symbols = _module_symbols_cst(path=path, repo_root=repo_root, skipped_files=local_skipped)
+    else:
+        symbols = _module_symbols(path=path, repo_root=repo_root, skipped_files=local_skipped)
+    return symbols, local_skipped
+
+
+def index_python_symbols(
+    repo_root: Path,
+    skipped_files: list[dict[str, str]] | None = None,
+    use_cst: bool = True,
+    thread_count: int = 4,
+) -> list[dict[str, object]]:
     """Index Python symbols for all source files beneath repo_root."""
+    if use_cst:
+        try:
+            import libcst as cst
+            from libcst.metadata import PositionProvider
+        except ImportError:
+            use_cst = False
+            if skipped_files is not None:
+                skipped_files.append({
+                    "path": "",
+                    "stage": "python_symbols",
+                    "reason": "libcst_missing_fallback_to_ast",
+                })
+
+    paths: list[Path] = []
+    excluded = {".git", ".venv", "__pycache__", "build", "tests"}
+    import os
+    for root, dirs, files in os.walk(repo_root):
+        # Prune hidden directories and excluded directories in-place
+        dirs[:] = [d for d in dirs if d not in excluded and not d.startswith(".")]
+        for file in files:
+            if file.endswith(".py"):
+                paths.append(Path(root) / file)
+
+    from concurrent.futures import ProcessPoolExecutor
+
     symbols: list[dict[str, object]] = []
-    for path in repo_root.rglob("*.py"):
-        if any(part.startswith(".") for part in path.parts):
-            continue
-        if "tests" in path.parts:
-            continue
-        if "build" in path.parts or "__pycache__" in path.parts:
-            continue
-        symbols.extend(_module_symbols(path=path, repo_root=repo_root, skipped_files=skipped_files))
+    with ProcessPoolExecutor(max_workers=max(1, thread_count)) as executor:
+        results = executor.map(_process_single_python_file, paths, [repo_root]*len(paths), [use_cst]*len(paths))
+        for file_symbols, local_skipped in results:
+            try:
+                symbols.extend(file_symbols)
+                if skipped_files is not None:
+                    skipped_files.extend(local_skipped)
+            except Exception:
+                pass
+
     return symbols
+
