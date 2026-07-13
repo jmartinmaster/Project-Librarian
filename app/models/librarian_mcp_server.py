@@ -585,8 +585,14 @@ fastapi_app = FastAPI()
 
 
 @fastapi_app.middleware("http")
-async def auth_middleware(request: Request, call_next: Any) -> Response:
-    # Authenticate standard and MCP REST/SSE routes
+async def auth_and_cors_middleware(request: Request, call_next: Any) -> Response:
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+
     if auth_token:
         auth_header = request.headers.get("authorization", "")
         req_token = ""
@@ -598,9 +604,13 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
             req_token = request.query_params.get("token", "")
 
         if req_token != auth_token:
-            return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+            res = JSONResponse(status_code=401, content={"error": "Unauthorized"})
+            res.headers["Access-Control-Allow-Origin"] = "*"
+            return res
 
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 @fastapi_app.get("/api/mcp-probe")
@@ -624,6 +634,24 @@ async def get_status() -> dict[str, Any]:
 async def get_search(q: str = "", scope: str = "all", limit: int = 20) -> dict[str, Any]:
     global manager
     assert manager is not None
+    results = search_snapshot(
+        file_corpus=manager.state.file_corpus,
+        symbols=manager.state.symbols,
+        excel_rows=manager.state.excel_rows,
+        query=q,
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
+    return {"count": len(results), "results": results}
+
+
+@fastapi_app.post("/api/search")
+async def post_search(payload: dict) -> dict[str, Any]:
+    global manager
+    assert manager is not None
+    q = payload.get("q", "")
+    scope = payload.get("scope", "all")
+    limit = payload.get("limit", 20)
     results = search_snapshot(
         file_corpus=manager.state.file_corpus,
         symbols=manager.state.symbols,

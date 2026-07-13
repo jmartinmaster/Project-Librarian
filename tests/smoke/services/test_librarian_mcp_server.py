@@ -303,6 +303,7 @@ def test_mcp_server_ai_generate_route(app_config, monkeypatch):
         def __exit__(self, exc_type, exc_val, exc_tb):
             return False
 
+        def read(self):
             inner_dict = {
                 "model_imports": "",
                 "model_additions": "    def reset(self):\n        pass",

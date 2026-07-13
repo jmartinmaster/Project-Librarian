@@ -49,6 +49,7 @@ class IntegrationsController:
         autostart: bool,
         ai_url: str = "",
         ai_model: str = "",
+        ai_boilerplate_only: bool = False,
     ) -> bool:
         """Save settings to config file.
         
@@ -65,6 +66,7 @@ class IntegrationsController:
         self.config.mcp_autostart = autostart
         self.config.ai_url = ai_url or "http://localhost:11434/api/generate"
         self.config.ai_model = ai_model or "qwen2.5-coder:14b"
+        self.config.ai_boilerplate_only = ai_boilerplate_only
         save_config(self.config)
         
         return bool(new_root and new_root != previous_root)

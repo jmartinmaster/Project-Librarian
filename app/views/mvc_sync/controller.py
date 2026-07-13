@@ -730,7 +730,7 @@ class EditorController(QObject):
 
     def save_all_files(self):
         """
-        Queues all modified files for saving after a 10-second delay.
+        Saves all modified files to disk immediately.
         """
         import sys
         is_testing = 'pytest' in sys.modules or 'unittest' in sys.modules
@@ -754,10 +754,13 @@ class EditorController(QObject):
                                 pass
             return
 
+        # Stop the auto-save timer to avoid redundant timer triggers
+        self._auto_save_timer.stop()
+
         any_dirty = any(self.model.is_dirty(role) for role in ['model', 'view', 'controller'])
         if any_dirty:
-            self.model.trigger_status_message("Save requested. Writing to disk in 10 seconds...")
-            self._auto_save_timer.start(10000)
+            self.model.trigger_status_message("Saving files to disk...")
+            self._trigger_delayed_save()
         else:
             self.model.trigger_status_message("No open modified files to save.")
 

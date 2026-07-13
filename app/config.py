@@ -75,6 +75,7 @@ class AppConfig:
     indexing_thread_count: int = 4
     ai_url: str = "http://localhost:11434/api/generate"
     ai_model: str = "qwen2.5-coder:14b"
+    ai_boilerplate_only: bool = False
 
 
     def to_dict(self) -> dict[str, Any]:

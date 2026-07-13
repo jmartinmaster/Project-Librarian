@@ -423,35 +423,70 @@ class MainWindowView(QMainWindow):
         )
         files_root = QTreeWidgetItem([files_label, ""])
         tree.addTopLevelItem(files_root)
-        file_limit = 400
-        visible_files = matching_files[:file_limit]
         if tree_mode:
-            folder_nodes: dict[tuple[str, ...], QTreeWidgetItem] = {}
-            for rel_path in visible_files:
+            from collections import defaultdict
+            # Group items by parent folder prefix
+            children_map = defaultdict(lambda: {"folders": set(), "files": []})
+            for rel_path in matching_files:
                 parts = Path(rel_path).parts
                 for depth in range(1, len(parts)):
-                    prefix = tuple(parts[:depth])
-                    if prefix in folder_nodes:
-                        continue
-                    parent_prefix = prefix[:-1]
-                    parent_item = folder_nodes.get(parent_prefix, files_root)
-                    folder_item = QTreeWidgetItem([parts[depth - 1], "/".join(prefix)])
-                    parent_item.addChild(folder_item)
-                    folder_nodes[prefix] = folder_item
-
+                    parent_prefix = tuple(parts[:depth-1])
+                    folder_name = parts[depth-1]
+                    children_map[parent_prefix]["folders"].add(folder_name)
                 parent_prefix = tuple(parts[:-1])
-                parent_item = folder_nodes.get(parent_prefix, files_root)
-                item = QTreeWidgetItem([parts[-1], rel_path])
-                item.setData(0, Qt.ItemDataRole.UserRole, {"kind": "file", "path": rel_path})
-                parent_item.addChild(item)
+                file_name = parts[-1]
+                children_map[parent_prefix]["files"].append((file_name, rel_path))
+
+            # Populating tree using a queue for BFS traversal of parent prefixes
+            queue = [((), files_root)]
+            folder_items = {(): files_root}
+            folder_limit = 200 # limit of children (folders + files) per folder node
+
+            while queue:
+                prefix, parent_item = queue.pop(0)
+                data = children_map.get(prefix)
+                if not data:
+                    continue
+
+                sorted_folders = sorted(list(data["folders"]))
+                sorted_files = sorted(data["files"], key=lambda x: x[0])
+                total_children = len(sorted_folders) + len(sorted_files)
+
+                # Determine visible children based on limit
+                visible_folders = []
+                visible_files = []
+                if len(sorted_folders) >= folder_limit:
+                    visible_folders = sorted_folders[:folder_limit]
+                else:
+                    visible_folders = sorted_folders
+                    visible_files = sorted_files[:folder_limit - len(visible_folders)]
+
+                # Add visible folders
+                for folder_name in visible_folders:
+                    folder_prefix = prefix + (folder_name,)
+                    folder_item = QTreeWidgetItem([folder_name, "/".join(folder_prefix)])
+                    parent_item.addChild(folder_item)
+                    folder_items[folder_prefix] = folder_item
+                    queue.append((folder_prefix, folder_item))
+
+                # Add visible files
+                for file_name, rel_path in visible_files:
+                    item = QTreeWidgetItem([file_name, rel_path])
+                    item.setData(0, Qt.ItemDataRole.UserRole, {"kind": "file", "path": rel_path})
+                    parent_item.addChild(item)
+
+                # Append overflow indicator as a child of this specific folder node
+                if total_children > folder_limit:
+                    overflow_count = total_children - folder_limit
+                    parent_item.addChild(QTreeWidgetItem([f"... {overflow_count} more", ""]))
         else:
-            for rel_path in visible_files:
+            file_limit = 400
+            for rel_path in matching_files[:file_limit]:
                 item = QTreeWidgetItem([Path(rel_path).name, rel_path])
                 item.setData(0, Qt.ItemDataRole.UserRole, {"kind": "file", "path": rel_path})
                 files_root.addChild(item)
-
-        if len(matching_files) > file_limit:
-            files_root.addChild(QTreeWidgetItem([f"... {len(matching_files) - file_limit} more", ""]))
+            if len(matching_files) > file_limit:
+                files_root.addChild(QTreeWidgetItem([f"... {len(matching_files) - file_limit} more", ""]))
 
         matching_symbols, total_symbols = self._controller.matching_symbols(filter_text)
         symbols_label = (

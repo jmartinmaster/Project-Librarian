@@ -153,6 +153,10 @@ class IntegrationsView(QWidget):
         ai_form.addRow("Ollama Model Name:", self.ai_model_edit)
         ai_layout.addLayout(ai_form)
 
+        self.ai_boilerplate_only_check = QCheckBox("Generate stubs/boilerplates only (no full logic implementation)", ai_group)
+        self.ai_boilerplate_only_check.setObjectName("aiBoilerplateOnlyCheck")
+        ai_layout.addWidget(self.ai_boilerplate_only_check)
+
         root.addWidget(mvc_group)
         root.addWidget(mcp_group)
         root.addWidget(ai_group)
@@ -191,6 +195,7 @@ class IntegrationsView(QWidget):
         self.mcp_token_edit.setText(self.config.mcp_auth_token or "")
         self.mcp_autostart_check.setChecked(bool(self.config.mcp_autostart))
         self.ai_url_edit.setText(self.config.ai_url or "http://localhost:11434/api/generate")
+        self.ai_boilerplate_only_check.setChecked(bool(getattr(self.config, "ai_boilerplate_only", False)))
         
         # Poll local models
         models = self._poll_local_models()
@@ -212,6 +217,7 @@ class IntegrationsView(QWidget):
             autostart=self.mcp_autostart_check.isChecked(),
             ai_url=self.ai_url_edit.text().strip(),
             ai_model=self.ai_model_edit.currentText().strip(),
+            ai_boilerplate_only=self.ai_boilerplate_only_check.isChecked(),
         )
         if root_changed and self._on_project_root_changed is not None:
             self._on_project_root_changed(self.mvc_root_edit.text().strip())
