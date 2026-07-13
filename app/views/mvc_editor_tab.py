@@ -99,9 +99,12 @@ class MVCEditorTab(QWidget):
         self.open_external_button.setObjectName("mvcOpenExternalButton")
         self.ai_request_button = QPushButton("Process #AI-request", self)
         self.ai_request_button.setObjectName("mvcAIRequestButton")
+        self.trigger_ai_button = QPushButton("Trigger Local AI", self)
+        self.trigger_ai_button.setObjectName("mvcTriggerAIButton")
         buttons_row.addWidget(self.save_current_button)
         buttons_row.addWidget(self.open_external_button)
         buttons_row.addWidget(self.ai_request_button)
+        buttons_row.addWidget(self.trigger_ai_button)
         buttons_row.addStretch(1)
         layout.addLayout(buttons_row)
 
@@ -115,6 +118,7 @@ class MVCEditorTab(QWidget):
         self.save_current_button.clicked.connect(self.save_current_file)
         self.open_external_button.clicked.connect(self.open_current_externally)
         self.ai_request_button.clicked.connect(lambda: self.process_ai_request(None))
+        self.trigger_ai_button.clicked.connect(self.trigger_local_ai)
 
     def _apply_native_integration_mode(self) -> None:
         """Strip standalone MVC shell UI and align with Librarian-hosted experience."""
@@ -351,3 +355,24 @@ class MVCEditorTab(QWidget):
             "Please verify that Ollama is running and your model is downloaded."
         )
         self.status_label.setText("AI request failed.")
+
+    def trigger_local_ai(self) -> None:
+        """Save triad files and trigger AI propagation across Model, View, and Controller."""
+        self.status_label.setText("Saving files and triggering local AI...")
+        self.save_current_file()
+        
+        self.trigger_ai_button.setEnabled(False)
+        self.status_label.setText("AI propagation in progress (background thread)...")
+        
+        def handle_result(ok: bool, msg: str):
+            self.trigger_ai_button.setEnabled(True)
+            from PyQt6.QtWidgets import QMessageBox
+            if ok:
+                self.status_label.setText(msg)
+                QMessageBox.information(self, "AI Code Generation", msg)
+            else:
+                self.status_label.setText(f"AI generation failed: {msg}")
+                QMessageBox.warning(self, "AI Code Generation Failed", msg)
+                
+        self._controller.run_ai_generation(handle_result)
+

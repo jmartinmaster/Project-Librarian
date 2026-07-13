@@ -1044,3 +1044,35 @@ class EditorController(QObject):
         from app.views.mvc_sync.about import AboutDialog
         dialog = AboutDialog(self.view)
         dialog.exec()
+
+    def run_ai_generation(self, callback) -> None:
+        """Run the AI generator in a background thread and handle the callback."""
+        m_path = self.model.get_path('model')
+        v_path = self.model.get_path('view')
+        c_path = self.model.get_path('controller')
+
+        if not m_path or not v_path or not c_path:
+            callback(False, "Active MVC triad is not fully loaded/bound.")
+            return
+
+        from app.views.mvc_sync.worker import AIGenerationWorker
+        from PyQt6.QtCore import QThread
+
+        self._triad_ai_thread = QThread()
+        self._triad_ai_worker = AIGenerationWorker(m_path, v_path, c_path)
+        self._triad_ai_worker.moveToThread(self._triad_ai_thread)
+
+        self._triad_ai_thread.started.connect(self._triad_ai_worker.run)
+
+        def on_finished(ok: bool, msg: str):
+            if ok:
+                self.open_file(c_path or m_path or v_path)
+            callback(ok, msg)
+
+        self._triad_ai_worker.success.connect(on_finished)
+        self._triad_ai_worker.finished.connect(self._triad_ai_thread.quit)
+        self._triad_ai_worker.finished.connect(self._triad_ai_worker.deleteLater)
+        self._triad_ai_thread.finished.connect(self._triad_ai_thread.deleteLater)
+
+        self._triad_ai_thread.start()
+

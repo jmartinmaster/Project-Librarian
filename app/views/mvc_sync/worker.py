@@ -71,6 +71,10 @@ class AIRequestWorker(QObject):
 
     def run(self) -> None:
         try:
+            url = self.url
+            if "localhost" in url:
+                url = url.replace("localhost", "127.0.0.1")
+                
             prompt = (
                 "You are an expert software developer.\n"
                 "Here is the source code of a file:\n"
@@ -91,7 +95,7 @@ class AIRequestWorker(QObject):
                 "stream": False
             }
             
-            response = requests.post(self.url, json=payload, timeout=120)
+            response = requests.post(url, json=payload, timeout=120)
             response.raise_for_status()
             data = response.json()
             response_text = data.get("response", "").strip()
@@ -121,3 +125,30 @@ class AIRequestWorker(QObject):
             self.error.emit(str(e))
         finally:
             self.finished.emit()
+
+
+class AIGenerationWorker(QObject):
+    """
+    Background worker that runs the AI Triad Method Propagation service.
+    """
+    finished = pyqtSignal()
+    success = pyqtSignal(bool, str)
+
+    def __init__(self, model_path: str, view_path: str, controller_path: str):
+        super().__init__()
+        self.model_path = model_path
+        self.view_path = view_path
+        self.controller_path = controller_path
+
+    def run(self) -> None:
+        """Execute AIGenerationService.process_triad in background."""
+        from app.models.ai_generator import AIGenerationService
+        try:
+            generator = AIGenerationService()
+            ok, msg = generator.process_triad(self.model_path, self.view_path, self.controller_path)
+            self.success.emit(ok, msg)
+        except Exception as e:
+            self.success.emit(False, str(e))
+        finally:
+            self.finished.emit()
+

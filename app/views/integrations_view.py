@@ -19,6 +19,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+import urllib.request
 from typing import Callable
 
 from PyQt6.QtWidgets import (
@@ -36,6 +39,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QScrollArea,
     QFrame,
+    QComboBox,
 )
 
 from app.config import AppConfig, save_config
@@ -142,7 +146,8 @@ class IntegrationsView(QWidget):
         ai_form = QFormLayout()
         self.ai_url_edit = QLineEdit(ai_group)
         self.ai_url_edit.setObjectName("aiUrlEdit")
-        self.ai_model_edit = QLineEdit(ai_group)
+        self.ai_model_edit = QComboBox(ai_group)
+        self.ai_model_edit.setEditable(True)
         self.ai_model_edit.setObjectName("aiModelEdit")
         ai_form.addRow("Ollama API URL:", self.ai_url_edit)
         ai_form.addRow("Ollama Model Name:", self.ai_model_edit)
@@ -161,6 +166,22 @@ class IntegrationsView(QWidget):
         self.mcp_stop_button.clicked.connect(self.stop_mcp_server)
         self.mcp_probe_button.clicked.connect(self.probe_mcp_server)
 
+    def _poll_local_models(self) -> list[str]:
+        """Query local Ollama tags endpoint to discover available models."""
+        url = self.ai_url_edit.text().strip() or "http://127.0.0.1:11434"
+        match = re.match(r"(https?://[^/]+)", url)
+        host = match.group(1) if match else "http://127.0.0.1:11434"
+        if "localhost" in host:
+            host = host.replace("localhost", "127.0.0.1")
+        
+        try:
+            req = urllib.request.Request(f"{host}/api/tags", method="GET")
+            with urllib.request.urlopen(req, timeout=1.5) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                return [m["name"] for m in payload.get("models", [])]
+        except Exception:
+            return []
+
     def sync_from_config(self) -> None:
         """Refresh UI controls from current app config."""
         shared_root = self.config.project_root or ""
@@ -170,7 +191,15 @@ class IntegrationsView(QWidget):
         self.mcp_token_edit.setText(self.config.mcp_auth_token or "")
         self.mcp_autostart_check.setChecked(bool(self.config.mcp_autostart))
         self.ai_url_edit.setText(self.config.ai_url or "http://localhost:11434/api/generate")
-        self.ai_model_edit.setText(self.config.ai_model or "qwen2.5-coder:14b")
+        
+        # Poll local models
+        models = self._poll_local_models()
+        self.ai_model_edit.clear()
+        if models:
+            self.ai_model_edit.addItems(models)
+            
+        current_model = self.config.ai_model or "qwen2.5-coder:14b"
+        self.ai_model_edit.setEditText(current_model)
         self.refresh_status()
 
     def save_settings(self) -> None:
@@ -182,7 +211,7 @@ class IntegrationsView(QWidget):
             token=self.mcp_token_edit.text().strip(),
             autostart=self.mcp_autostart_check.isChecked(),
             ai_url=self.ai_url_edit.text().strip(),
-            ai_model=self.ai_model_edit.text().strip(),
+            ai_model=self.ai_model_edit.currentText().strip(),
         )
         if root_changed and self._on_project_root_changed is not None:
             self._on_project_root_changed(self.mvc_root_edit.text().strip())

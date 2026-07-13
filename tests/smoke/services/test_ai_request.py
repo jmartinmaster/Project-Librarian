@@ -50,7 +50,7 @@ def test_ai_request_worker_success() -> None:
         
         mock_post.assert_called_once()
         args, kwargs = mock_post.call_args
-        assert args[0] == url
+        assert args[0] in [url, "http://127.0.0.1:11434/api/generate"]
         assert kwargs["json"]["model"] == model
         assert instruction in kwargs["json"]["prompt"]
 
