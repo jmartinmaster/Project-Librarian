@@ -172,3 +172,48 @@ def test_mvc_editor_tab_cst_method_ranges():
     assert method_ast["start_line"] == 3
     assert method_ast["end_line"] == 4
 
+
+def test_mvc_editor_tab_live_formatting_highlights(qtbot, tmp_path: Path):
+    from app.views.mvc_editor_tab import MVCEditorTab
+    
+    # Create a workspace with a python file containing formatting issues
+    workspace = tmp_path / "workspace"
+    (workspace / "app" / "models").mkdir(parents=True)
+    (workspace / "app" / "views").mkdir(parents=True)
+    (workspace / "app" / "controllers").mkdir(parents=True)
+    
+    model_file = workspace / "app" / "models" / "dashboard_model.py"
+    view_file = workspace / "app" / "views" / "dashboard_view.py"
+    controller_file = workspace / "app" / "controllers" / "dashboard_controller.py"
+    
+    model_file.write_text("x = (1 + 2\n", encoding="utf-8")
+    view_file.write_text("class DashboardView:\n    pass\n", encoding="utf-8")
+    controller_file.write_text("class DashboardController:\n    pass\n", encoding="utf-8")
+    
+    tab = MVCEditorTab(workspace_root=str(workspace))
+    qtbot.addWidget(tab)
+    
+    with qtbot.waitSignal(tab._controller.triad_loaded, timeout=5000):
+        tab.open_file(model_file)
+        
+    editor = tab.model_editor
+    # Wait for the live lint worker thread to complete
+    qtbot.waitUntil(lambda: len(editor.diagnostics) > 0, timeout=5000)
+
+    
+    # Verify formatting diagnostics are loaded
+    assert len(editor.diagnostics) > 0
+    assert any(d["preset_name"] == "Formatting: Unclosed Bracket" for d in editor.diagnostics)
+    
+    # Verify extra selections/highlights have been rendered
+    assert len(editor.extraSelections()) > 0
+
+    # Move cursor to line 1 (the error line) and assert status label is updated
+    editor.setProperty("test_mode", True)
+    editor._on_cursor_position_changed()
+    assert "Formatting: Unclosed Bracket" in tab.status_label.text()
+
+
+
+
+

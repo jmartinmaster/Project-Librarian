@@ -596,7 +596,7 @@ class DiagnosticsView(QWidget):
         if not res.get("ok"):
             self.log_output.setPlainText(res.get("error", "Failed to take snapshot."))
             return
-             
+
         snap_name = res.get("snapshot_name")
         size_kb = res.get("total_allocated_kb", 0.0)
         self.memory_history.append((snap_name, size_kb))

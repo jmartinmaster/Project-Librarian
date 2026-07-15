@@ -71,6 +71,10 @@ class MVCEditorTab(QWidget):
         self.controller_editor = self._view.controller_pane.editor
         self.file_editor = self._view.controller_pane.editor
 
+        self.model_editor.diagnostic_hovered.connect(self._on_diagnostic_hovered)
+        self.view_editor.diagnostic_hovered.connect(self._on_diagnostic_hovered)
+        self.controller_editor.diagnostic_hovered.connect(self._on_diagnostic_hovered)
+
         self.update_completer_words()
 
     def _build_ui(self) -> None:
@@ -375,4 +379,11 @@ class MVCEditorTab(QWidget):
                 QMessageBox.warning(self, "AI Code Generation Failed", msg)
                 
         self._controller.run_ai_generation(handle_result)
+
+    def _on_diagnostic_hovered(self, message: str, file_path: str) -> None:
+        if message:
+            self.status_label.setText(message)
+        elif file_path:
+            self.status_label.setText(f"Opened: {file_path}")
+
 

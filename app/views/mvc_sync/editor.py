@@ -16,10 +16,10 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
-    QPushButton, QPlainTextEdit, QTextEdit, QCompleter
+    QPushButton, QPlainTextEdit, QTextEdit, QCompleter, QToolTip
 )
-from PyQt6.QtGui import QPainter, QTextCharFormat, QColor, QFont, QSyntaxHighlighter, QTextFormat
-from PyQt6.QtCore import QSize, Qt, QRect, QRegularExpression, pyqtSignal
+from PyQt6.QtGui import QPainter, QTextCharFormat, QColor, QFont, QSyntaxHighlighter, QTextFormat, QTextCursor
+from PyQt6.QtCore import QSize, Qt, QRect, QRegularExpression, pyqtSignal, QThread, QTimer
 
 class PythonHighlighter(QSyntaxHighlighter):
     """
@@ -191,6 +191,24 @@ class LineNumberArea(QWidget):
         self.code_editor.line_number_area_paint_event(event)
 
 
+class LiveLintWorker(QThread):
+    """Background worker to check file formatting rules live."""
+    finished_signal = pyqtSignal(list)
+
+    def __init__(self, file_path: str, content: str) -> None:
+        super().__init__()
+        self.file_path = file_path
+        self.content = content
+
+    def run(self) -> None:
+        from app.models.format_checker import FormatChecker
+        try:
+            results = FormatChecker.check_format(self.file_path, self.content)
+            self.finished_signal.emit(results)
+        except Exception:
+            self.finished_signal.emit([])
+
+
 class PyCodeEditor(QPlainTextEdit):
     """
     Custom Code Editor widget incorporating Python Syntax Highlighting,
@@ -198,9 +216,12 @@ class PyCodeEditor(QPlainTextEdit):
     and current line highlighting.
     """
     ai_request_triggered = pyqtSignal()
+    diagnostic_hovered = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
         self.line_number_area = LineNumberArea(self)
         self.target_line = None
         self.target_highlight_color = QColor("#3e302f")
@@ -208,6 +229,14 @@ class PyCodeEditor(QPlainTextEdit):
         self.block_end_line = None
         self.block_highlight_color = QColor("#181825")
         self._completer = None
+        self.current_file_path = None
+        self.diagnostics = []
+
+        self._lint_timer = QTimer(self)
+        self._lint_timer.setSingleShot(True)
+        self._lint_timer.timeout.connect(self._run_live_lint)
+        self.textChanged.connect(self._on_text_changed)
+        self.cursorPositionChanged.connect(self._on_cursor_position_changed)
 
         # Style font
         font = QFont("Consolas", 11)
@@ -318,7 +347,22 @@ class PyCodeEditor(QPlainTextEdit):
         # 2. Subtle current line cursor highlight - middle layer
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            selection.format.setBackground(QColor("#252636"))  # Subtle active-line highlight
+            
+            # Check if active line has live formatting diagnostics
+            active_line = self.textCursor().blockNumber() + 1
+            line_color = QColor("#252636")  # Default subtle active-line highlight
+            
+            line_diags = [d for d in getattr(self, "diagnostics", []) if d.get("line") == active_line]
+            if line_diags:
+                severity = str(line_diags[0].get("severity", "")).lower()
+                if severity == "error":
+                    line_color = QColor("#3e262c")  # Soft red for error lines
+                elif severity == "warning":
+                    line_color = QColor("#3c3224")  # Soft amber/orange for warnings
+                else:
+                    line_color = QColor("#222d3d")  # Soft blue for info checks
+                    
+            selection.format.setBackground(line_color)
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
             selection.cursor.clearSelection()
@@ -339,13 +383,80 @@ class PyCodeEditor(QPlainTextEdit):
                 selection.cursor = cursor
                 
                 extra_selections.append(selection)
-                
+
+        # 4. Formatting Diagnostics Highlight (Wavy underlays)
+        if getattr(self, 'diagnostics', None):
+            doc = self.document()
+            for diag in self.diagnostics:
+                line_num = diag.get("line")
+                if not isinstance(line_num, int):
+                    continue
+                block = doc.findBlockByLineNumber(line_num - 1)
+                if block.isValid():
+                    selection = QTextEdit.ExtraSelection()
+                    
+                    # Style wavy underline
+                    severity = str(diag.get("severity", "")).lower()
+                    if severity == "error":
+                        selection.format.setUnderlineColor(QColor("#f38ba8"))
+                    elif severity == "warning":
+                        selection.format.setUnderlineColor(QColor("#f9e2af"))
+                    else:
+                        selection.format.setUnderlineColor(QColor("#89b4fa"))
+                    
+                    selection.format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SpellCheckUnderline)
+                    
+                    # Highlight target word if match text is found
+                    text = block.text()
+                    match_text = str(diag.get("match", ""))
+                    
+                    cursor = self.textCursor()
+                    if match_text and match_text in text:
+                        start_idx = text.find(match_text)
+                        cursor.setPosition(block.position() + start_idx)
+                        cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, len(match_text))
+                    else:
+                        cursor.setPosition(block.position())
+                        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
+                        
+                    selection.cursor = cursor
+                    extra_selections.append(selection)
+                    
         self.setExtraSelections(extra_selections)
+
+    def _on_text_changed(self) -> None:
+        if self.current_file_path:
+            self._lint_timer.start(500)
+
+    def _run_live_lint(self) -> None:
+        if not self.current_file_path:
+            return
+        content = self.toPlainText()
+        self._lint_worker = LiveLintWorker(self.current_file_path, content)
+        self._lint_worker.finished_signal.connect(self._on_live_lint_finished)
+        self._lint_worker.start()
+
+    def _on_live_lint_finished(self, results: list[dict[str, object]]) -> None:
+        self.diagnostics = results
+        self.highlight_current_line()
 
     def highlight_target_line(self, line: int, color_hex: str = "#3e302f"):
         self.target_line = line
         self.target_highlight_color = QColor(color_hex)
         self.highlight_current_line()
+
+    def _on_cursor_position_changed(self) -> None:
+        if not (self.hasFocus() or self.property("test_mode")):
+            return
+        cursor = self.textCursor()
+        line_number = cursor.blockNumber() + 1
+        path_str = self.current_file_path or ""
+        hovered_diags = [d for d in self.diagnostics if d.get("line") == line_number]
+        if hovered_diags:
+            text = "; ".join([f"[{d.get('preset_name', '')}] {d.get('description', '')}" for d in hovered_diags])
+            self.diagnostic_hovered.emit(text, path_str)
+        else:
+            self.diagnostic_hovered.emit("", path_str)
 
     def mousePressEvent(self, event):
         # Clear target line highlight on manual mouse clicks
@@ -696,6 +807,10 @@ class EditorPane(QWidget):
         Updates the UI to reflect if a file is loaded for this pane.
         Hides the editor and shows the creation placeholder if file does not exist.
         """
+        self.editor.current_file_path = path
+        if path and exists:
+            self.editor._run_live_lint()
+
         if not path:
             self.file_label.setText("No File Loaded")
             self.editor.hide()

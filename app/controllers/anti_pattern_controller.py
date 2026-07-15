@@ -29,6 +29,7 @@ from app.controllers.path_controller import PathController
 from app.indexer.index_manager import IndexManager
 from app.models.anti_pattern_model import load_anti_pattern_config, save_anti_pattern_config
 from app.models.editor_model import launch_editor
+from app.models.format_checker import FormatChecker
 
 
 class AntiPatternController:
@@ -77,8 +78,10 @@ class AntiPatternController:
         presets: list[dict[str, object]],
         scope: str,
         filter_text: str,
+        run_format_checks: bool = False,
+        enabled_format_rules: dict[str, bool] | None = None,
     ) -> list[dict[str, object]]:
-        """Run anti-pattern regex scan and return matched records."""
+        """Run anti-pattern regex scan and formatting checks, and return matched records."""
         compiled: list[tuple[dict[str, object], re.Pattern[str]]] = []
         for preset in presets:
             regex_text = str(preset.get("regex", ""))
@@ -101,20 +104,27 @@ class AntiPatternController:
             if scope == "changed" and normalized_path not in changed:
                 continue
 
-            for line_idx, line in enumerate(file_text.splitlines(), start=1):
-                for preset, pattern in compiled:
-                    for match in pattern.finditer(line):
-                        results.append(
-                            {
-                                "path": rel_path,
-                                "line": line_idx,
-                                "match": match.group(0),
-                                "preset_name": str(preset.get("name", "")),
-                                "description": str(preset.get("description", "")),
-                                "severity": str(preset.get("severity", "")),
-                                "content": line.strip(),
-                            }
-                        )
+            if presets:
+                for line_idx, line in enumerate(file_text.splitlines(), start=1):
+                    for preset, pattern in compiled:
+                        for match in pattern.finditer(line):
+                            results.append(
+                                {
+                                    "path": rel_path,
+                                    "line": line_idx,
+                                    "match": match.group(0),
+                                    "preset_name": str(preset.get("name", "")),
+                                    "description": str(preset.get("description", "")),
+                                    "severity": str(preset.get("severity", "")),
+                                    "content": line.strip(),
+                                }
+                            )
+
+            if run_format_checks:
+                file_results = FormatChecker.check_format(rel_path, file_text, enabled_format_rules)
+                results.extend(file_results)
+
+        results.sort(key=lambda x: (str(x.get("path", "")), int(x.get("line", 0))))
         return results
 
     def resolve_result_path(self, path_text: str) -> Path | None:

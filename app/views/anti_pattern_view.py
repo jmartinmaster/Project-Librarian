@@ -24,14 +24,16 @@ from pathlib import Path
 from typing import Callable
 
 from PyQt6 import uic
-from PyQt6.QtCore import QPoint, Qt, QUrl
+from PyQt6.QtCore import QPoint, Qt, QUrl, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QDesktopServices
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
@@ -49,6 +51,90 @@ from PyQt6.QtWidgets import (
 
 from app.controllers.anti_pattern_controller import AntiPatternController
 from app.indexer.index_manager import IndexManager
+
+
+class ScanWorker(QThread):
+    """Background worker to run code anti-pattern and formatting scan."""
+    finished_signal = pyqtSignal(list)
+    error_signal = pyqtSignal(str)
+
+    def __init__(
+        self,
+        controller: AntiPatternController,
+        presets: list[dict[str, object]],
+        scope: str,
+        filter_text: str,
+        run_format_checks: bool,
+        enabled_format_rules: dict[str, bool] | None = None,
+    ) -> None:
+        super().__init__()
+        self.controller = controller
+        self.presets = presets
+        self.scope = scope
+        self.filter_text = filter_text
+        self.run_format_checks = run_format_checks
+        self.enabled_format_rules = enabled_format_rules
+
+    def run(self) -> None:
+        try:
+            results = self.controller.run_scan(
+                presets=self.presets,
+                scope=self.scope,
+                filter_text=self.filter_text,
+                run_format_checks=self.run_format_checks,
+                enabled_format_rules=self.enabled_format_rules,
+            )
+            self.finished_signal.emit(results)
+        except Exception as e:
+            self.error_signal.emit(str(e))
+
+
+class FormatSettingsDialog(QDialog):
+    """Dialog to configure which code formatting checks are enabled."""
+
+    def __init__(self, parent: QWidget | None = None, enabled_rules: dict[str, bool] | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Formatting Check Settings")
+        self.setMinimumWidth(300)
+        
+        self.rules = enabled_rules or {
+            "Mixed Indentation": True,
+            "Inconsistent Indentation": True,
+            "Trailing Whitespace": True,
+            "Too Many Blank Lines": True,
+            "Line Too Long": True,
+            "Missing Colon": True,
+            "Missing Semicolon": True,
+            "Mismatched Bracket": True,
+            "Unclosed Bracket": True,
+            "Unclosed String": True,
+            "Missing Final Newline": True,
+        }
+        
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Select formatting checks to execute:"))
+        
+        self.checkboxes: dict[str, QCheckBox] = {}
+        for rule_name, val in self.rules.items():
+            cb = QCheckBox(rule_name, self)
+            cb.setChecked(val)
+            layout.addWidget(cb)
+            self.checkboxes[rule_name] = cb
+            
+        button_layout = QHBoxLayout()
+        self.ok_btn = QPushButton("OK", self)
+        self.cancel_btn = QPushButton("Cancel", self)
+        self.ok_btn.clicked.connect(self.accept)
+        self.cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(self.ok_btn)
+        button_layout.addWidget(self.cancel_btn)
+        layout.addLayout(button_layout)
+
+    def get_enabled_rules(self) -> dict[str, bool]:
+        res = {}
+        for rule_name, cb in self.checkboxes.items():
+            res[rule_name] = cb.isChecked()
+        return res
 
 
 class PresetDialog(QDialog):
@@ -105,6 +191,21 @@ class AntiPatternView(QWidget):
 
         self.presets: list[dict[str, object]] = []
         self._last_results: list[dict[str, object]] = []
+        self.format_check_checkbox: QCheckBox | None = None
+        self.format_settings_btn: QPushButton | None = None
+        self.enabled_format_rules: dict[str, bool] = {
+            "Mixed Indentation": True,
+            "Inconsistent Indentation": True,
+            "Trailing Whitespace": True,
+            "Too Many Blank Lines": True,
+            "Line Too Long": True,
+            "Missing Colon": True,
+            "Missing Semicolon": True,
+            "Mismatched Bracket": True,
+            "Unclosed Bracket": True,
+            "Unclosed String": True,
+            "Missing Final Newline": True,
+        }
 
         self._load_ui()
         self._build_ui()
@@ -173,6 +274,27 @@ class AntiPatternView(QWidget):
         self.results_table.itemSelectionChanged.connect(self._on_result_selected)
         self.results_table.cellDoubleClicked.connect(self._on_result_double_clicked)
         self.results_table.customContextMenuRequested.connect(self._on_results_context_menu)
+
+        # Insert format check checkbox and settings button in presets panel layout
+        presets_layout = self.findChild(QVBoxLayout, "presetsLayout")
+        if presets_layout is not None:
+            format_layout = QHBoxLayout()
+            
+            self.format_check_checkbox = QCheckBox("Check Code Formatting (Python/C)", self)
+            self.format_check_checkbox.setChecked(True)
+            format_layout.addWidget(self.format_check_checkbox)
+            
+            self.format_settings_btn = QPushButton("Settings...", self)
+            self.format_settings_btn.setMaximumWidth(80)
+            self.format_settings_btn.clicked.connect(self.show_format_settings)
+            format_layout.addWidget(self.format_settings_btn)
+            
+            presets_layout.insertLayout(presets_layout.count() - 1, format_layout)
+
+    def show_format_settings(self) -> None:
+        dlg = FormatSettingsDialog(self, enabled_rules=self.enabled_format_rules)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.enabled_format_rules = dlg.get_enabled_rules()
 
     def load_presets(self) -> None:
         """Load presets config from output dir."""
@@ -250,25 +372,60 @@ class AntiPatternView(QWidget):
             self.load_presets()
 
     def run_scan(self) -> None:
-        """Run regex anti-patterns scan over loaded file_corpus."""
+        """Run regex anti-patterns scan over loaded file_corpus in a background thread."""
         self.save_presets()
         active_presets = [p for p in self.presets if p.get("enabled", True)]
-        if not active_presets:
-            QMessageBox.information(self, "No Active Presets", "No active anti-pattern presets configured.")
+        
+        run_format_checks = False
+        if self.format_check_checkbox is not None:
+            run_format_checks = self.format_check_checkbox.isChecked()
+
+        if not active_presets and not run_format_checks:
+            QMessageBox.information(self, "No Active Presets", "No active anti-pattern presets configured and formatting check is disabled.")
             return
 
         scope = self.scope_combo.currentText()
         filter_text = self.path_filter.text().strip().lower()
 
-        try:
-            results = self._controller.run_scan(
-                presets=active_presets,
-                scope=scope,
-                filter_text=filter_text,
-            )
-        except Exception as e:
-            QMessageBox.warning(self, "Scan Error", f"Unable to run anti-pattern scan: {e}")
-            return
+        # Disable UI controls during scan
+        self.scan_button.setEnabled(False)
+        self.scan_button.setText("Scanning...")
+        self.presets_list.setEnabled(False)
+        self.addButton.setEnabled(False)
+        self.deleteButton.setEnabled(False)
+        self.scope_combo.setEnabled(False)
+        self.path_filter.setEnabled(False)
+        if self.format_check_checkbox is not None:
+            self.format_check_checkbox.setEnabled(False)
+        if self.format_settings_btn is not None:
+            self.format_settings_btn.setEnabled(False)
+
+        # Create and start ScanWorker thread
+        self._scan_thread = ScanWorker(
+            controller=self._controller,
+            presets=active_presets,
+            scope=scope,
+            filter_text=filter_text,
+            run_format_checks=run_format_checks,
+            enabled_format_rules=self.enabled_format_rules,
+        )
+        self._scan_thread.finished_signal.connect(self._on_scan_finished)
+        self._scan_thread.error_signal.connect(self._on_scan_failed)
+        self._scan_thread.start()
+
+    def _on_scan_finished(self, results: list[dict[str, object]]) -> None:
+        # Re-enable UI controls
+        self.scan_button.setEnabled(True)
+        self.scan_button.setText("Scan Workspace")
+        self.presets_list.setEnabled(True)
+        self.addButton.setEnabled(True)
+        self.deleteButton.setEnabled(True)
+        self.scope_combo.setEnabled(True)
+        self.path_filter.setEnabled(True)
+        if self.format_check_checkbox is not None:
+            self.format_check_checkbox.setEnabled(True)
+        if self.format_settings_btn is not None:
+            self.format_settings_btn.setEnabled(True)
 
         self._last_results = results
         self.results_table.clearContents()
@@ -299,6 +456,22 @@ class AntiPatternView(QWidget):
             self._render_result(results[0])
         else:
             self.preview_pane.setPlainText("No anti-pattern matches found.")
+
+    def _on_scan_failed(self, error_msg: str) -> None:
+        # Re-enable UI controls
+        self.scan_button.setEnabled(True)
+        self.scan_button.setText("Scan Workspace")
+        self.presets_list.setEnabled(True)
+        self.addButton.setEnabled(True)
+        self.deleteButton.setEnabled(True)
+        self.scope_combo.setEnabled(True)
+        self.path_filter.setEnabled(True)
+        if self.format_check_checkbox is not None:
+            self.format_check_checkbox.setEnabled(True)
+        if self.format_settings_btn is not None:
+            self.format_settings_btn.setEnabled(True)
+
+        QMessageBox.warning(self, "Scan Error", f"Unable to run anti-pattern scan: {error_msg}")
 
     def _on_result_selected(self) -> None:
         selected = self.results_table.selectionModel().selectedRows()

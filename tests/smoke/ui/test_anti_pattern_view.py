@@ -54,6 +54,7 @@ def test_anti_pattern_view_scans_code(qtbot, app_config, sample_repo):
 
     # Run the scan
     widget.run_scan()
+    qtbot.waitUntil(lambda: widget.results_table.rowCount() > 0 or not getattr(widget, "_scan_thread", None).isRunning(), timeout=5000)
 
     # Results table should contain the bare except match
     assert widget.results_table.rowCount() > 0
@@ -124,6 +125,7 @@ def test_anti_pattern_view_severity_coloring(qtbot, app_config, sample_repo):
     qtbot.addWidget(widget)
 
     widget.run_scan()
+    qtbot.waitUntil(lambda: widget.results_table.rowCount() >= 2 or not getattr(widget, "_scan_thread", None).isRunning(), timeout=5000)
     assert widget.results_table.rowCount() >= 2
 
     # Verify cell color coding
@@ -192,3 +194,133 @@ def test_anti_pattern_view_open_uses_open_file_callback(qtbot, app_config):
     widget._open_result_file({"path": "app/sample.py", "line": 2})
     assert opened.get("path") == "sample.py"
     assert opened.get("line") == 2
+
+
+def test_anti_pattern_view_formatting_checks_python(qtbot, app_config, sample_repo):
+    # Add python file with formatting issues
+    bad_format_file = sample_repo / "app" / "bad_format.py"
+    bad_format_file.write_text(
+        "def oops():\n"
+        "    x = (1 + 2  # Missing close bracket\n"
+        "  \ty = 5  # Mixed spaces and tabs\n"
+        "def no_colon()\n"
+        "    pass\n"
+        "def multi_line(\n"
+        "    a,\n"
+        "    b\n"
+        "):\n"
+        "    pass\n",
+        encoding="utf-8"
+    )
+
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    widget = AntiPatternView(manager)
+    qtbot.addWidget(widget)
+
+    # Disable all presets to only check formatting
+    for i in range(widget.presets_list.count()):
+        widget.presets_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+
+    # Enable formatting checks checkbox
+    widget.format_check_checkbox.setChecked(True)
+
+    # Run scan
+    widget.run_scan()
+    qtbot.waitUntil(lambda: widget.results_table.rowCount() > 0 or not getattr(widget, "_scan_thread", None).isRunning(), timeout=5000)
+
+    # Results table should contain formatting errors
+    assert widget.results_table.rowCount() > 0
+    rules_found = [widget.results_table.item(row, 2).text() for row in range(widget.results_table.rowCount())]
+
+    assert "Formatting: Unclosed Bracket" in rules_found
+    assert "Formatting: Mixed Indentation" in rules_found
+    assert "Formatting: Missing Colon" in rules_found
+
+    # Assert that the multiline definition is not flagged (only one missing colon error exists)
+    assert rules_found.count("Formatting: Missing Colon") == 1
+
+
+def test_anti_pattern_view_formatting_checks_c(qtbot, app_config, sample_repo):
+    # Add C file with formatting issues
+    bad_c_file = sample_repo / "app" / "bad_c.c"
+    bad_c_file.write_text(
+        "int main() {\n"
+        "    int x = 5  // Missing semicolon\n"
+        "    return 0;\n"
+        "}",  # Missing end of file newline
+        encoding="utf-8"
+    )
+
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    widget = AntiPatternView(manager)
+    qtbot.addWidget(widget)
+
+    # Disable all presets to only check formatting
+    for i in range(widget.presets_list.count()):
+        widget.presets_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+
+    # Enable formatting checks checkbox
+    widget.format_check_checkbox.setChecked(True)
+
+    # Run scan
+    widget.run_scan()
+    qtbot.waitUntil(lambda: widget.results_table.rowCount() > 0 or not getattr(widget, "_scan_thread", None).isRunning(), timeout=5000)
+
+    # Results table should contain C formatting errors
+    assert widget.results_table.rowCount() > 0
+    rules_found = [widget.results_table.item(row, 2).text() for row in range(widget.results_table.rowCount())]
+
+    assert "Formatting: Missing Semicolon" in rules_found
+    assert "Formatting: Missing Final Newline" in rules_found
+
+
+def test_anti_pattern_view_formatting_list_comprehension_and_settings(qtbot, app_config, sample_repo):
+    # Add python file with list comprehension and long line
+    test_file = sample_repo / "app" / "list_comp.py"
+    test_file.write_text(
+        "def test_func(rows):\n"
+        "    return [\n"
+        "        item\n"
+        "        for item in rows\n"
+        "        if item\n"
+        "    ]\n"
+        "x = 1" + ("#" * 100) + "\n",
+        encoding="utf-8"
+    )
+
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    widget = AntiPatternView(manager)
+    qtbot.addWidget(widget)
+
+    # Disable all presets to only check formatting
+    for i in range(widget.presets_list.count()):
+        widget.presets_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+
+    widget.format_check_checkbox.setChecked(True)
+
+    # 1. First scan with default settings: Line Too Long should be found, but NO Missing Colon
+    widget.run_scan()
+    qtbot.waitUntil(lambda: widget.results_table.rowCount() > 0 or not getattr(widget, "_scan_thread", None).isRunning(), timeout=5000)
+
+    rules_found = [widget.results_table.item(row, 2).text() for row in range(widget.results_table.rowCount())]
+
+    assert "Formatting: Line Too Long" in rules_found
+    assert "Formatting: Missing Colon" not in rules_found
+
+    # 2. Disable "Line Too Long" rule via setting
+    widget.enabled_format_rules["Line Too Long"] = False
+
+    # Run scan again
+    widget.run_scan()
+    qtbot.waitUntil(lambda: not getattr(widget, "_scan_thread", None).isRunning(), timeout=5000)
+
+    rules_found_after = [widget.results_table.item(row, 2).text() for row in range(widget.results_table.rowCount())]
+    assert "Formatting: Line Too Long" not in rules_found_after
+
+
