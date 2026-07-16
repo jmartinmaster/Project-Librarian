@@ -519,28 +519,28 @@ exit 0
   <screenshots>
     <screenshot type="default">
       <caption>Main search interface showing results and matching snippets</caption>
-      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/search_view.png</image>
+      <image>https://raw.githubusercontent.com/jmartinmaster/The-Librarian/main/docs/screenshots/search_view.png</image>
     </screenshot>
     <screenshot>
       <caption>Code audit and patterns analysis view</caption>
-      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/codeaudit_view.png</image>
+      <image>https://raw.githubusercontent.com/jmartinmaster/The-Librarian/main/docs/screenshots/codeaudit_view.png</image>
     </screenshot>
     <screenshot>
       <caption>Workspace configuration and directory management</caption>
-      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/settings_view.png</image>
+      <image>https://raw.githubusercontent.com/jmartinmaster/The-Librarian/main/docs/screenshots/settings_view.png</image>
     </screenshot>
     <screenshot>
       <caption>Diagnostic tools and indexing statistics</caption>
-      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/diagnostics_view.png</image>
+      <image>https://raw.githubusercontent.com/jmartinmaster/The-Librarian/main/docs/screenshots/diagnostics_view.png</image>
     </screenshot>
     <screenshot>
       <caption>MVC editor tab for structural navigation</caption>
-      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/mvceditor_view.png</image>
+      <image>https://raw.githubusercontent.com/jmartinmaster/The-Librarian/main/docs/screenshots/mvceditor_view.png</image>
     </screenshot>
   </screenshots>
   
-  <url type="homepage">https://github.com/jmartinmaster/Project-Librarian</url>
-  <url type="bugtracker">https://github.com/jmartinmaster/Project-Librarian/issues</url>
+  <url type="homepage">https://github.com/jmartinmaster/The-Librarian</url>
+  <url type="bugtracker">https://github.com/jmartinmaster/The-Librarian/issues</url>
   
   <content_rating type="oars-1.1" />
   
