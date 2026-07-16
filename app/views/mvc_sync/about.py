@@ -1,19 +1,19 @@
-# app/views/about.py - About Dialog for MVC Sync Editor
-# Copyright (C) 2026 Jamie Martin
+# Copyright (C) 2026 The Librarian contributors
 #
-# This program is free software: you can redistribute it and/or modify
+# This file is part of The Librarian.
+#
+# The Librarian is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# This program is distributed in the hope that it will be useful,
+# The Librarian is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+# along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QTabWidget, QTextEdit, QMessageBox, QWidget

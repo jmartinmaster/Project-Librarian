@@ -1,20 +1,19 @@
-# Copyright (C) 2026 Project Librarian contributors
+# Copyright (C) 2026 The Librarian contributors
 #
-# This file is part of Project Librarian.
+# This file is part of The Librarian.
 #
-# Project Librarian is free software: you can redistribute it and/or modify
+# The Librarian is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Project Librarian is distributed in the hope that it will be useful,
+# The Librarian is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
-
+# along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 """In-app Help Dialog showing the Project Librarian User Guide."""
 
 from __future__ import annotations
@@ -35,8 +34,8 @@ from PyQt6.QtWidgets import (
 # HTML User Guide topics matching app functionality
 HELP_TOPICS = {
     "General Overview": """
-        <h1>Project Librarian</h1>
-        <p>Project Librarian is a local PyQt6 desktop application designed to index source code and spreadsheets into a fast, in-memory search library. Built with a decoupled <b>Model-View-Controller (MVC)</b> design pattern, the application separates user interface presentation, workflow orchestration, and business logic layers.</p>
+        <h1>The Librarian</h1>
+        <p>The Librarian is a local PyQt6 desktop application designed to index source code and spreadsheets into a fast, in-memory search library. Built with a decoupled <b>Model-View-Controller (MVC)</b> design pattern, the application separates user interface presentation, workflow orchestration, and business logic layers.</p>
         
         <h3>Key Architecture Details</h3>
         <ul>
@@ -47,7 +46,7 @@ HELP_TOPICS = {
     """,
     "Search & Navigation": """
         <h1>Search &amp; Navigation</h1>
-        <p>The core of Project Librarian is finding files, symbols, and cell content quickly.</p>
+        <p>The core of The Librarian is finding files, symbols, and cell content quickly.</p>
         
         <h3>Search Browser</h3>
         <p>Supports searching the entire indexed workspace. Search results show the <b>File Name</b>, <b>Type</b> (e.g., Class, Function, Row, File), and <b>File Type</b> (e.g., <code>.py</code>, <code>.c</code>, <code>.csv</code>) to quickly identify formats. Double-clicking any result opens the file directly in the embedded MVC Editor.</p>
@@ -109,14 +108,14 @@ HELP_TOPICS = {
     """,
     "Integrations & MCP": """
         <h1>Integrations &amp; Model Context Protocol</h1>
-        <p>Expose Project Librarian capabilities to external AI assistants or IDEs.</p>
+        <p>Expose The Librarian capabilities to external AI assistants or IDEs.</p>
         
         <h3>Model Context Protocol (MCP) Server</h3>
         <p>An embedded local MCP-compatible server runs inside the application, exposing search, index status, refresh trigger, and diagnostic tools to client applications.</p>
         
         <h3>Lifecycle &amp; Autostart</h3>
         <ul>
-            <li><b>Autostart:</b> Toggle server auto-launch when Project Librarian is started.</li>
+            <li><b>Autostart:</b> Toggle server auto-launch when The Librarian is started.</li>
             <li><b>Status and Probes:</b> Monitor the status of the server port, endpoint calls, and view client connections.</li>
             <li><b>Sync Root:</b> Project root changes automatically propagate to the running MCP server and MVC editor without restarting.</li>
         </ul>

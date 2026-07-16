@@ -1,23 +1,22 @@
 <!--
-Copyright (C) 2026 Project Librarian contributors
+Copyright (C) 2026 The Librarian contributors
 
-This file is part of Project Librarian.
+This file is part of The Librarian.
 
-Project Librarian is free software: you can redistribute it and/or modify
+The Librarian is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-Project Librarian is distributed in the hope that it will be useful,
+The Librarian is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
+along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 -->
-
-# Project Librarian Master Plan
+# The Librarian Master Plan
 
 ## Editing Protocol
 - Update this file after completing any phase task.
@@ -27,7 +26,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - Keep docs/ focused on active artifacts; move outdated notes to docs/archive/ when needed.
 
 ## Project Goals
-- Build a standalone desktop application named Project Librarian.
+- Build a standalone desktop application named The Librarian.
 - Provide a local search browser and settings UI.
 - Index Python and C source files.
 - Support Excel keyword search with configurable key columns.
@@ -86,7 +85,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] MVC parity expansion complete: standalone MVC editor capabilities (workspace explorer, inspector/sync navigation, run console, triad discovery, and richer code editing) are now embedded into the integrated tab.
 - [x] Root coherence fix complete: Integrations, MVC Editor, and MCP runtime now share the same Librarian project root, and project-root changes propagate across running integrations.
 - [x] Native MVC shell integration complete: embedded MVC tab now drops standalone menu/toolbar/workspace tree/console chrome so Librarian controls and tree remain the single primary navigation shell.
-- [x] Windows packaging update complete: build scripts now emit a single-file `ProjectLibrarian.exe`, with Windows config/output defaults under `%LOCALAPPDATA%\\Project Librarian`.
+- [x] Windows packaging update complete: build scripts now emit a single-file `TheLibrarian.exe`, with Windows config/output defaults under `%LOCALAPPDATA%\\The Librarian`.
 - [x] Phase 11 complete: full MVC-compliance refactor planning and staged execution.
 - [x] Phase 11 task 1 complete: `app/controllers/` extraction map prepared.
 - [x] Phase 11 task 2 complete: controllers skeleton added.
@@ -204,11 +203,11 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-07-08: Ported a modular local MCP-compatible server runtime (`app/models/librarian_mcp_server.py`) and subprocess lifecycle manager (`app/models/mcp_server_manager.py`) wired to app config and autostart.
 - 2026-07-08: Added direct in-app MVC Editor embedding (`app/views/mvc_editor_tab.py`) with triad file workflow and wired it as a primary top tab in the main window.
 - 2026-07-08: Unified file-open workflow so Search Browser, Indexed Library, and Code Audit open files in the embedded MVC Editor; kept explicit external-open path for user-controlled handoff.
-- 2026-07-08: Scope expanded to full standalone MVC editor feature parity inside Project Librarian before next compile/release handoff.
+- 2026-07-08: Scope expanded to full standalone MVC editor feature parity inside The Librarian before next compile/release handoff.
 - 2026-07-08: Imported standalone MVC Sync internals into `app/views/mvc_sync/` and wrapped them in `MVCEditorTab` so in-app editing includes workspace explorer, triad discovery, inspector navigation, sync tooling, and run console while preserving Librarian open-routing.
 - 2026-07-08: Removed independent integrations root behavior by treating project root as the single shared root for MVC + MCP, added root-change callback wiring in main window, and switched folder picker to non-native dialog mode to avoid Windows COM dialog crashes.
 - 2026-07-08: Applied full native integration mode to MVC tab by suppressing standalone shell surfaces and inheriting host tab theming to keep Librarian as the single unified interface shell.
-- 2026-07-08: Switched Windows packaging to PyInstaller one-file output and moved Windows runtime config/artifact defaults to `%LOCALAPPDATA%\\Project Librarian` for portable executable relocation without adjacent support folders.
+- 2026-07-08: Switched Windows packaging to PyInstaller one-file output and moved Windows runtime config/artifact defaults to `%LOCALAPPDATA%\\The Librarian` for portable executable relocation without adjacent support folders.
 - 2026-07-08: Re-prioritized roadmap to execute a dedicated Phase 11 full MVC-compliance refactor in sequenced slices before final packaging validation.
 - 2026-07-08: Completed Phase 11 Task 1 boundary audit and confirmed controller extraction priorities in this order: Search, Main Window/Library, Anti-pattern, Diagnostics, Settings/Lifecycle.
 - 2026-07-08: Completed Phase 11 Task 2 by introducing `app/controllers/` seams and delegating key workflows from views to controller pass-through methods.

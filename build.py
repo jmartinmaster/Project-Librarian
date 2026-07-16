@@ -1,20 +1,19 @@
-# Copyright (C) 2026 Project Librarian contributors
+# Copyright (C) 2026 The Librarian contributors
 #
-# This file is part of Project Librarian.
+# This file is part of The Librarian.
 #
-# Project Librarian is free software: you can redistribute it and/or modify
+# The Librarian is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Project Librarian is distributed in the hope that it will be useful,
+# The Librarian is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
-
+# along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 """Cross-platform build script for Project Librarian distributions.
 
 Supports building Windows EXE and Ubuntu DEB packages from source.
@@ -93,8 +92,8 @@ class BuildConfig:
         self.requirements_packaging = self.repo_root / "requirements-packaging.txt"
 
         # Project metadata
-        self.app_name = "ProjectLibrarian"
-        self.app_display_name = "Project Librarian"
+        self.app_name = "TheLibrarian"
+        self.app_display_name = "The Librarian"
         self.version = self._read_version()
 
     def _find_venv_python(self) -> Path:
@@ -353,7 +352,7 @@ class DebBuilder:
         """
         print("\n[3/5] Creating DEB package structure...")
 
-        deb_root = self.temp_dir / "projectlibrarian-deb"
+        deb_root = self.temp_dir / "the-librarian-deb"
         deb_root.mkdir(parents=True, exist_ok=True)
 
         # Create DEBIAN metadata directory
@@ -365,7 +364,7 @@ class DebBuilder:
         usr_bin.mkdir(parents=True, exist_ok=True)
 
         # Create usr/lib directory for application files
-        usr_lib = deb_root / "usr" / "lib" / "projectlibrarian"
+        usr_lib = deb_root / "usr" / "lib" / "the-librarian"
         usr_lib.mkdir(parents=True, exist_ok=True)
 
         # Copy binary and dependencies to usr/lib
@@ -377,13 +376,31 @@ class DebBuilder:
                 shutil.copy2(item, usr_lib / item.name)
 
         # Create wrapper script in usr/bin
-        wrapper_script = usr_bin / "projectlibrarian"
+        wrapper_script = usr_bin / "the-librarian"
         self._create_wrapper_script(wrapper_script, usr_lib)
 
         # Create desktop file for menu integration
         applications_dir = deb_root / "usr" / "share" / "applications"
         applications_dir.mkdir(parents=True, exist_ok=True)
         self._create_desktop_file(applications_dir)
+
+        # Copy application icon to hicolor and pixmaps for maximum compatibility
+        icon_dir = deb_root / "usr" / "share" / "icons" / "hicolor" / "scalable" / "apps"
+        icon_dir.mkdir(parents=True, exist_ok=True)
+        pixmaps_dir = deb_root / "usr" / "share" / "pixmaps"
+        pixmaps_dir.mkdir(parents=True, exist_ok=True)
+        src_icon = self.config.assets_dir / "library_icon.svg"
+        if src_icon.exists():
+            shutil.copy2(src_icon, icon_dir / "com.github.jmartinmaster.thelibrarian.svg")
+            os.chmod(icon_dir / "com.github.jmartinmaster.thelibrarian.svg", 0o644)
+            shutil.copy2(src_icon, pixmaps_dir / "com.github.jmartinmaster.thelibrarian.svg")
+            os.chmod(pixmaps_dir / "com.github.jmartinmaster.thelibrarian.svg", 0o644)
+            print(f"  Copied icon to hicolor and pixmaps")
+
+        # Create AppStream metainfo XML file
+        metainfo_dir = deb_root / "usr" / "share" / "metainfo"
+        metainfo_dir.mkdir(parents=True, exist_ok=True)
+        self._create_metainfo_file(metainfo_dir)
 
         # Create DEBIAN/control file
         self._create_control_file(debian_dir)
@@ -396,10 +413,10 @@ class DebBuilder:
 
     def _create_wrapper_script(self, script_path: Path, app_lib_dir: Path) -> None:
         """Create shell wrapper script for the application."""
-        script_content = f"""#!/bin/bash
-# Wrapper script for Project Librarian
+        script_content = """#!/bin/bash
+# Wrapper script for The Librarian
 
-exec "{app_lib_dir}/ProjectLibrarian" "$@"
+exec "/usr/lib/the-librarian/TheLibrarian" "$@"
 """
         script_path.write_text(script_content, encoding="utf-8")
         os.chmod(script_path, 0o755)
@@ -410,27 +427,27 @@ exec "{app_lib_dir}/ProjectLibrarian" "$@"
         desktop_content = """[Desktop Entry]
 Version=1.0
 Type=Application
-Name=Project Librarian
+Name=The Librarian
 Comment=Local source code search and indexing tool
-Exec=projectlibrarian
-Icon=projectlibrarian
+Exec=the-librarian
+Icon=com.github.jmartinmaster.thelibrarian
 Categories=Development;Utility;
 Terminal=false
 """
-        desktop_file = applications_dir / "projectlibrarian.desktop"
+        desktop_file = applications_dir / "com.github.jmartinmaster.thelibrarian.desktop"
         desktop_file.write_text(desktop_content, encoding="utf-8")
         os.chmod(desktop_file, 0o644)
         print(f"  Created desktop file: {desktop_file}")
 
     def _create_control_file(self, debian_dir: Path) -> None:
         """Create DEBIAN/control metadata file."""
-        control_content = f"""Package: projectlibrarian
+        control_content = f"""Package: the-librarian
 Version: {self.config.version}
 Architecture: amd64
-Maintainer: Project Librarian Contributors <https://github.com/project-librarian>
-Homepage: https://github.com/project-librarian
+Maintainer: The Librarian Contributors <https://github.com/jmartinmaster/The-Librarian>
+Homepage: https://github.com/jmartinmaster/The-Librarian
 Description: Local source code search and indexing tool
- Project Librarian is a standalone desktop application that provides
+ The Librarian is a standalone desktop application that provides
  fast local search across Python and C source files, Excel spreadsheets,
  and other indexed content. It maintains a complete search library in
  memory for near-instant query responses.
@@ -450,12 +467,96 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database /usr/share/applications
 fi
 
+# Update icon cache
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor
+fi
+
 exit 0
 """
         postinst_file = debian_dir / "postinst"
         postinst_file.write_text(postinst_content, encoding="utf-8")
         os.chmod(postinst_file, 0o755)
         print(f"  Created postinst script: {postinst_file}")
+
+    def _create_metainfo_file(self, metainfo_dir: Path) -> None:
+        """Create AppStream metainfo.xml file."""
+        metainfo_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 The Librarian Contributors -->
+<component type="desktop-application">
+  <id>com.github.jmartinmaster.thelibrarian</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  
+  <name>The Librarian</name>
+  <summary>Local source code search and indexing tool</summary>
+  
+  <description>
+    <p>
+      The Librarian is a standalone desktop application that provides fast local search
+      across Python and C source files, Excel spreadsheets, and other indexed content.
+      It maintains a complete search library in memory for near-instant query responses.
+    </p>
+    <p>Key features:</p>
+    <ul>
+      <li>Fast, in-memory search and indexing</li>
+      <li>Supports Python, C/C++ source code, Excel files, and plain text</li>
+      <li>Intelligent query suggestions and search filters</li>
+      <li>Sleek Qt6-based desktop user interface</li>
+      <li>Diagnostics and indexing health monitoring</li>
+    </ul>
+  </description>
+  
+  <launchable type="desktop-id">com.github.jmartinmaster.thelibrarian.desktop</launchable>
+  <developer id="github.com.jmartinmaster">
+    <name>The Librarian Contributors</name>
+  </developer>
+  <provides>
+    <binary>the-librarian</binary>
+  </provides>
+  <pkgname>the-librarian</pkgname>
+  
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main search interface showing results and matching snippets</caption>
+      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/search_view.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Code audit and patterns analysis view</caption>
+      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/codeaudit_view.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Workspace configuration and directory management</caption>
+      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/settings_view.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Diagnostic tools and indexing statistics</caption>
+      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/diagnostics_view.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>MVC editor tab for structural navigation</caption>
+      <image>https://raw.githubusercontent.com/jmartinmaster/Project-Librarian/main/docs/screenshots/mvceditor_view.png</image>
+    </screenshot>
+  </screenshots>
+  
+  <url type="homepage">https://github.com/jmartinmaster/Project-Librarian</url>
+  <url type="bugtracker">https://github.com/jmartinmaster/Project-Librarian/issues</url>
+  
+  <content_rating type="oars-1.1" />
+  
+  <releases>
+    <release version="{self.config.version}" date="2026-07-16">
+      <description>
+        <p>Release of The Librarian with local search and indexing capabilities.</p>
+      </description>
+    </release>
+  </releases>
+</component>
+"""
+        metainfo_file = metainfo_dir / "com.github.jmartinmaster.thelibrarian.metainfo.xml"
+        metainfo_file.write_text(metainfo_content, encoding="utf-8")
+        os.chmod(metainfo_file, 0o644)
+        print(f"  Created metainfo file: {metainfo_file}")
 
     def _build_deb_package(self, deb_root: Path) -> Path:
         """Build DEB package using dpkg-deb.
@@ -484,11 +585,11 @@ exit 0
         output_dir = self.config.dist_dir
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        deb_filename = f"projectlibrarian_{self.config.version}_amd64.deb"
+        deb_filename = f"the-librarian_{self.config.version}_amd64.deb"
         deb_file = output_dir / deb_filename
 
         # Build DEB package
-        cmd = ["dpkg-deb", "--build", str(deb_root), str(deb_file)]
+        cmd = ["fakeroot", "dpkg-deb", "--build", str(deb_root), str(deb_file)]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
@@ -567,7 +668,7 @@ def main() -> int:
         Exit code (0 for success, 1 for failure).
     """
     parser = argparse.ArgumentParser(
-        description="Build Project Librarian for distribution"
+        description="Build The Librarian for distribution"
     )
     parser.add_argument(
         "--exe",

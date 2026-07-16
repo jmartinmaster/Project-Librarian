@@ -1,20 +1,19 @@
-# Copyright (C) 2026 Project Librarian contributors
+# Copyright (C) 2026 The Librarian contributors
 #
-# This file is part of Project Librarian.
+# This file is part of The Librarian.
 #
-# Project Librarian is free software: you can redistribute it and/or modify
+# The Librarian is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Project Librarian is distributed in the hope that it will be useful,
+# The Librarian is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
-
+# along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 """Smoke tests for the HelpDialog view component."""
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ def test_help_dialog_initialization(qtbot) -> None:
     # Verify first topic is selected by default
     first_topic_name = list(HELP_TOPICS.keys())[0]
     assert dialog.topic_list.currentItem().text() == first_topic_name
-    assert "Project Librarian" in dialog.text_browser.toPlainText()
+    assert "The Librarian" in dialog.text_browser.toPlainText()
 
 
 def test_help_dialog_topic_switching(qtbot) -> None:

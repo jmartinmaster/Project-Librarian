@@ -1,27 +1,26 @@
 #!/usr/bin/env bash
-# Copyright (C) 2026 Project Librarian contributors
+# Copyright (C) 2026 The Librarian contributors
 #
-# This file is part of Project Librarian.
+# This file is part of The Librarian.
 #
-# Project Librarian is free software: you can redistribute it and/or modify
+# The Librarian is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Project Librarian is distributed in the hope that it will be useful,
+# The Librarian is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
-
+# along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-DIST_DIR="${REPO_ROOT}/dist/ProjectLibrarian"
-INSTALL_DIR="${HOME}/.local/opt/project-librarian"
+DIST_DIR="${REPO_ROOT}/dist/TheLibrarian"
+INSTALL_DIR="${HOME}/.local/opt/the-librarian"
 BIN_DIR="${HOME}/.local/bin"
 APP_DIR="${HOME}/.local/share/applications"
 ICON_DIR="${HOME}/.local/share/icons/hicolor/scalable/apps"
@@ -35,29 +34,29 @@ mkdir -p "${INSTALL_DIR}" "${BIN_DIR}" "${APP_DIR}" "${ICON_DIR}"
 rm -rf "${INSTALL_DIR:?}"/*
 cp -r "${DIST_DIR}"/* "${INSTALL_DIR}/"
 
-if [[ -f "${REPO_ROOT}/app/ui/assets/library_icon.svg" ]]; then
-  cp "${REPO_ROOT}/app/ui/assets/library_icon.svg" "${ICON_DIR}/project-librarian.svg"
+if [[ -f "${REPO_ROOT}/app/views/assets/library_icon.svg" ]]; then
+  cp "${REPO_ROOT}/app/views/assets/library_icon.svg" "${ICON_DIR}/the-librarian.svg"
 fi
 
-cat > "${BIN_DIR}/project-librarian" <<'EOF'
+cat > "${BIN_DIR}/the-librarian" <<'EOF'
 #!/usr/bin/env bash
-exec "$HOME/.local/opt/project-librarian/ProjectLibrarian" "$@"
+exec "$HOME/.local/opt/the-librarian/TheLibrarian" "$@"
 EOF
-chmod +x "${BIN_DIR}/project-librarian"
+chmod +x "${BIN_DIR}/the-librarian"
 
-cat > "${APP_DIR}/project-librarian.desktop" <<'EOF'
+cat > "${APP_DIR}/the-librarian.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=Project Librarian
+Name=The Librarian
 Comment=Local source and spreadsheet search browser
-Exec=project-librarian
-Icon=project-librarian
-StartupWMClass=ProjectLibrarian
+Exec=the-librarian
+Icon=the-librarian
+StartupWMClass=TheLibrarian
 Terminal=false
 Categories=Development;Utility;
 EOF
 
 update-desktop-database "${APP_DIR}" >/dev/null 2>&1 || true
 
-echo "Installed Project Librarian locally."
-echo "Launch from app menu or run: project-librarian"
+echo "Installed The Librarian locally."
+echo "Launch from app menu or run: the-librarian"

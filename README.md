@@ -16,7 +16,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 -->
-
 # The Librarian
 
 The Librarian is a local PyQt6 desktop application for indexing source code and spreadsheet content into an in-memory search library. It provides fast, offline browsing of Python, C, Markdown, text, JSON, CSV, and Excel content from a project folder, along with an embedded code editor, workspace assistant, MVC audit tools, a local MCP-compatible server, and an in-app help system.
@@ -91,7 +90,7 @@ When The Librarian starts with a fresh configuration, it uses the folder it was 
 
 1. Install packaging dependencies: `pip install -r requirements-packaging.txt`
 2. Build on Windows with `powershell -ExecutionPolicy Bypass -File scripts/build_windows.ps1`
-   - Produces a single-file `ProjectLibrarian.exe`; runtime config defaults to `%LOCALAPPDATA%\The Librarian`.
+   - Produces a single-file `TheLibrarian.exe`; runtime config defaults to `%LOCALAPPDATA%\The Librarian`.
 3. Build on Ubuntu with `bash scripts/build_ubuntu.sh`
 
 ## Repository Layout

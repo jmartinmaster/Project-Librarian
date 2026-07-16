@@ -1,20 +1,19 @@
-# Copyright (C) 2026 Project Librarian contributors
+# Copyright (C) 2026 The Librarian contributors
 #
-# This file is part of Project Librarian.
+# This file is part of The Librarian.
 #
-# Project Librarian is free software: you can redistribute it and/or modify
+# The Librarian is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Project Librarian is distributed in the hope that it will be useful,
+# The Librarian is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
-
+# along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -30,9 +29,9 @@ if (-not (Test-Path $VenvPython)) {
   --noconfirm `
   --onefile `
   --windowed `
-  --name ProjectLibrarian `
-  --add-data "$RepoRoot\app\ui\forms;app\ui\forms" `
-  --add-data "$RepoRoot\app\ui\assets;app\ui\assets" `
+  --name TheLibrarian `
+  --add-data "$RepoRoot\app\views\forms;app\views\forms" `
+  --add-data "$RepoRoot\app\views\assets;app\views\assets" `
   (Join-Path $RepoRoot "main.py")
 
-Write-Host "Windows build complete: $RepoRoot\dist\ProjectLibrarian.exe"
+Write-Host "Windows build complete: $RepoRoot\dist\TheLibrarian.exe"

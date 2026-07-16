@@ -1,20 +1,19 @@
-# Copyright (C) 2026 Project Librarian contributors
+# Copyright (C) 2026 The Librarian contributors
 #
-# This file is part of Project Librarian.
+# This file is part of The Librarian.
 #
-# Project Librarian is free software: you can redistribute it and/or modify
+# The Librarian is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Project Librarian is distributed in the hope that it will be useful,
+# The Librarian is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
-
+# along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 """Standalone MCP-compatible server for Project Librarian state using FastAPI."""
 
 from __future__ import annotations
@@ -44,7 +43,7 @@ from app.indexer.index_manager import IndexManager
 from app.search.search_engine import search_snapshot
 from app.controllers.anti_pattern_controller import AntiPatternController
 
-AUTH_HEADER_NAME = "X-Project-Librarian-Token"
+AUTH_HEADER_NAME = "X-The-Librarian-Token"
 
 # Global managers initialized during setup
 manager: IndexManager | None = None

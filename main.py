@@ -1,20 +1,19 @@
-# Copyright (C) 2026 Project Librarian contributors
+# Copyright (C) 2026 The Librarian contributors
 #
-# This file is part of Project Librarian.
+# This file is part of The Librarian.
 #
-# Project Librarian is free software: you can redistribute it and/or modify
+# The Librarian is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Project Librarian is distributed in the hope that it will be useful,
+# The Librarian is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
-
+# along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 """Application entrypoint for standalone The Librarian."""
 
 from __future__ import annotations
@@ -301,7 +300,7 @@ def supervisor_main() -> int:
     """Launch the supervisor process to monitor the child process."""
     while True:
         env = os.environ.copy()
-        env["PROJECT_LIBRARIAN_IS_CHILD"] = "1"
+        env["THE_LIBRARIAN_IS_CHILD"] = "1"
         
         if getattr(sys, "frozen", False):
             # Compiled executable (PyInstaller)
@@ -454,10 +453,10 @@ if __name__ == "__main__":
     if "--no-supervisor" in sys.argv:
         bypass_supervisor = True
         sys.argv.remove("--no-supervisor")
-    elif os.environ.get("PROJECT_LIBRARIAN_NO_SUPERVISOR") == "1":
+    elif os.environ.get("THE_LIBRARIAN_NO_SUPERVISOR") == "1":
         bypass_supervisor = True
 
-    is_child = bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1" or is_profile_run
+    is_child = bypass_supervisor or os.environ.get("THE_LIBRARIAN_IS_CHILD") == "1" or is_profile_run
 
     if is_child:
         # Restore sys.stdout and sys.stderr from file descriptors 1 and 2 if PyInstaller set them to None
@@ -547,11 +546,11 @@ if __name__ == "__main__":
                 try:
                     script_dir = str(Path(target_script_to_analyze).resolve().parent)
                     
-                    # Remove Project Librarian's root from sys.path to prevent module shadowing
+                    # Remove The Librarian's root from sys.path to prevent module shadowing
                     project_root = str(Path(__file__).resolve().parent)
                     sys.path = [p for p in sys.path if str(Path(p).resolve()) != project_root]
                     
-                    # Also completely scrub Project Librarian's 'app' package from sys.modules
+                    # Also completely scrub The Librarian's 'app' package from sys.modules
                     # since it was imported at the top of main.py
                     for mod_name in list(sys.modules.keys()):
                         if mod_name == "app" or mod_name.startswith("app."):
@@ -679,7 +678,7 @@ if __name__ == "__main__":
     is_mp_child = multiprocessing.current_process().name != "MainProcess" or any(arg.startswith("--multiprocessing-") for arg in sys.argv)
     if is_mp_child:
         pass
-    elif bypass_supervisor or os.environ.get("PROJECT_LIBRARIAN_IS_CHILD") == "1":
+    elif bypass_supervisor or os.environ.get("THE_LIBRARIAN_IS_CHILD") == "1":
         raise SystemExit(main())
     else:
         raise SystemExit(supervisor_main())
