@@ -73,6 +73,9 @@ class MCPServerManager:
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         app_root = Path(__file__).resolve().parents[2]
         env = os.environ.copy()
+        env["THE_LIBRARIAN_IS_CHILD"] = "1"
+        env["THE_LIBRARIAN_NO_SUPERVISOR"] = "1"
+        env["THE_LIBRARIAN_MCP_SERVER"] = "1"
         pythonpath = env.get("PYTHONPATH", "")
         if pythonpath:
             env["PYTHONPATH"] = f"{app_root}{os.pathsep}{pythonpath}"
@@ -87,6 +90,8 @@ class MCPServerManager:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 creationflags=creationflags,
             )
         except OSError as exc:

@@ -41,7 +41,14 @@ class DiagnosticsController:
         """Install a package using the active Python environment."""
         try:
             cmd = [sys.executable, "-m", "pip", "install", package_name]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
+            )
             return True, result.stdout
         except subprocess.CalledProcessError as exc:
             return False, exc.stderr

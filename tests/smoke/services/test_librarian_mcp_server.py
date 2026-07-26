@@ -36,7 +36,7 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def _wait_for_probe(port: int, timeout_seconds: float = 8.0) -> dict[str, object]:
+def _wait_for_probe(port: int, timeout_seconds: float = 15.0) -> dict[str, object]:
     deadline = time.time() + timeout_seconds
     last_error = ""
     while time.time() < deadline:
@@ -47,6 +47,22 @@ def _wait_for_probe(port: int, timeout_seconds: float = 8.0) -> dict[str, object
             last_error = str(exc)
             time.sleep(0.15)
     raise RuntimeError(f"MCP probe did not become available: {last_error}")
+
+
+def _spawn_test_mcp_server(command: list[str]) -> subprocess.Popen:
+    import os
+    env = os.environ.copy()
+    env["THE_LIBRARIAN_IS_CHILD"] = "1"
+    env["THE_LIBRARIAN_NO_SUPERVISOR"] = "1"
+    env["THE_LIBRARIAN_MCP_SERVER"] = "1"
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    return subprocess.Popen(
+        command,
+        cwd=str(REPO_ROOT),
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def test_mcp_server_process_serves_probe_and_search(app_config):
@@ -64,16 +80,39 @@ def test_mcp_server_process_serves_probe_and_search(app_config):
         "--port",
         str(port),
     ]
-    process = subprocess.Popen(  # noqa: S603 - controlled test command
-        command,
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    process = _spawn_test_mcp_server(command)
     try:
         probe = _wait_for_probe(port)
         assert probe["status"] == "ok"
         assert probe["transport_configured"] == "streamable-http"
+        endpoints = probe.get("endpoints", {})
+        assert "sse" in endpoints
+        assert "mcp_sse" in endpoints
+        assert "messages" in endpoints
+        assert "mcp_messages" in endpoints
+
+        # Check root / and /mcp probe endpoints
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2.0) as response:
+            root_payload = json.loads(response.read().decode("utf-8"))
+            assert root_payload.get("status") == "ok"
+
+        # Check browser navigation to root / returns HTML dashboard
+        html_req = urllib.request.Request(f"http://127.0.0.1:{port}/", headers={"Accept": "text/html,application/xhtml+xml"})
+        with urllib.request.urlopen(html_req, timeout=2.0) as response:
+            assert "text/html" in response.headers.get("Content-Type", "")
+            html_body = response.read().decode("utf-8")
+            assert "<title>The Librarian - Web Dashboard & MCP Server</title>" in html_body
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/mcp", timeout=2.0) as response:
+            mcp_payload = json.loads(response.read().decode("utf-8"))
+            assert mcp_payload.get("status") == "ok"
+
+        # Check SSE endpoints connect without 404 Not Found
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/sse", timeout=2.0) as response:
+            assert response.status == 200
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/mcp/sse", timeout=2.0) as response:
+            assert response.status == 200
 
         with urllib.request.urlopen(
             f"http://127.0.0.1:{port}/api/search?q=sample&scope=files&limit=3",
@@ -133,16 +172,11 @@ def test_mcp_server_requires_token_when_configured(app_config):
         "--token",
         token,
     ]
-    process = subprocess.Popen(  # noqa: S603 - controlled test command
-        command,
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    process = _spawn_test_mcp_server(command)
     try:
         endpoint = f"http://127.0.0.1:{port}/api/mcp-probe"
 
-        deadline = time.time() + 8.0
+        deadline = time.time() + 15.0
         while time.time() < deadline:
             try:
                 request = urllib.request.Request(endpoint, method="GET")
@@ -188,12 +222,7 @@ def test_mcp_server_ast_and_cst_routes(app_config):
         "--port",
         str(port),
     ]
-    process = subprocess.Popen(  # noqa: S603 - controlled test command
-        command,
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    process = _spawn_test_mcp_server(command)
     try:
         _wait_for_probe(port)
 

@@ -360,8 +360,23 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
 
+    # 0. Intercept explicit MCP server execution flag or -m app.models.librarian_mcp_server
+    if os.environ.get("THE_LIBRARIAN_MCP_SERVER") == "1" and "-m" in sys.argv:
+        try:
+            idx = sys.argv.index("-m")
+            if idx + 1 < len(sys.argv) and sys.argv[idx + 1] == "app.models.librarian_mcp_server":
+                new_argv = sys.argv[:idx] + sys.argv[idx + 2:]
+                sys.argv = new_argv
+                from app.models.librarian_mcp_server import main as mcp_main
+                mcp_main()
+                sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
     # 1. Intercept PyInstaller-based execution of app modules via python -m syntax.
-    if "-m" in sys.argv:
+    if getattr(sys, "frozen", False) and "-m" in sys.argv:
         try:
             idx = sys.argv.index("-m")
             if idx + 1 < len(sys.argv):
@@ -387,8 +402,18 @@ if __name__ == "__main__":
     if False:
         from app.models import librarian_mcp_server
 
-    # 1b. Intercept PyInstaller-based multiprocessing child processes (since freeze_support() is a no-op on Linux/macOS)
-    if "-c" in sys.argv:
+    # 1b. Intercept PyInstaller-based multiprocessing child processes across all platforms
+    if getattr(sys, "frozen", False) and any(arg.startswith("--multiprocessing-") for arg in sys.argv):
+        try:
+            from multiprocessing.spawn import spawn_main
+            spawn_main()
+            sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
+    if getattr(sys, "frozen", False) and "-c" in sys.argv:
         try:
             idx = sys.argv.index("-c")
             if idx + 1 < len(sys.argv):
@@ -677,7 +702,7 @@ if __name__ == "__main__":
 
     is_mp_child = multiprocessing.current_process().name != "MainProcess" or any(arg.startswith("--multiprocessing-") for arg in sys.argv)
     if is_mp_child:
-        pass
+        sys.exit(0)
     elif bypass_supervisor or os.environ.get("THE_LIBRARIAN_IS_CHILD") == "1":
         raise SystemExit(main())
     else:

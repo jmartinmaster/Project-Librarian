@@ -505,6 +505,35 @@ class AIGenerationService:
             pass
         return "qwen2.5-coder:7b"
 
+    def generate_text(self, prompt: str, system_prompt: str | None = None, timeout: float = 30.0) -> str | None:
+        """Call Ollama /api/generate without forcing JSON output mode, returning generated text or None on failure."""
+        model = self.get_best_model()
+        url = f"{self.ollama_host}/api/generate"
+        payload: dict[str, object] = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                res_payload = json.loads(response.read().decode("utf-8"))
+                text = str(res_payload.get("response") or "").strip()
+                if "<thought>" in text:
+                    text = re.sub(r"<thought>.*?</thought>", "", text, flags=re.DOTALL).strip()
+                return text if text else None
+        except Exception:
+            return None
+
     def process_triad(self, model_path: str, view_path: str, controller_path: str) -> tuple[bool, str]:
         """Scan Model, View, Controller, request code additions from LLM, and merge back."""
         paths = {

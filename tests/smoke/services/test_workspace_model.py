@@ -70,3 +70,32 @@ def test_workspace_model_generates_docs_and_changelog(monkeypatch, app_config):
     assert "app/sample.py" in docs_draft
     assert "## [1.2.3]" in changelog
     assert "Files considered: 1" in changelog
+
+
+def test_workspace_model_ai_docs_and_changelog_synthesis(monkeypatch, app_config):
+    manager = IndexManager(app_config)
+    service = WorkspaceModel(index_manager=manager)
+    monkeypatch.setattr(
+        service,
+        "collect_git_snapshot",
+        lambda commit_limit=5: {
+            "branch": "main",
+            "changed_files": [{"status": "M", "path": "app/sample.py", "area": "app"}],
+            "recent_commits": [{"subject": "Touch sample"}],
+        },
+    )
+
+    class MockAIService:
+        def generate_text(self, prompt, system_prompt=None, timeout=15.0):
+            if "documentation" in prompt.lower():
+                return "# AI Generated Documentation Update Draft\n\nAI Executive Summary."
+            return "## [2.0.0] - 2026-07-26\n\n### Added\n- AI Generated Changelog Entry."
+
+    monkeypatch.setattr("app.models.ai_generator.AIGenerationService", MockAIService)
+
+    docs_draft = service.generate_docs_draft(changed_only=True)
+    changelog = service.generate_changelog_draft(version_text="2.0.0", changed_only=True)
+
+    assert "AI Generated Documentation Update Draft" in docs_draft
+    assert "AI Generated Changelog Entry" in changelog
+

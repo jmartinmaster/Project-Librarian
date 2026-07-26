@@ -222,6 +222,7 @@ along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-07-08: Completed Phase 11 Task 5 by adding smoke coverage for controller seam delegation and explicit non-view-layer PyQt boundary enforcement.
 - 2026-07-08: Completed Phase 11 Task 6 phase gate with full smoke suite pass after MVC migration updates.
 - 2026-07-12: Added Phase 12 for updating README.md and active docs with new architecture/features, and implementing a searchable, themed in-app User Guide (shortcut F1).
+- 2026-07-26: Resolved MCP server 404 Not Found error by adding root / and /mcp probe landing routes, dual-mounting FastMCP HTTP app endpoints at / and /mcp, and reporting sse and messages endpoints in probe payload metadata.
 
 ## Out Of Scope (Initial Build)
 - REPL and CLI parity with legacy script

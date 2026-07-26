@@ -34,7 +34,7 @@ import libcst as cst
 import libcst.metadata as metadata
 import uvicorn
 from fastapi import FastAPI, Request, Response, HTTPException, Query, Header, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pycparser import c_ast, c_parser
 from mcp.server.fastmcp import FastMCP
 
@@ -391,6 +391,10 @@ def _build_probe_payload(host: str, port: int, token_required: bool) -> dict[str
             "cst": f"{base}/api/cst",
             "refresh": f"{base}/api/server/refresh",
             "shutdown": f"{base}/api/server/shutdown",
+            "sse": f"{base}/sse",
+            "mcp_sse": f"{base}/mcp/sse",
+            "messages": f"{base}/messages",
+            "mcp_messages": f"{base}/mcp/messages",
         },
         "auth": {"accepted": ["Authorization: Bearer <token>", f"{AUTH_HEADER_NAME}: <token>", "?token=<token>"]},
     }
@@ -578,6 +582,584 @@ def generate_triad_boilerplate(model_path: str, view_path: str, controller_path:
     return json.dumps({"success": ok, "message": msg})
 
 
+WEB_DASHBOARD_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Librarian - Web Dashboard & MCP Server</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --accent: #2f81f7;
+            --accent-hover: #58a6ff;
+            --success: #238636;
+            --success-glow: rgba(35, 134, 54, 0.4);
+            --danger: #da3633;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-code: 'Fira Code', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon { font-size: 28px; }
+
+        .brand-title {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-subtitle { font-size: 12px; color: var(--text-secondary); }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(35, 134, 54, 0.15);
+            border: 1px solid var(--success);
+            color: #3fb950;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #3fb950;
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success-glow);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(63, 185, 80, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 20px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"], select, input[type="number"], input[type="password"] {
+            background: #091117;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-family: var(--font-main);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus, select:focus, input[type="number"]:focus, input[type="password"]:focus {
+            border-color: var(--accent);
+        }
+
+        .input-query { flex: 1; }
+
+        button {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        button:hover { background: var(--accent-hover); }
+        button:active { transform: scale(0.98); }
+
+        button.btn-secondary {
+            background: #21262d;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        button.btn-secondary:hover { background: #30363d; }
+
+        .results-container {
+            max-height: 480px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #091117;
+        }
+
+        .result-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+
+        .result-item:last-child { border-bottom: none; }
+        .result-item:hover { background: rgba(47, 129, 247, 0.05); }
+
+        .result-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .result-path {
+            font-family: var(--font-code);
+            font-size: 13px;
+            color: var(--accent-hover);
+            font-weight: 500;
+        }
+
+        .tag {
+            background: #21262d;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .result-snippet {
+            font-family: var(--font-code);
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: #161b22;
+            padding: 8px;
+            border-radius: 6px;
+            margin-top: 6px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .meta-list { list-style: none; }
+
+        .meta-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        .meta-item:last-child { border-bottom: none; }
+        .meta-key { color: var(--text-secondary); }
+        .meta-val { font-family: var(--font-code); color: var(--text-primary); font-weight: 500; }
+
+        pre {
+            background: #091117;
+            border: 1px solid var(--border);
+            padding: 14px;
+            border-radius: 8px;
+            font-family: var(--font-code);
+            font-size: 12px;
+            color: var(--text-primary);
+            overflow-x: auto;
+            max-height: 350px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="brand">
+            <div class="brand-icon">📚</div>
+            <div>
+                <div class="brand-title">The Librarian</div>
+                <div class="brand-subtitle">In-Memory Search Browser & Local MCP Server</div>
+            </div>
+        </div>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            <span>MCP Server Active</span>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Indexed Files</div>
+            <div class="stat-value" id="stat-files">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Indexed Symbols</div>
+            <div class="stat-value" id="stat-symbols">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Excel Rows</div>
+            <div class="stat-value" id="stat-excel">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Skipped Files</div>
+            <div class="stat-value" id="stat-skipped">-</div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div>
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🔍 Search Snapshot</div>
+                </div>
+                <div class="search-box">
+                    <input type="text" id="search-query" class="input-query" placeholder="Enter search query (e.g. function name, class, keyword)...">
+                    <select id="search-scope">
+                        <option value="all">All Scopes</option>
+                        <option value="files">Files</option>
+                        <option value="symbols">Symbols</option>
+                        <option value="excel">Excel</option>
+                    </select>
+                    <input type="number" id="search-limit" value="20" min="1" max="200" style="width: 80px;">
+                    <button id="btn-search">Search</button>
+                </div>
+                <div class="results-container" id="search-results">
+                    <div style="padding: 24px; text-align: center; color: var(--text-muted);">
+                        Enter a query above to search the RAM-loaded corpus.
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🌳 AST / CST Inspector</div>
+                </div>
+                <div class="search-box">
+                    <input type="text" id="ast-path" class="input-query" placeholder="Relative file path (e.g. app/models/ai_generator.py)...">
+                    <button id="btn-ast" class="btn-secondary">Inspect AST/CST</button>
+                </div>
+                <pre id="ast-results">// Select a file to inspect AST and CST structure</pre>
+            </div>
+        </div>
+
+        <div>
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">⚙️ Server Status & Control</div>
+                </div>
+                <ul class="meta-list">
+                    <li class="meta-item">
+                        <span class="meta-key">Project Root</span>
+                        <span class="meta-val" id="meta-root">-</span>
+                    </li>
+                    <li class="meta-item">
+                        <span class="meta-key">Output Dir</span>
+                        <span class="meta-val" id="meta-output">-</span>
+                    </li>
+                    <li class="meta-item">
+                        <span class="meta-key">Last Refresh</span>
+                        <span class="meta-val" id="meta-last-refresh">-</span>
+                    </li>
+                    <li class="meta-item">
+                        <span class="meta-key">Worker Thread</span>
+                        <span class="meta-val" id="meta-worker">-</span>
+                    </li>
+                </ul>
+                <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+                    <button id="btn-refresh" class="btn-secondary" style="width: 100%;">🔄 Trigger Re-index</button>
+                    <button id="btn-probe" class="btn-secondary" style="width: 100%;">📡 Probe Endpoint JSON</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🔑 Access Control</div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <input type="password" id="auth-token" placeholder="Optional bearer access token...">
+                    <button id="btn-save-token" class="btn-secondary">Save Token Locally</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const elFiles = document.getElementById('stat-files');
+        const elSymbols = document.getElementById('stat-symbols');
+        const elExcel = document.getElementById('stat-excel');
+        const elSkipped = document.getElementById('stat-skipped');
+        const elRoot = document.getElementById('meta-root');
+        const elOutput = document.getElementById('meta-output');
+        const elLastRefresh = document.getElementById('meta-last-refresh');
+        const elWorker = document.getElementById('meta-worker');
+        const elTokenInput = document.getElementById('auth-token');
+        const elBtnSaveToken = document.getElementById('btn-save-token');
+        const elBtnSearch = document.getElementById('btn-search');
+        const elBtnRefresh = document.getElementById('btn-refresh');
+        const elBtnProbe = document.getElementById('btn-probe');
+        const elBtnAst = document.getElementById('btn-ast');
+        const elQueryInput = document.getElementById('search-query');
+        const elScopeSelect = document.getElementById('search-scope');
+        const elLimitInput = document.getElementById('search-limit');
+        const elResults = document.getElementById('search-results');
+        const elAstPath = document.getElementById('ast-path');
+        const elAstResults = document.getElementById('ast-results');
+
+        const storedToken = localStorage.getItem('mcp_auth_token') || '';
+        elTokenInput.value = storedToken;
+
+        elBtnSaveToken.addEventListener('click', () => {
+            localStorage.setItem('mcp_auth_token', elTokenInput.value.trim());
+            alert('Auth token saved locally for browser requests.');
+            loadStatus();
+        });
+
+        function getHeaders() {
+            const headers = { 'Accept': 'application/json' };
+            const token = elTokenInput.value.trim();
+            if (token) {
+                headers['Authorization'] = 'Bearer ' + token;
+            }
+            return headers;
+        }
+
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/status', { headers: getHeaders() });
+                if (res.status === 401) {
+                    elResults.innerHTML = '<div style="padding:16px; color:var(--danger)">Unauthorized. Please set token in Access Control panel.</div>';
+                    return;
+                }
+                const data = await res.json();
+                elFiles.textContent = data.file_count || 0;
+                elSymbols.textContent = data.symbol_count || 0;
+                elExcel.textContent = data.excel_row_count || 0;
+                elSkipped.textContent = data.skipped_count || 0;
+                elRoot.textContent = data.repo_root ? data.repo_root.split(/[\\\\/]/).pop() : '-';
+                elRoot.title = data.repo_root || '';
+                elOutput.textContent = data.output_dir || '-';
+                elLastRefresh.textContent = data.last_refresh_at ? new Date(data.last_refresh_at * 1000).toLocaleTimeString() : 'Never';
+                elWorker.textContent = data.worker_running ? 'Active (' + data.interval_seconds + 's)' : 'Inactive';
+            } catch (err) {
+                console.error('Status fetch error:', err);
+            }
+        }
+
+        async function triggerSearch() {
+            const query = elQueryInput.value.trim();
+            const scope = elScopeSelect.value;
+            const limit = parseInt(elLimitInput.value) || 20;
+
+            elResults.innerHTML = '<div style="padding:16px; color:var(--text-secondary)">Searching RAM corpus...</div>';
+
+            try {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ q: query, scope: scope, limit: limit })
+                });
+
+                if (res.status === 401) {
+                    elResults.innerHTML = '<div style="padding:16px; color:var(--danger)">Unauthorized. Verify auth token.</div>';
+                    return;
+                }
+
+                const data = await res.json();
+                if (!data.results || data.results.length === 0) {
+                    elResults.innerHTML = '<div style="padding:16px; color:var(--text-muted)">No matching records found.</div>';
+                    return;
+                }
+
+                elResults.innerHTML = '';
+                data.results.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+
+                    const meta = document.createElement('div');
+                    meta.className = 'result-meta';
+
+                    const pathSpan = document.createElement('span');
+                    pathSpan.className = 'result-path';
+                    pathSpan.textContent = item.path || 'Unknown';
+
+                    const tagSpan = document.createElement('span');
+                    tagSpan.className = 'tag';
+                    tagSpan.textContent = (item.type || 'file').toUpperCase();
+
+                    meta.appendChild(pathSpan);
+                    meta.appendChild(tagSpan);
+                    div.appendChild(meta);
+
+                    if (item.symbol) {
+                        const sym = document.createElement('div');
+                        sym.style.fontSize = '12px';
+                        sym.style.color = '#e3b341';
+                        sym.style.marginTop = '2px';
+                        sym.textContent = 'Symbol: ' + item.symbol + ' (' + (item.kind || 'definition') + ')';
+                        div.appendChild(sym);
+                    }
+
+                    if (item.matches && item.matches.length) {
+                        const snip = document.createElement('div');
+                        snip.className = 'result-snippet';
+                        snip.textContent = item.matches.join('\\n');
+                        div.appendChild(snip);
+                    }
+
+                    elResults.appendChild(div);
+                });
+            } catch (err) {
+                elResults.innerHTML = '<div style="padding:16px; color:var(--danger)">Search error: ' + err.message + '</div>';
+            }
+        }
+
+        elBtnSearch.addEventListener('click', triggerSearch);
+        elQueryInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') triggerSearch(); });
+
+        elBtnRefresh.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/server/refresh', { method: 'POST', headers: getHeaders() });
+                const data = await res.json();
+                if (data.ok) {
+                    alert('Re-indexing requested in background.');
+                    setTimeout(loadStatus, 1000);
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        });
+
+        elBtnProbe.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/mcp-probe', { headers: getHeaders() });
+                const data = await res.json();
+                elAstResults.textContent = JSON.stringify(data, null, 2);
+            } catch (err) {
+                elAstResults.textContent = 'Probe error: ' + err.message;
+            }
+        });
+
+        elBtnAst.addEventListener('click', async () => {
+            const relPath = elAstPath.value.trim();
+            if (!relPath) return alert('Enter a relative file path');
+            try {
+                const res = await fetch('/api/ast?path=' + encodeURIComponent(relPath), { headers: getHeaders() });
+                const data = await res.json();
+                elAstResults.textContent = JSON.stringify(data, null, 2);
+            } catch (err) {
+                elAstResults.textContent = 'AST error: ' + err.message;
+            }
+        });
+
+        loadStatus();
+    </script>
+</body>
+</html>
+"""
+
+
 # --- FastAPI Application ---
 
 fastapi_app = FastAPI()
@@ -612,8 +1194,14 @@ async def auth_and_cors_middleware(request: Request, call_next: Any) -> Response
     return response
 
 
+@fastapi_app.get("/")
+@fastapi_app.get("/mcp")
+@fastapi_app.get("/mcp/")
 @fastapi_app.get("/api/mcp-probe")
-async def get_probe(request: Request) -> dict[str, object]:
+async def get_probe(request: Request) -> Any:
+    accept = request.headers.get("accept", "").lower()
+    if request.url.path == "/" and ("text/html" in accept or "*/*" in accept and "json" not in accept):
+        return HTMLResponse(content=WEB_DASHBOARD_HTML)
     host = request.url.hostname or "127.0.0.1"
     port = request.url.port or 8765
     return _build_probe_payload(host=host, port=port, token_required=bool(auth_token))
@@ -800,11 +1388,18 @@ async def jsonrpc_endpoint(request: Request, payload: dict) -> dict[str, Any]:
 def run_mcp_server(repo_root: str, output_dir: str, host: str, port: int, auth_token_val: str = "", transport: str = "sse") -> None:
     """Run MCP server under specified transport."""
     global manager, auth_token
+    os.environ["THE_LIBRARIAN_IS_CHILD"] = "1"
+    os.environ["THE_LIBRARIAN_NO_SUPERVISOR"] = "1"
+    os.environ["THE_LIBRARIAN_MCP_SERVER"] = "1"
+    app_root = str(Path(__file__).resolve().parents[2])
+    pythonpath = os.environ.get("PYTHONPATH", "")
+    if app_root not in pythonpath:
+        os.environ["PYTHONPATH"] = f"{app_root}{os.pathsep}{pythonpath}" if pythonpath else app_root
+
     config = load_config()
     config.project_root = repo_root
     config.output_dir = output_dir
     manager = IndexManager(config=config)
-    manager.refresh()
 
     auth_token = auth_token_val.strip()
 
@@ -812,7 +1407,7 @@ def run_mcp_server(repo_root: str, output_dir: str, host: str, port: int, auth_t
     transport_lower = transport.strip().lower()
     if transport_lower in {"stdio"}:
         # Standard stdio mode
-        manager.start_refresh_worker(run_immediately=False)
+        manager.start_refresh_worker(run_immediately=True)
         try:
             mcp.run(transport="stdio")
         finally:
@@ -824,7 +1419,7 @@ def run_mcp_server(repo_root: str, output_dir: str, host: str, port: int, auth_t
 
         @asynccontextmanager
         async def lifespan(app: FastAPI):
-            manager.start_refresh_worker(run_immediately=False)
+            manager.start_refresh_worker(run_immediately=True)
             yield
             manager.stop_refresh_worker()
 
@@ -832,6 +1427,7 @@ def run_mcp_server(repo_root: str, output_dir: str, host: str, port: int, auth_t
 
         # Mount FastMCP HTTP endpoints
         fastapi_app.mount("/mcp", mcp_app)
+        fastapi_app.mount("/", mcp_app)
 
         uvicorn.run(fastapi_app, host=host, port=port, log_level="warning")
 

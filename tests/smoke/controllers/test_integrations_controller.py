@@ -62,6 +62,27 @@ def test_integrations_controller_mcp_lifecycle(app_config, monkeypatch):
     assert controller.stop_mcp_server() == (True, "Stopped")
 
 
+def test_mcp_server_manager_env_flags(app_config, monkeypatch):
+    mock_index_mgr = Mock()
+    mock_index_mgr.config = app_config
+    manager = MCPServerManager(mock_index_mgr)
+    captured_env = {}
+
+    def fake_popen(cmd, cwd, env, **kwargs):
+        nonlocal captured_env
+        captured_env = env
+        mock_proc = Mock()
+        mock_proc.poll.return_value = None
+        return mock_proc
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    ok, msg = manager.start()
+    assert ok is True
+    assert captured_env.get("THE_LIBRARIAN_IS_CHILD") == "1"
+    assert captured_env.get("THE_LIBRARIAN_NO_SUPERVISOR") == "1"
+    assert captured_env.get("THE_LIBRARIAN_MCP_SERVER") == "1"
+
+
 def test_integrations_controller_launch_mvc_editor(app_config, monkeypatch, tmp_path):
     manager = MCPServerManager(app_config)
     controller = IntegrationsController(config=app_config, mcp_manager=manager)
