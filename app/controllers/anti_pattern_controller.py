@@ -74,6 +74,66 @@ class AntiPatternController:
         """Persist anti-pattern presets."""
         save_anti_pattern_config(self.output_dir(), {"presets": presets})
 
+    def detect_workspace_language(self) -> str:
+        """Detect the predominant language in the active workspace corpus."""
+        corpus = self._index_manager.state.file_corpus
+        if getattr(self._index_manager.config, "micropython_mode", False):
+            return "MicroPython"
+
+        mcu_hits = 0
+        py_hits = 0
+        c_hits = 0
+
+        from app.models.micropython_model import is_micropython_module
+
+        for rel_path, file_text in corpus.items():
+            ext = Path(rel_path).suffix.lower()
+            if ext == ".py":
+                py_hits += 1
+                for line in file_text.splitlines()[:30]:
+                    stripped = line.strip()
+                    if stripped.startswith("import ") or stripped.startswith("from "):
+                        tokens = stripped.replace("from", " ").replace("import", " ").replace(",", " ").split()
+                        if any(is_micropython_module(t) for t in tokens):
+                            mcu_hits += 1
+                            break
+            elif ext in (".c", ".h", ".cpp", ".hpp", ".cc"):
+                c_hits += 1
+
+        if mcu_hits > 0:
+            return "MicroPython"
+        if py_hits > 0 and py_hits >= c_hits:
+            return "Python (Standard)"
+        if c_hits > 0:
+            return "C / C++"
+        return "Python (Standard)"
+
+    def detect_file_language(self, path: str, text: str = "") -> str:
+        """Detect language of a specific file."""
+        ext = Path(path).suffix.lower()
+        if ext == ".py":
+            if getattr(self._index_manager.config, "micropython_mode", False):
+                return "MicroPython"
+            from app.models.micropython_model import is_micropython_module
+            for line in text.splitlines()[:30]:
+                stripped = line.strip()
+                if stripped.startswith("import ") or stripped.startswith("from "):
+                    tokens = stripped.replace("from", " ").replace("import", " ").replace(",", " ").split()
+                    if any(is_micropython_module(t) for t in tokens):
+                        return "MicroPython"
+            return "Python"
+        elif ext in (".c", ".h", ".cpp", ".hpp", ".cc", ".cxx"):
+            return "C / C++"
+        elif ext == ".json":
+            return "JSON"
+        elif ext == ".md":
+            return "Markdown"
+        elif ext in (".csv", ".tsv"):
+            return "CSV"
+        elif ext in (".xlsx", ".xls"):
+            return "Excel"
+        return "Text"
+
     def run_scan(
         self,
         presets: list[dict[str, object]],
@@ -81,6 +141,7 @@ class AntiPatternController:
         filter_text: str,
         run_format_checks: bool = False,
         enabled_format_rules: dict[str, bool] | None = None,
+        language_mode: str = "auto",
     ) -> list[dict[str, object]]:
         """Run anti-pattern regex scan and formatting checks, and return matched records."""
         compiled: list[tuple[dict[str, object], re.Pattern[str]]] = []
@@ -122,7 +183,9 @@ class AntiPatternController:
                             )
 
             if run_format_checks:
-                file_results = FormatChecker.check_format(rel_path, file_text, enabled_format_rules)
+                file_results = FormatChecker.check_format(
+                    rel_path, file_text, enabled_format_rules, language_mode=language_mode
+                )
                 results.extend(file_results)
 
         results.sort(key=lambda x: (str(x.get("path", "")), int(x.get("line", 0))))

@@ -85,6 +85,14 @@ class DocumentModel(QObject):
         return self._connections
 
     # Set Triad Paths
+    def set_path(self, role: str, path: str):
+        self._triad_paths[role] = path
+        self.triad_changed.emit(
+            self._triad_paths.get("model") or "",
+            self._triad_paths.get("view") or "",
+            self._triad_paths.get("controller") or "",
+        )
+
     def set_triad_paths(self, model_path: str, view_path: str, controller_path: str):
         self._triad_paths['model'] = model_path
         self._triad_paths['view'] = view_path
@@ -135,9 +143,9 @@ class DocumentModel(QObject):
             self.outline_changed.emit(role, {})
             return True
 
-        use_cst = False
+        use_cst = True
         if self.config is not None:
-            use_cst = getattr(self.config, 'use_cst', False)
+            use_cst = getattr(self.config, 'use_cst', True)
 
         if use_cst and cst is not None:
             try:
@@ -158,12 +166,18 @@ class DocumentModel(QObject):
                         start_line = pos.start.line
                         end_line = pos.end.line
 
-                        if node.leading_lines:
+                        if hasattr(node, "decorators") and node.decorators:
+                            dec_pos = self.get_metadata(PositionProvider, node.decorators[0])
+                            start_line = min(start_line, dec_pos.start.line)
+
+                        if hasattr(node, "leading_lines") and node.leading_lines:
                             first_leading = node.leading_lines[0]
                             lpos = self.get_metadata(PositionProvider, first_leading)
                             start_line = min(start_line, lpos.start.line)
 
                         if hasattr(node, 'body') and isinstance(node.body, cst.IndentedBlock):
+                            bpos = self.get_metadata(PositionProvider, node.body)
+                            end_line = max(end_line, bpos.end.line)
                             if node.body.footer:
                                 last_footer = node.body.footer[-1]
                                 fpos = self.get_metadata(PositionProvider, last_footer)

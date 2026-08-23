@@ -27,10 +27,20 @@ class FormatChecker:
 
     @staticmethod
     def check_format(
-        path: str, content: str, enabled_rules: dict[str, bool] | None = None
+        path: str,
+        content: str,
+        enabled_rules: dict[str, bool] | None = None,
+        language_mode: str = "auto",
     ) -> list[dict[str, object]]:
-        """Run formatting checks based on file extension."""
+        """Run formatting checks based on file extension and selected language mode."""
+        lang = (language_mode or "auto").lower()
         ext = Path(path).suffix.lower()
+
+        if lang in ("python", "micropython", "python (standard)"):
+            return FormatChecker.check_python_format(path, content, enabled_rules)
+        elif lang in ("c", "c / c++", "cpp"):
+            return FormatChecker.check_c_format(path, content, enabled_rules)
+
         if ext == ".py":
             return FormatChecker.check_python_format(path, content, enabled_rules)
         elif ext in (".c", ".h", ".cpp", ".hpp", ".cc", ".cxx"):
@@ -282,8 +292,10 @@ class FormatChecker:
         line_idx: int,
         open_brackets: list[tuple[str, int]],
         clean_lines: dict[int, str],
+        lines: list[str] | None = None,
     ) -> bool:
-        """Determines if the line is a continuation of a C statement from a previous line."""
+        """Determines if the line is part of a multiline C statement/expression."""
+        # 1. Bracket-based continuation
         for char, open_line in open_brackets:
             if char in ("(", "["):
                 if open_line < line_idx:
@@ -296,6 +308,27 @@ class FormatChecker:
                             break
                     if not has_terminator:
                         return True
+
+        # 2. Operator-based continuation from previous non-empty line
+        prev_idx = line_idx - 1
+        while prev_idx >= 1:
+            prev_clean = clean_lines.get(prev_idx, "").strip()
+            if prev_clean:
+                # If previous line ended with an operator or comma or backslash
+                if prev_clean.endswith((
+                    ",", "\\", "|", "&", "+", "-", "*", "/", "%", "^", "~", "!", "=", "?", ":", "<", ">", "."
+                )):
+                    return True
+                break
+            prev_idx -= 1
+
+        # 3. Current line starts with an operator
+        curr_clean = clean_lines.get(line_idx, "").strip()
+        if curr_clean and curr_clean.startswith((
+            "|", "&", "+", "-", "*", "/", "%", "^", "?", ":", "->", ".", "||", "&&", "==", "!=", "<=", ">=", "<<", ">>", "=", ","
+        )):
+            return True
+
         return False
 
     @staticmethod
@@ -347,6 +380,15 @@ class FormatChecker:
         has_tabs = False
 
         consecutive_blank_lines = 0
+
+        # Pre-validate file syntax using Python/MicroPython AST
+        file_syntax_valid = False
+        try:
+            import ast
+            ast.parse(content)
+            file_syntax_valid = True
+        except Exception:
+            file_syntax_valid = False
 
         for line_idx, line in enumerate(lines, start=1):
             if line_idx in multiline_lines:
@@ -435,8 +477,8 @@ class FormatChecker:
                     }
                 )
 
-            # Check missing colons at end of python block headers
-            if line_idx not in multiline_lines:
+            # Check missing colons at end of python block headers (skip if AST verified syntax is 100% valid)
+            if not file_syntax_valid and line_idx not in multiline_lines:
                 clean_line = clean_lines.get(line_idx, "").strip()
                 if clean_line:
                     words = clean_line.split()
@@ -498,15 +540,15 @@ class FormatChecker:
                             if end_line_idx > len(lines):
                                 end_line_idx = len(lines)
                                 
-                            end_clean_line = clean_lines.get(end_line_idx, "").strip()
-                            if not end_clean_line.endswith(":"):
+                            stmt_clean = " ".join(clean_lines.get(idx, "") for idx in range(line_idx, end_line_idx + 1))
+                            if ":" not in stmt_clean:
                                 results.append(
                                     {
                                         "path": path,
                                         "line": line_idx,
                                         "match": clean_line.split()[0] if clean_line else "",
                                         "preset_name": "Formatting: Missing Colon",
-                                        "description": f"Block header starting with '{first_word}' is missing a trailing colon ':'",
+                                        "description": f"Block header starting with '{first_word}' is missing a colon ':'",
                                         "severity": "error",
                                         "content": line.strip(),
                                     }
@@ -645,15 +687,6 @@ class FormatChecker:
                 clean_line = clean_lines.get(line_idx, "").strip()
                 # Skip preprocessor directives
                 if clean_line and not line.strip().startswith("#"):
-                    # Semicolons are not required if line ends with:
-                    # - semicolon itself (;)
-                    # - open brace or close brace ({, })
-                    # - comma (,) indicating continuation
-                    # - backslash (\) indicating macro/line continuation
-                    # - colon (:) indicating label (case, default, public, etc.)
-                    # - or if bracket depth at end of line is > 0
-                    # Control flow headers are also skipped:
-                    # if, else, for, while, switch, do, struct, union, class, namespace, enum
                     words = clean_line.split()
                     if words:
                         first_word = words[0]
@@ -669,37 +702,65 @@ class FormatChecker:
                             "class",
                             "namespace",
                             "enum",
+                            "typedef",
+                            "case",
+                            "default",
+                            "extern",
                         )
                         if first_word not in control_flow:
                             open_types = line_bracket_types.get(line_idx, [])
-                            is_continuation = FormatChecker.is_c_continuation(line_idx, open_types, clean_lines)
+                            is_continuation = FormatChecker.is_c_continuation(line_idx, open_types, clean_lines, lines)
                             has_curr_bracket = any(t[0] in ("(", "[") and t[1] == line_idx for t in open_types)
-                            if not is_continuation and not has_curr_bracket:
-                                last_char = clean_line[-1]
-                                if last_char not in (";", "{", "}", ",", "\\", ":"):
-                                    # Peek next non-empty line to check if function header
-                                    is_func_header = False
-                                    next_idx = line_idx
-                                    while next_idx < len(lines):
-                                        next_line_stripped = lines[next_idx].strip()
-                                        if next_line_stripped:
-                                            if next_line_stripped.startswith("{"):
-                                                is_func_header = True
-                                            break
-                                        next_idx += 1
+                            
+                            # Check if the line itself ends with a continuation operator
+                            ends_with_op = clean_line.endswith((
+                                ";", "{", "}", ",", "\\", ":", "|", "&", "+", "-", "*", "/", "%", "^", "~", "!", "=", "?", "<", ">", "."
+                            ))
 
-                                    if not is_func_header:
-                                        results.append(
-                                            {
-                                                "path": path,
-                                                "line": line_idx,
-                                                "match": last_char,
-                                                "preset_name": "Formatting: Missing Semicolon",
-                                                "description": "Statement is missing a trailing semicolon ';'",
-                                                "severity": "error",
-                                                "content": line.strip(),
-                                            }
+                            if not is_continuation and not has_curr_bracket and not ends_with_op:
+                                # Look ahead to check if the next non-empty lines continue this statement and end in a semicolon
+                                is_multiline_stmt = False
+                                next_idx = line_idx + 1
+                                while next_idx <= len(lines):
+                                    next_clean = clean_lines.get(next_idx, "").strip()
+                                    if next_clean:
+                                        if next_clean.startswith("{"):
+                                            is_multiline_stmt = True
+                                            break
+                                        if next_clean.startswith((
+                                            "|", "&", "+", "-", "*", "/", "%", "^", "?", ":", "->", ".", "||", "&&", "==", "!=", "<=", ">=", "<<", ">>", "=", ","
+                                        )):
+                                            is_multiline_stmt = True
+                                            break
+
+                                        next_first = next_clean.split()[0]
+                                        c_statement_starters = (
+                                            "if", "else", "for", "while", "switch", "do", "return", "break", "continue", "goto",
+                                            "int", "char", "float", "double", "void", "bool", "uint8_t", "uint16_t", "uint32_t",
+                                            "uint64_t", "int8_t", "int16_t", "int32_t", "int64_t", "size_t", "struct", "enum", "union",
+                                            "class", "namespace", "typedef", "static", "const", "volatile", "unsigned", "signed",
+                                            "inline", "auto", "register", "extern"
                                         )
+                                        if next_first in c_statement_starters:
+                                            break
+                                        if ";" in next_clean:
+                                            is_multiline_stmt = True
+                                            break
+                                    next_idx += 1
+
+                                if not is_multiline_stmt:
+                                    last_char = clean_line[-1]
+                                    results.append(
+                                        {
+                                            "path": path,
+                                            "line": line_idx,
+                                            "match": last_char,
+                                            "preset_name": "Formatting: Missing Semicolon",
+                                            "description": "Statement is missing a trailing semicolon ';'",
+                                            "severity": "error",
+                                            "content": line.strip(),
+                                        }
+                                    )
 
         # Check overall mixed indentation across the file
         if has_spaces and has_tabs:

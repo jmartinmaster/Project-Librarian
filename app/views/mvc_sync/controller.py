@@ -138,6 +138,62 @@ class EditorController(QObject):
         initial_workspace = os.path.abspath(".")
         self.model.workspace_path = initial_workspace
 
+    def open_single_file(self, path: str):
+        """Open a single file directly into the primary editor pane without loading triads."""
+        if not path or not os.path.exists(path):
+            return
+
+        self._stop_triad_loader()
+        self.view.set_editor_mode("single")
+        
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception as e:
+            self.model.trigger_status_message(f"Error reading file: {e}")
+            return
+
+        self._is_loading = True
+        self.view.controller_pane.set_file_path(path, exists=True)
+        self.view.controller_pane.editor.setPlainText(content)
+        self.model.set_path("controller", path)
+        self.model.set_content("controller", content, mark_dirty=False)
+        self._is_loading = False
+
+        self.model.trigger_status_message(f"Opened {os.path.basename(path)}")
+        self.triad_loaded.emit()
+
+    def open_file(self, path: str, mode: str | None = None):
+        """
+        Opens a file in the editor according to the active mode ('single' or 'triad').
+        """
+        if mode:
+            self.editor_mode = mode
+
+        if not path or not os.path.exists(path):
+            return
+
+        if self.editor_mode in ("single", "single file"):
+            self.open_single_file(path)
+            return
+
+        # Set up triad pane visibility and badges
+        self.view.set_editor_mode("triad")
+        self.model.trigger_status_message("Loading…")
+
+        # Stop any previous in-flight loader before starting a new one.
+        self._stop_triad_loader()
+
+        self._triad_loader_thread = QThread()
+        self._triad_loader_worker = TriadLoaderWorker(path, self.find_mvc_triad)
+        self._triad_loader_worker.moveToThread(self._triad_loader_thread)
+        self._triad_loader_thread.started.connect(self._triad_loader_worker.run)
+        self._triad_loader_worker.triad_ready.connect(self._on_triad_loaded)
+        self._triad_loader_worker.triad_ready.connect(self._triad_loader_thread.quit)
+        self._triad_loader_worker.triad_ready.connect(self._triad_loader_worker.deleteLater)
+        self._triad_loader_thread.finished.connect(self._triad_loader_thread.deleteLater)
+        self._triad_loader_thread.start()
+
     def on_editor_lost_focus(self, raw_text: str):
         """
         Triggered when clicking away from the editor area.
@@ -167,46 +223,6 @@ class EditorController(QObject):
         dir_path = QFileDialog.getExistingDirectory(self.view, "Select Project Folder", self.model.workspace_path or "", options=QFileDialog.Option.DontUseNativeDialog)
         if dir_path:
             self.model.workspace_path = dir_path
-
-    def open_file(self, path: str):
-        """
-        Opens a file in the MVC editor. The clicked file is shown immediately;
-        triad sibling discovery and connection analysis run in a background thread
-        so the main thread (and UI) stay responsive.
-        """
-        if not path or not os.path.exists(path):
-            return
-
-        # Set up pane visibility and badges instantly — no blocking work here.
-        self.view.model_pane.show()
-        self.view.view_pane.show()
-        self.view.controller_pane.show()
-        self.view.model_pane.badge.setText("MODEL")
-        self.view.model_pane.badge.setStyleSheet(
-            "background-color: #a6e3a1; color: #11111b; font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.view.view_pane.badge.setText("VIEW")
-        self.view.view_pane.badge.setStyleSheet(
-            "background-color: #f5c2e7; color: #11111b; font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.view.controller_pane.badge.setText("CONTROLLER")
-        self.view.controller_pane.badge.setStyleSheet(
-            "background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.model.trigger_status_message("Loading…")
-
-        # Stop any previous in-flight loader before starting a new one.
-        self._stop_triad_loader()
-
-        self._triad_loader_thread = QThread()
-        self._triad_loader_worker = TriadLoaderWorker(path, self.find_mvc_triad)
-        self._triad_loader_worker.moveToThread(self._triad_loader_thread)
-        self._triad_loader_thread.started.connect(self._triad_loader_worker.run)
-        self._triad_loader_worker.triad_ready.connect(self._on_triad_loaded)
-        self._triad_loader_worker.triad_ready.connect(self._triad_loader_thread.quit)
-        self._triad_loader_worker.triad_ready.connect(self._triad_loader_worker.deleteLater)
-        self._triad_loader_thread.finished.connect(self._triad_loader_thread.deleteLater)
-        self._triad_loader_thread.start()
 
     def _stop_triad_loader(self) -> None:
         """Gracefully stop any running triad-loader thread."""
@@ -602,7 +618,7 @@ class EditorController(QObject):
                 f.write(controller_content)
 
             self.model.trigger_status_message(f"Created new MVC triad: {camel_name}")
-            self.open_file(c_path)
+            self.open_file(c_path, mode="triad")
         except Exception as e:
             self.model.trigger_status_message(f"Error creating MVC triad: {str(e)}")
 

@@ -83,6 +83,10 @@ class SettingsView(QDialog):
 
         self.project_root_edit.setText(config.project_root)
         self.output_dir_edit.setText(config.output_dir)
+        self.micropython_mode_check.setChecked(bool(getattr(config, "micropython_mode", False)))
+        self.micropython_live_code_check.setChecked(bool(getattr(config, "micropython_live_code", False)))
+        self.micropython_port_edit.setText(getattr(config, "micropython_port", "auto") or "auto")
+        self.micropython_runner_edit.setText(getattr(config, "micropython_runner_cmd", "mpremote") or "mpremote")
         for ext in config.file_extensions:
             self.extensions_list.addItem(QListWidgetItem(ext))
 
@@ -135,6 +139,27 @@ class SettingsView(QDialog):
         cores = os.cpu_count() or 4
         self.thread_count_spin.setToolTip(f"Set indexing thread count. Recommended: do not exceed system cores ({cores}).")
         self.generalForm.addRow(f"Indexing Thread Count (System Cores: {cores}):", self.thread_count_spin)
+
+        # MicroPython settings
+        self.micropython_mode_check = QCheckBox("Enable MicroPython Workspace Mode", self)
+        self.micropython_mode_check.setObjectName("micropythonModeCheck")
+        self.micropython_mode_check.setToolTip("Optimizes indexing for MicroPython codebases and enables hardware tools.")
+        self.generalForm.addRow("MicroPython Mode:", self.micropython_mode_check)
+
+        self.micropython_live_code_check = QCheckBox("Enable Live Code Execution (Safety Guard)", self)
+        self.micropython_live_code_check.setObjectName("micropythonLiveCodeCheck")
+        self.micropython_live_code_check.setToolTip("When checked, permits uploading and executing code on connected microcontrollers.")
+        self.generalForm.addRow("Live Code Guard:", self.micropython_live_code_check)
+
+        self.micropython_port_edit = QLineEdit(self)
+        self.micropython_port_edit.setObjectName("micropythonPortEdit")
+        self.micropython_port_edit.setPlaceholderText("auto or /dev/ttyACM0 or COM3")
+        self.generalForm.addRow("MCU Device Port:", self.micropython_port_edit)
+
+        self.micropython_runner_edit = QLineEdit(self)
+        self.micropython_runner_edit.setObjectName("micropythonRunnerEdit")
+        self.micropython_runner_edit.setPlaceholderText("mpremote")
+        self.generalForm.addRow("MCU Runner Command:", self.micropython_runner_edit)
 
         self._button_box = self._require_widget(QDialogButtonBox, "buttonBox")
         self._project_root_browse_button = self._require_widget(QPushButton, "projectRootBrowseButton")
@@ -215,6 +240,10 @@ class SettingsView(QDialog):
         ]
         self.config.external_editor_cmd = self.external_editor_edit.text().strip()
         self.config.indexing_thread_count = int(self.thread_count_spin.value())
+        self.config.micropython_mode = self.micropython_mode_check.isChecked()
+        self.config.micropython_live_code = self.micropython_live_code_check.isChecked()
+        self.config.micropython_port = self.micropython_port_edit.text().strip() or "auto"
+        self.config.micropython_runner_cmd = self.micropython_runner_edit.text().strip() or "mpremote"
 
         self._controller.persist_config(self.config)
         self.accept()

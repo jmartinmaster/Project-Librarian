@@ -46,6 +46,18 @@ def _record_skip(skipped_files: list[dict[str, str]] | None, path: Path, repo_ro
     skipped_files.append({"path": rel_path, "stage": "python_symbols", "reason": reason})
 
 
+def _decorator_text_ast(node: ast.expr) -> str:
+    """Return normalized string representation for an AST decorator node."""
+    try:
+        return ast.unparse(node).strip()
+    except Exception:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            return f"{_decorator_text_ast(node.value)}.{node.attr}"
+        return ""
+
+
 def _module_symbols(
     path: Path,
     repo_root: Path,
@@ -66,6 +78,7 @@ def _module_symbols(
 
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
+            class_decorators = [_decorator_text_ast(d) for d in getattr(node, "decorator_list", []) if _decorator_text_ast(d)]
             symbols.append(
                 {
                     "name": node.name,
@@ -75,11 +88,13 @@ def _module_symbols(
                     "path": relative_path,
                     "signature": node.name,
                     "doc_summary": (ast.get_docstring(node) or "").splitlines()[0:1][0] if ast.get_docstring(node) else "",
+                    "decorators": class_decorators,
                 }
             )
             for class_node in node.body:
                 if isinstance(class_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     qn = f"{node.name}.{class_node.name}"
+                    func_decorators = [_decorator_text_ast(d) for d in getattr(class_node, "decorator_list", []) if _decorator_text_ast(d)]
                     symbols.append(
                         {
                             "name": class_node.name,
@@ -91,9 +106,11 @@ def _module_symbols(
                             "doc_summary": (ast.get_docstring(class_node) or "").splitlines()[0:1][0]
                             if ast.get_docstring(class_node)
                             else "",
+                            "decorators": func_decorators,
                         }
                     )
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            func_decorators = [_decorator_text_ast(d) for d in getattr(node, "decorator_list", []) if _decorator_text_ast(d)]
             symbols.append(
                 {
                     "name": node.name,
@@ -103,6 +120,7 @@ def _module_symbols(
                     "path": relative_path,
                     "signature": _function_signature(node),
                     "doc_summary": (ast.get_docstring(node) or "").splitlines()[0:1][0] if ast.get_docstring(node) else "",
+                    "decorators": func_decorators,
                 }
             )
     return symbols
@@ -110,6 +128,29 @@ def _module_symbols(
 
 _BaseVisitor = cst.CSTVisitor if cst is not None else object
 _PositionProvider = PositionProvider if PositionProvider is not None else object
+
+
+def _cst_decorator_name(node: cst.Decorator) -> str:
+    """Extract decorator name text from a libcst Decorator node."""
+    try:
+        import libcst as cst_mod
+        dec_expr = node.decorator
+        if isinstance(dec_expr, cst_mod.Call):
+            dec_expr = dec_expr.func
+        if isinstance(dec_expr, cst_mod.Name):
+            return dec_expr.value
+        if isinstance(dec_expr, cst_mod.Attribute):
+            parts = []
+            curr = dec_expr
+            while isinstance(curr, cst_mod.Attribute):
+                parts.append(curr.attr.value)
+                curr = curr.value
+            if isinstance(curr, cst_mod.Name):
+                parts.append(curr.value)
+            return ".".join(reversed(parts))
+    except Exception:
+        pass
+    return ""
 
 
 class _CSTSymbolVisitor(_BaseVisitor):
@@ -125,15 +166,25 @@ class _CSTSymbolVisitor(_BaseVisitor):
         pos = self.get_metadata(PositionProvider, node)
         docstring = node.get_docstring() or ""
         doc_summary = docstring.strip().splitlines()[0].strip() if docstring else ""
+        decorators = [_cst_decorator_name(d) for d in getattr(node, "decorators", []) if _cst_decorator_name(d)]
+        start_line = pos.start.line
+        if node.decorators:
+            try:
+                dec_pos = self.get_metadata(PositionProvider, node.decorators[0])
+                start_line = min(start_line, dec_pos.start.line)
+            except Exception:
+                pass
         self.symbols.append(
             {
                 "name": node.name.value,
                 "qualified_name": node.name.value,
                 "kind": "class",
-                "line": pos.start.line,
+                "line": start_line,
+                "end_line": pos.end.line,
                 "path": self.relative_path,
                 "signature": node.name.value,
                 "doc_summary": doc_summary,
+                "decorators": decorators,
             }
         )
         self.current_class = node.name.value
@@ -159,15 +210,25 @@ class _CSTSymbolVisitor(_BaseVisitor):
             kind = "function"
             qualified_name = node.name.value
 
+        decorators = [_cst_decorator_name(d) for d in getattr(node, "decorators", []) if _cst_decorator_name(d)]
+        start_line = pos.start.line
+        if node.decorators:
+            try:
+                dec_pos = self.get_metadata(PositionProvider, node.decorators[0])
+                start_line = min(start_line, dec_pos.start.line)
+            except Exception:
+                pass
         self.symbols.append(
             {
                 "name": node.name.value,
                 "qualified_name": qualified_name,
                 "kind": kind,
-                "line": pos.start.line,
+                "line": start_line,
+                "end_line": pos.end.line,
                 "path": self.relative_path,
                 "signature": sig,
                 "doc_summary": doc_summary,
+                "decorators": decorators,
             }
         )
         return False

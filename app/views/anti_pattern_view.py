@@ -42,6 +42,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -65,6 +66,7 @@ class ScanWorker(QThread):
         filter_text: str,
         run_format_checks: bool,
         enabled_format_rules: dict[str, bool] | None = None,
+        language_mode: str = "auto",
     ) -> None:
         super().__init__()
         self.controller = controller
@@ -73,6 +75,7 @@ class ScanWorker(QThread):
         self.filter_text = filter_text
         self.run_format_checks = run_format_checks
         self.enabled_format_rules = enabled_format_rules
+        self.language_mode = language_mode
 
     def run(self) -> None:
         try:
@@ -82,6 +85,7 @@ class ScanWorker(QThread):
                 filter_text=self.filter_text,
                 run_format_checks=self.run_format_checks,
                 enabled_format_rules=self.enabled_format_rules,
+                language_mode=self.language_mode,
             )
             self.finished_signal.emit(results)
         except Exception as e:
@@ -168,6 +172,7 @@ class PresetDialog(QDialog):
 
 class AntiPatternView(QWidget):
     """Widget for managing and running regex code anti-pattern audits."""
+    create_note_requested = pyqtSignal(str, int, str, str, str, str)  # file, line, symbol, source, title, snippet
 
     def __init__(
         self,
@@ -290,6 +295,64 @@ class AntiPatternView(QWidget):
             
             presets_layout.insertLayout(presets_layout.count() - 1, format_layout)
 
+        # Results Header: Language Aware Selector & Notice Bar
+        results_splitter = self.findChild(QSplitter, "resultsSplitter")
+        if results_splitter is not None:
+            results_container = QWidget(self)
+            results_container.setObjectName("resultsContainer")
+            results_container_layout = QVBoxLayout(results_container)
+            results_container_layout.setContentsMargins(0, 0, 0, 0)
+            results_container_layout.setSpacing(6)
+
+            lang_banner = QWidget(results_container)
+            lang_banner.setObjectName("languageBanner")
+            lang_banner_layout = QHBoxLayout(lang_banner)
+            lang_banner_layout.setContentsMargins(4, 2, 4, 4)
+            lang_banner_layout.setSpacing(8)
+
+            lang_label = QLabel("Target Language:", lang_banner)
+            lang_label.setStyleSheet("font-weight: bold; color: #24292f;")
+
+            self.language_combo = QComboBox(lang_banner)
+            self.language_combo.setObjectName("languageCombo")
+            self.language_combo.addItems([
+                "Auto-Detect",
+                "MicroPython",
+                "Python (Standard)",
+                "C / C++",
+                "All Languages",
+            ])
+            self.language_combo.setToolTip("Target language syntax mode for anti-pattern rules and format checks")
+            self.language_combo.currentTextChanged.connect(self._on_language_changed)
+
+            self.language_badge = QLabel("Detected: Auto", lang_banner)
+            self.language_badge.setObjectName("languageBadge")
+            self.language_badge.setStyleSheet("""
+                background-color: #ddf4ff;
+                color: #0969da;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 4px;
+                border: 1px solid #b6e3ff;
+            """)
+
+            lang_banner_layout.addWidget(lang_label)
+            lang_banner_layout.addWidget(self.language_combo)
+            lang_banner_layout.addWidget(self.language_badge)
+            lang_banner_layout.addStretch(1)
+
+            results_container_layout.addWidget(lang_banner)
+
+            # Move results_table into results_container and replace in splitter
+            results_splitter.replaceWidget(0, results_container)
+            results_container_layout.addWidget(self.results_table)
+        else:
+            self.language_combo = None
+            self.language_badge = None
+
+        self.update_detected_language()
+
     def show_format_settings(self) -> None:
         dlg = FormatSettingsDialog(self, enabled_rules=self.enabled_format_rules)
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -370,6 +433,22 @@ class AntiPatternView(QWidget):
             self.save_presets()
             self.load_presets()
 
+    def _on_language_changed(self, text: str) -> None:
+        self.update_detected_language()
+        self.run_scan()
+
+    def update_detected_language(self) -> None:
+        if not hasattr(self, "language_badge") or self.language_badge is None:
+            return
+        detected = self._controller.detect_workspace_language()
+        combo_val = self.language_combo.currentText() if self.language_combo else "Auto-Detect"
+        if combo_val == "Auto-Detect":
+            self.language_badge.setText(f"Detected: {detected}")
+            self.language_badge.setStyleSheet("background-color: #ddf4ff; color: #0969da; font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid #b6e3ff;")
+        else:
+            self.language_badge.setText(f"Override: {combo_val} (Auto-detected: {detected})")
+            self.language_badge.setStyleSheet("background-color: #fff8c5; color: #9a6700; font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid #d4a72c;")
+
     def run_scan(self) -> None:
         """Run regex anti-patterns scan over loaded file_corpus in a background thread."""
         self.save_presets()
@@ -385,6 +464,7 @@ class AntiPatternView(QWidget):
 
         scope = self.scope_combo.currentText()
         filter_text = self.path_filter.text().strip().lower()
+        language_mode = self.language_combo.currentText() if getattr(self, "language_combo", None) else "Auto-Detect"
 
         # Disable UI controls during scan
         self.scan_button.setEnabled(False)
@@ -394,6 +474,8 @@ class AntiPatternView(QWidget):
         self.deleteButton.setEnabled(False)
         self.scope_combo.setEnabled(False)
         self.path_filter.setEnabled(False)
+        if getattr(self, "language_combo", None) is not None:
+            self.language_combo.setEnabled(False)
         if self.format_check_checkbox is not None:
             self.format_check_checkbox.setEnabled(False)
         if self.format_settings_btn is not None:
@@ -407,6 +489,7 @@ class AntiPatternView(QWidget):
             filter_text=filter_text,
             run_format_checks=run_format_checks,
             enabled_format_rules=self.enabled_format_rules,
+            language_mode=language_mode,
         )
         self._scan_thread.finished_signal.connect(self._on_scan_finished)
         self._scan_thread.error_signal.connect(self._on_scan_failed)
@@ -421,6 +504,8 @@ class AntiPatternView(QWidget):
         self.deleteButton.setEnabled(True)
         self.scope_combo.setEnabled(True)
         self.path_filter.setEnabled(True)
+        if getattr(self, "language_combo", None) is not None:
+            self.language_combo.setEnabled(True)
         if self.format_check_checkbox is not None:
             self.format_check_checkbox.setEnabled(True)
         if self.format_settings_btn is not None:
@@ -465,6 +550,8 @@ class AntiPatternView(QWidget):
         self.deleteButton.setEnabled(True)
         self.scope_combo.setEnabled(True)
         self.path_filter.setEnabled(True)
+        if getattr(self, "language_combo", None) is not None:
+            self.language_combo.setEnabled(True)
         if self.format_check_checkbox is not None:
             self.format_check_checkbox.setEnabled(True)
         if self.format_settings_btn is not None:
@@ -478,7 +565,18 @@ class AntiPatternView(QWidget):
             return
         row = selected[0].row()
         if 0 <= row < len(self._last_results):
-            self._render_result(self._last_results[row])
+            result = self._last_results[row]
+            file_path = str(result.get("path", ""))
+            file_content = str(result.get("content", ""))
+            file_lang = self._controller.detect_file_language(file_path, file_content)
+            ws_lang = self._controller.detect_workspace_language()
+            combo_val = self.language_combo.currentText() if getattr(self, "language_combo", None) else "Auto-Detect"
+            if getattr(self, "language_badge", None) is not None:
+                if combo_val == "Auto-Detect":
+                    self.language_badge.setText(f"File Language: {file_lang} | Workspace: {ws_lang}")
+                else:
+                    self.language_badge.setText(f"File Language: {file_lang} | Override: {combo_val}")
+            self._render_result(result)
 
     def _on_result_double_clicked(self, row: int, _col: int) -> None:
         if 0 <= row < len(self._last_results):
@@ -486,41 +584,37 @@ class AntiPatternView(QWidget):
 
     def _on_results_context_menu(self, position: QPoint) -> None:
         row = self.results_table.rowAt(position.y())
-        has_selection = (0 <= row < len(self._last_results))
-
-        menu = QMenu(self)
-        open_action = None
-        copy_path_action = None
-        copy_ref_action = None
-
-        if has_selection:
-            self.results_table.selectRow(row)
-            result = self._last_results[row]
-            path_text = str(result.get("path", "")).strip()
-
-            open_action = menu.addAction("Open File")
-            copy_path_action = menu.addAction("Copy Path")
-            copy_ref_action = menu.addAction("Copy Reference Location")
-            menu.addSeparator()
-
-        export_csv_action = menu.addAction("Export All Results to CSV...")
-        export_csv_action.setEnabled(len(self._last_results) > 0)
-
-        selected = menu.exec(self.results_table.viewport().mapToGlobal(position))
-        if not selected:
+        if row < 0 or row >= len(self._last_results):
             return
 
-        if selected == open_action and has_selection:
-            self._open_result_file(result)
-        elif selected == copy_path_action and has_selection:
-            folder_path = self._controller.containing_folder_path(path_text)
-            if folder_path:
-                QApplication.clipboard().setText(folder_path)
-        elif selected == copy_ref_action and has_selection:
-            line_str = str(result.get("line", ""))
-            QApplication.clipboard().setText(self._controller.reference_location(path_text=path_text, line_text=line_str))
-        elif selected == export_csv_action:
-            self.export_results_to_csv()
+        from app.views.context_menu_builder import ContextMenuBuilder, ItemContext, ContextMenuCallbacks
+
+        self.results_table.selectRow(row)
+        result = self._last_results[row]
+        path_text = str(result.get("path", "")).strip()
+        line_raw = result.get("line")
+        line = int(line_raw) if line_raw is not None and str(line_raw).isdigit() else None
+        sym = str(result.get("preset_name", "")).strip()
+        content = str(result.get("content", ""))
+
+        ctx = ItemContext(
+            path=path_text,
+            line=line,
+            symbol=sym,
+            source="Code Audit",
+            title=f"Audit Fix: {sym} in {Path(path_text).name}",
+            snippet=content,
+            extra_actions=[
+                ("Export All Results to CSV...", self.export_results_to_csv)
+            ] if len(self._last_results) > 0 else [],
+        )
+
+        callbacks = ContextMenuCallbacks(
+            open_file=lambda p, l: self._open_result_file(result),
+            create_note=lambda p, l, s, src, t, snip: self.create_note_requested.emit(p, l, s, src, t, snip),
+        )
+
+        ContextMenuBuilder.exec_menu(self, self.results_table.viewport().mapToGlobal(position), ctx, callbacks)
 
     def export_results_to_csv(self) -> None:
         """Prompt user for a file location and export all scan results to CSV."""

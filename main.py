@@ -141,6 +141,7 @@ def _show_rebuild_dialog(app: QApplication, manager: IndexManager) -> None:
 
     thread.start()
     dialog.exec()
+    thread.wait()
 
 
 def main() -> int:

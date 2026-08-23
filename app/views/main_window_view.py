@@ -51,6 +51,8 @@ from app.views.search_view import SearchView
 from app.views.settings_view import SettingsView
 from app.views.anti_pattern_view import AntiPatternView
 from app.views.diagnostics_view import DiagnosticsView
+from app.views.call_graph_view import CallGraphView
+from app.views.notes_view import NotesView
 from app.views.mvc_editor_tab import MVCEditorTab
 from app.views.workspace_view import WorkspaceView
 from app.views.integrations_view import IntegrationsView
@@ -182,6 +184,10 @@ class MainWindowView(QMainWindow):
             open_file_callback=self._open_in_mvc_editor,
         )
         self.diagnostics_view = DiagnosticsView(index_manager=self.index_manager)
+        self.call_graph_view = CallGraphView(index_manager=self.index_manager)
+        self.call_graph_view.jump_requested.connect(self._open_in_mvc_editor)
+        self.notes_view = NotesView(project_root=self.index_manager.config.project_root, parent=self)
+        self.notes_view.jump_requested.connect(self._open_in_mvc_editor)
         self.mvc_editor_tab = MVCEditorTab(
             workspace_root=self.index_manager.config.project_root,
             index_manager=self.index_manager,
@@ -192,6 +198,14 @@ class MainWindowView(QMainWindow):
             mcp_manager=self.mcp_server_manager,
             on_project_root_changed=self._on_project_root_changed,
         )
+
+        # Wire right-click note creation across all indexed browse views
+        self.search_view.create_note_requested.connect(self._on_subview_create_note)
+        self.excel_view.create_note_requested.connect(self._on_subview_create_note)
+        self.anti_pattern_view.create_note_requested.connect(self._on_subview_create_note)
+        self.call_graph_view.create_note_requested.connect(self._on_subview_create_note)
+        self.mvc_editor_tab.create_note_requested.connect(self._on_subview_create_note)
+
         self._load_ui()
         self._build_ui()
         self._build_menu()
@@ -222,7 +236,9 @@ class MainWindowView(QMainWindow):
         self._tabs.addTab(self.excel_view, "Excel Library")
         self._tabs.addTab(self.anti_pattern_view, "Code Audit")
         self._tabs.addTab(self.diagnostics_view, "Diagnostics")
-        self._tabs.addTab(self.mvc_editor_tab, "MVC Editor")
+        self._tabs.addTab(self.call_graph_view, "Call Graph")
+        self._tabs.addTab(self.notes_view, "Notes")
+        self._tabs.addTab(self.mvc_editor_tab, "Editor")
         self._tabs.addTab(self.workspace_view, "Workspace Tools")
         self._tabs.addTab(self.integrations_view, "Integrations")
         self.setCentralWidget(self._tabs)
@@ -286,16 +302,20 @@ class MainWindowView(QMainWindow):
             self._action_open_workspace.setShortcut("Ctrl+O")
             self._action_open_workspace.triggered.connect(self._open_workspace_dialog)
             file_menu.addAction(self._action_open_workspace)
-            
-            # 2. Save Files
+
+            # 2. Recent Projects
+            self._recent_menu = file_menu.addMenu("Open Recent Project")
+            self._populate_recent_projects_menu()
+
+            # 3. Save Files
             self._action_save_files = QAction("Save Files", self)
             self._action_save_files.setShortcut("Ctrl+S")
             self._action_save_files.triggered.connect(self._save_files)
             file_menu.addAction(self._action_save_files)
-            
+
             file_menu.addSeparator()
-            
-            # 3. Refresh Index
+
+            # 4. Refresh Index
             file_menu.addAction(self._action_refresh_index)
             
             file_menu.addSeparator()
@@ -312,6 +332,42 @@ class MainWindowView(QMainWindow):
         self._action_auto_refresh.triggered.connect(self._toggle_auto_refresh)
         self._settings_menu.addSeparator()
         self._settings_menu.addAction(self._action_auto_refresh)
+
+        # Build View menu with Sidebar toggle and tab shortcuts
+        view_menu = self.findChild(QMenu, "menuView")
+        if view_menu is None:
+            view_menu = QMenu("View", self)
+            self.menuBar().insertMenu(self._settings_menu.menuAction(), view_menu)
+
+        view_menu.clear()
+
+        # 1. Toggle Library Sidebar (Ctrl+B)
+        self._action_toggle_sidebar = QAction("Show Indexed Library Sidebar", self)
+        self._action_toggle_sidebar.setShortcut("Ctrl+B")
+        self._action_toggle_sidebar.setCheckable(True)
+        self._action_toggle_sidebar.setChecked(not self._library_dock.isHidden())
+        self._action_toggle_sidebar.triggered.connect(self._toggle_library_dock)
+        view_menu.addAction(self._action_toggle_sidebar)
+        self._library_dock.visibilityChanged.connect(self._action_toggle_sidebar.setChecked)
+
+        view_menu.addSeparator()
+
+        # 2. Tab Navigation Actions (Ctrl+1 .. Ctrl+9)
+        for idx in range(self._tabs.count()):
+            t_name = self._tabs.tabText(idx)
+            t_act = QAction(f"Show {t_name}", self)
+            if idx < 9:
+                t_act.setShortcut(f"Ctrl+{idx+1}")
+            t_act.triggered.connect(lambda checked, i=idx: self._tabs.setCurrentIndex(i))
+            view_menu.addAction(t_act)
+
+    def _toggle_library_dock(self, checked: bool) -> None:
+        """Show or hide the Indexed Library sidebar dock."""
+        if checked:
+            self._library_dock.show()
+            self._library_dock.raise_()
+        else:
+            self._library_dock.hide()
 
     def _open_workspace_dialog(self) -> None:
         """Prompt user for a folder to set as the active project root workspace."""
@@ -584,44 +640,56 @@ class MainWindowView(QMainWindow):
             )
 
     def _on_library_context_menu(self, position: QPoint) -> None:
-        """Show context menu with open/copy actions for selected library item."""
+        """Show unified context menu with open/copy/note actions for selected library item."""
         item = self._library_tree.itemAt(position)
         if item is None:
             return
         payload = item.data(0, Qt.ItemDataRole.UserRole)
+        if not isinstance(payload, dict):
+            return
+
+        from app.views.context_menu_builder import ContextMenuBuilder, ItemContext, ContextMenuCallbacks
+
         path_text = self._payload_path(payload)
-        reference = self._payload_reference(payload)
+        kind = str(payload.get("kind", ""))
+        name = str(payload.get("name", ""))
+        line = int(payload.get("line", 1)) if str(payload.get("line", "")).isdigit() else 1
 
-        menu = QMenu(self)
-        open_action = menu.addAction("Open in MVC Editor")
-        open_external_action = menu.addAction("Open Externally")
-        menu.addSeparator()
-        copy_path_action = menu.addAction("Copy Path")
-        copy_reference_action = menu.addAction("Copy Reference Location")
-        menu.setDefaultAction(copy_path_action)
+        ctx = ItemContext(
+            path=path_text,
+            line=line if kind == "symbol" else None,
+            symbol=name if kind == "symbol" else "",
+            source="Indexed Library",
+            title=f"Note: {name or Path(path_text).name}:{line}",
+        )
 
-        if not path_text:
-            open_action.setEnabled(False)
-            open_external_action.setEnabled(False)
-            copy_path_action.setEnabled(False)
-            copy_reference_action.setEnabled(False)
+        callbacks = ContextMenuCallbacks(
+            open_file=lambda p, l: self._open_path(p),
+            open_external=lambda p: self._open_path_external(p),
+            create_note=self.create_note_for,
+            trace_symbol=lambda s: (self._tabs.setCurrentWidget(self.call_graph_view), self.call_graph_view.trace_symbol(s)),
+        )
 
-        selected = menu.exec(self._library_tree.viewport().mapToGlobal(position))
-        if selected is None:
-            return
-        if selected == open_action:
-            self._open_path(path_text)
-            return
-        if selected == open_external_action:
-            self._open_path_external(path_text)
-            return
-        if selected == copy_path_action and path_text:
-            folder_path = self._path_controller.containing_folder_path(path_text)
-            if folder_path:
-                QApplication.clipboard().setText(folder_path)
-            return
-        if selected == copy_reference_action and reference:
-            QApplication.clipboard().setText(reference)
+        ContextMenuBuilder.exec_menu(self, self._library_tree.viewport().mapToGlobal(position), ctx, callbacks)
+
+    def _on_subview_create_note(
+        self,
+        target_file: str,
+        line: int,
+        symbol: str,
+        source: str,
+        title: str,
+        snippet: str,
+    ) -> None:
+        """Route cross-component note creation signals to the active NotesView tab."""
+        self.create_note_for(
+            target_file=target_file,
+            line=line,
+            symbol=symbol,
+            source=source,
+            title=title,
+            snippet=snippet,
+        )
 
     def _payload_path(self, payload: object) -> str:
         """Extract a best-effort path from tree payload metadata."""
@@ -670,12 +738,70 @@ class MainWindowView(QMainWindow):
             self._action_auto_refresh.setChecked(self._controller.restart_auto_refresh())
             self._refresh_index()
 
+    def _populate_recent_projects_menu(self) -> None:
+        if not hasattr(self, "_recent_menu"):
+            return
+        self._recent_menu.clear()
+        recent = list(getattr(self.index_manager.config, "recent_projects", []))
+        current = self.index_manager.config.project_root
+        if current and current not in recent:
+            recent.insert(0, current)
+            self.index_manager.config.recent_projects = recent[:10]
+            from app.config import save_config
+            save_config(self.index_manager.config)
+
+        if not recent:
+            action = QAction("No Recent Projects", self)
+            action.setEnabled(False)
+            self._recent_menu.addAction(action)
+            return
+
+        for p in recent[:10]:
+            p_name = Path(p).name or p
+            act = QAction(f"{p_name} ({p})", self)
+            act.triggered.connect(lambda checked, path=p: self._on_project_root_changed(path))
+            self._recent_menu.addAction(act)
+
     def _on_project_root_changed(self, project_root: str) -> None:
         """Synchronize all root-dependent integrations to the active library root."""
         normalized, mcp_status = self._controller.synchronize_project_root(project_root, self.mcp_server_manager)
         self.mvc_editor_tab.set_workspace_root(normalized)
+        if hasattr(self, "call_graph_view"):
+            self.call_graph_view.set_index_manager(self.index_manager)
+        if hasattr(self, "notes_view"):
+            self.notes_view.set_project_root(normalized)
+
+        # Update recent projects list
+        recent = list(getattr(self.index_manager.config, "recent_projects", []))
+        if normalized and normalized not in recent:
+            recent.insert(0, normalized)
+            self.index_manager.config.recent_projects = recent[:10]
+            from app.config import save_config
+            save_config(self.index_manager.config)
+            self._populate_recent_projects_menu()
+
         if mcp_status:
             self.integrations_view.refresh_status(mcp_status)
+
+    def create_note_for(
+        self,
+        target_file: str = "",
+        line: int = 1,
+        symbol: str = "",
+        source: str = "Editor",
+        title: str = "",
+        snippet: str = "",
+    ) -> None:
+        """Create a new note populated with context and switch to Notes tab."""
+        self.notes_view.create_note_from_context(
+            target_file=target_file,
+            line=line,
+            symbol=symbol,
+            source=source,
+            title=title,
+            snippet=snippet,
+        )
+        self._tabs.setCurrentWidget(self.notes_view)
 
     def _toggle_auto_refresh(self, enabled: bool) -> None:
         """Enable or disable interval-based auto-refresh worker."""

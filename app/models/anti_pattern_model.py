@@ -59,6 +59,20 @@ DEFAULT_ANTI_PATTERNS = [
         "severity": "error",
         "enabled": True,
     },
+    {
+        "name": "MicroPython: Const Integer Optimization",
+        "regex": r"^[A-Z_][A-Z0-9_]*\s*=\s*\d+\s*$",
+        "description": "Consider wrapping global integer constants with const() from micropython to reduce RAM usage.",
+        "severity": "info",
+        "enabled": False,
+    },
+    {
+        "name": "MicroPython: Blocking Sleep in Async Loop",
+        "regex": r"\b(time|utime)\.sleep(_ms|_us)?\s*\(",
+        "description": "Using blocking sleep in asynchronous MicroPython code halts the event loop; use asyncio.sleep_ms() instead.",
+        "severity": "warning",
+        "enabled": False,
+    },
 ]
 
 

@@ -24,6 +24,7 @@ import subprocess
 import sys
 
 from app.models.diagnostics_model import DiagnosticsModel
+from app.models.micropython_model import is_micropython_module, get_micropython_module_info
 
 
 class DiagnosticsController:
@@ -72,8 +73,17 @@ class DiagnosticsController:
                 )
 
     @classmethod
+    def is_micropython_import(cls, module_name: str) -> bool:
+        """Return True if module_name is a known MicroPython hardware or built-in module."""
+        return is_micropython_module(module_name)
+
+    @classmethod
     def suggested_package_name(cls, module_name: str) -> str:
         """Return a likely PyPI package name for an import name."""
+        if is_micropython_module(module_name):
+            info = get_micropython_module_info(module_name)
+            desc = f" ({info['description']})" if info and "description" in info else ""
+            return f"micropython-stubs [MicroPython Built-in{desc}]"
         return cls._MODULE_PACKAGE_MAPPING.get(module_name, module_name)
 
     @staticmethod

@@ -101,7 +101,8 @@ def test_mcp_server_process_serves_probe_and_search(app_config):
         with urllib.request.urlopen(html_req, timeout=2.0) as response:
             assert "text/html" in response.headers.get("Content-Type", "")
             html_body = response.read().decode("utf-8")
-            assert "<title>The Librarian - Web Dashboard & MCP Server</title>" in html_body
+            assert "<title>The Librarian" in html_body
+            assert "Dashboard</title>" in html_body
 
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/mcp", timeout=2.0) as response:
             mcp_payload = json.loads(response.read().decode("utf-8"))
@@ -113,6 +114,14 @@ def test_mcp_server_process_serves_probe_and_search(app_config):
 
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/mcp/sse", timeout=2.0) as response:
             assert response.status == 200
+
+        # Check Web Dashboard UI on /dashboard
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/dashboard", timeout=2.0) as dash_resp:
+            assert dash_resp.status == 200
+            assert "text/html" in dash_resp.headers.get("Content-Type", "")
+            body = dash_resp.read().decode("utf-8")
+            assert "<!DOCTYPE html>" in body
+            assert "The Librarian" in body
 
         with urllib.request.urlopen(
             f"http://127.0.0.1:{port}/api/search?q=sample&scope=files&limit=3",

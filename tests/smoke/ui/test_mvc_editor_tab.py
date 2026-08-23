@@ -53,6 +53,7 @@ def test_mvc_editor_tab_loads_and_saves_triad(qtbot, tmp_path: Path):
 
     widget = MVCEditorTab(workspace_root=str(workspace))
     qtbot.addWidget(widget)
+    widget.mode_combo.setCurrentText("Triad (MVC)")
     with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
         widget.open_file(entrypoint)
 
@@ -63,6 +64,30 @@ def test_mvc_editor_tab_loads_and_saves_triad(qtbot, tmp_path: Path):
     widget.model_editor.setPlainText("class DocumentModel:\n    value = 1\n")
     widget.save_triad()
     assert "value = 1" in model_file.read_text(encoding="utf-8")
+
+
+def test_mvc_editor_tab_single_vs_triad_mode_toggle(qtbot, tmp_path: Path):
+    target = tmp_path / "standalone.py"
+    target.write_text("x = 42\n", encoding="utf-8")
+
+    widget = MVCEditorTab(workspace_root=str(tmp_path))
+    qtbot.addWidget(widget)
+
+    # Starts in Single File mode
+    assert widget.mode_combo.currentText() == "Single File"
+    widget.open_file(target)
+    assert widget.controller_editor.toPlainText().strip() == "x = 42"
+    assert not widget._view.controller_pane.isHidden()
+    assert widget._view.model_pane.isHidden()
+    assert widget._view.view_pane.isHidden()
+    assert widget._view.inspector_widget.isHidden()
+
+    # Switch to Triad mode
+    widget.mode_combo.setCurrentText("Triad (MVC)")
+    assert not widget._view.controller_pane.isHidden()
+    assert not widget._view.model_pane.isHidden()
+    assert not widget._view.view_pane.isHidden()
+    assert not widget._view.inspector_widget.isHidden()
 
 
 def test_mvc_editor_tab_opens_saves_and_launches_current_file(monkeypatch, qtbot, tmp_path: Path):
@@ -191,6 +216,7 @@ def test_mvc_editor_tab_live_formatting_highlights(qtbot, tmp_path: Path):
     
     tab = MVCEditorTab(workspace_root=str(workspace))
     qtbot.addWidget(tab)
+    tab.mode_combo.setCurrentText("Triad (MVC)")
     
     with qtbot.waitSignal(tab._controller.triad_loaded, timeout=5000):
         tab.open_file(model_file)
@@ -211,6 +237,60 @@ def test_mvc_editor_tab_live_formatting_highlights(qtbot, tmp_path: Path):
     editor.setProperty("test_mode", True)
     editor._on_cursor_position_changed()
     assert "Formatting: Unclosed Bracket" in tab.status_label.text()
+
+
+def test_mvc_editor_tab_cpp_syntax_highlighting(qtbot, tmp_path: Path):
+    from app.views.mvc_sync.editor import CppHighlighter, PythonHighlighter
+    c_file = tmp_path / "peripheral.c"
+    c_file.write_text("#include <stdio.h>\nint main() { return 0; }\n", encoding="utf-8")
+
+    tab = MVCEditorTab(workspace_root=str(tmp_path))
+    qtbot.addWidget(tab)
+
+    tab.open_file(c_file)
+    # Confirm CppHighlighter is active on the editor pane
+    assert isinstance(tab._view.controller_pane.highlighter, CppHighlighter)
+
+    # Manual language switch
+    tab.language_combo.setCurrentText("Python (Standard)")
+    assert isinstance(tab._view.controller_pane.highlighter, PythonHighlighter)
+    assert not tab._view.controller_pane.highlighter.micropython_mode
+
+    tab.language_combo.setCurrentText("MicroPython")
+    assert isinstance(tab._view.controller_pane.highlighter, PythonHighlighter)
+    assert tab._view.controller_pane.highlighter.micropython_mode
+
+    tab.language_combo.setCurrentText("C / C++")
+    assert isinstance(tab._view.controller_pane.highlighter, CppHighlighter)
+
+
+def test_mvc_editor_tab_jump_to_definition(qtbot, tmp_path: Path):
+    from unittest.mock import MagicMock
+    from app.views.mvc_editor_tab import MVCEditorTab
+
+    helper_file = tmp_path / "helpers.py"
+    helper_file.write_text("def my_special_function():\n    return 42\n", encoding="utf-8")
+
+    main_file = tmp_path / "main.py"
+    main_file.write_text("from helpers import my_special_function\nmy_special_function()\n", encoding="utf-8")
+
+    mock_manager = MagicMock()
+    mock_manager.state.symbols = [
+        {"name": "my_special_function", "qualified_name": "my_special_function", "kind": "function", "path": "helpers.py", "line": 1},
+    ]
+
+    tab = MVCEditorTab(workspace_root=str(tmp_path), index_manager=mock_manager)
+    qtbot.addWidget(tab)
+
+    tab.open_file(main_file)
+    assert tab._current_file_path.name == "main.py"
+
+    # Request jump to definition
+    ok = tab.jump_to_symbol_definition("my_special_function")
+    assert ok is True
+    assert tab._current_file_path.name == "helpers.py"
+
+
 
 
 

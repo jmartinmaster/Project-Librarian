@@ -107,3 +107,32 @@ def test_search_view_double_click_uses_open_file_callback(monkeypatch, qtbot, ap
     assert browser.results_table.rowCount() > 0
     browser._on_result_double_clicked(0, 0)
     assert opened.get("path") == "sample.py"
+
+
+def test_search_view_create_note_signal(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    browser = SearchView(manager)
+    qtbot.addWidget(browser)
+    browser.set_query("sample", scope="files", execute=True)
+
+    received_notes = []
+    browser.create_note_requested.connect(lambda f, l, s, src, t, snip: received_notes.append((f, l, s, src, t, snip)))
+
+    # Simulate emitting or context note action
+    assert len(browser._last_results) > 0
+    res = browser._last_results[0]
+    browser.create_note_requested.emit(
+        str(res.get("path", "")),
+        int(res.get("line") or 1),
+        str(res.get("title", "")),
+        "Search Browser",
+        f"Edit {res.get('title')}",
+        str(res.get("preview", "")),
+    )
+
+    assert len(received_notes) == 1
+    assert "sample.py" in received_notes[0][0]
+    assert received_notes[0][3] == "Search Browser"
+

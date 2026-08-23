@@ -23,49 +23,69 @@ from PyQt6.QtCore import QSize, Qt, QRect, QRegularExpression, pyqtSignal, QThre
 
 class PythonHighlighter(QSyntaxHighlighter):
     """
-    Custom QSyntaxHighlighter for Python code, styled for the Catppuccin theme.
+    Custom QSyntaxHighlighter for Python code, styled for the Catppuccin theme
+    with specialized support for MicroPython hardware modules, decorators, and clean docstrings.
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, micropython_mode=False):
         super().__init__(parent)
+        self.micropython_mode = micropython_mode
         self.highlighting_rules = []
+        self._setup_rules()
 
-        # Catppuccin theme colors
+    def set_micropython_mode(self, enabled: bool) -> None:
+        """Switch highlighter between standard Python and MicroPython coloring."""
+        if self.micropython_mode != enabled:
+            self.micropython_mode = enabled
+            self.highlighting_rules.clear()
+            self._setup_rules()
+            self.rehighlight()
+
+    def _setup_rules(self) -> None:
+        # Clean, high-contrast editor palette
         keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#cba6f7"))  # Lavender
+        keyword_format.setForeground(QColor("#cf222e"))  # Crimson red
         keyword_format.setFontWeight(QFont.Weight.Bold)
 
         builtin_format = QTextCharFormat()
-        builtin_format.setForeground(QColor("#89b4fa"))  # Blue
+        builtin_format.setForeground(QColor("#0969da"))  # Blue
 
         class_format = QTextCharFormat()
-        class_format.setForeground(QColor("#f9e2af"))  # Yellow
+        class_format.setForeground(QColor("#8250df"))  # Purple
         class_format.setFontWeight(QFont.Weight.Bold)
 
         function_format = QTextCharFormat()
-        function_format.setForeground(QColor("#89dceb"))  # Sky / Cyan
+        function_format.setForeground(QColor("#6e5494"))  # Purple
         function_format.setFontItalic(True)
 
         comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6c7086"))  # Muted grey-blue
+        comment_format.setForeground(QColor("#000000"))  # Solid black for comments (clean & readable)
         comment_format.setFontItalic(True)
 
+        docstring_format = QTextCharFormat()
+        docstring_format.setForeground(QColor("#1f2328"))  # Black/dark charcoal for docstrings (never lime green)
+        docstring_format.setFontItalic(True)
+
         string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#a6e3a1"))  # Green
+        string_format.setForeground(QColor("#0a3069"))  # Dark navy blue for strings
 
         decorator_format = QTextCharFormat()
-        decorator_format.setForeground(QColor("#fab387"))  # Peach
+        decorator_format.setForeground(QColor("#bc4c00"))  # Burnt orange
+
+        mcu_hardware_format = QTextCharFormat()
+        mcu_hardware_format.setForeground(QColor("#0550ae"))  # Vibrant blue
+        mcu_hardware_format.setFontWeight(QFont.Weight.Bold)
 
         number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#f5a97f"))  # Soft orange
+        number_format.setForeground(QColor("#0550ae"))  # Blue
 
         operator_format = QTextCharFormat()
-        operator_format.setForeground(QColor("#94e2d5"))  # Teal
+        operator_format.setForeground(QColor("#24292e"))  # Dark grey/black
 
         call_format = QTextCharFormat()
-        call_format.setForeground(QColor("#89dceb"))  # Sky
+        call_format.setForeground(QColor("#0969da"))  # Blue
 
         self_format = QTextCharFormat()
-        self_format.setForeground(QColor("#fab387"))  # Peach
+        self_format.setForeground(QColor("#953800"))  # Amber
         self_format.setFontItalic(True)
 
         # 1. Function calls and operators (added first so keywords can override them)
@@ -91,6 +111,19 @@ class PythonHighlighter(QSyntaxHighlighter):
             pattern = QRegularExpression(rf"\b{word}\b")
             self.highlighting_rules.append((pattern, builtin_format))
 
+        # MicroPython specific hardware modules and builtins
+        if self.micropython_mode:
+            mcu_keywords = [
+                "machine", "micropython", "network", "bluetooth", "rp2", "esp32", "esp8266",
+                "pyb", "stm", "utime", "uos", "uasyncio", "uctypes", "ujson", "ure", "usocket",
+                "Pin", "I2C", "SPI", "UART", "PWM", "ADC", "Timer", "RTC", "WDT", "SoftI2C", "SoftSPI",
+                "const", "native", "viper", "asm_thumb", "bytecode", "alloc_emergency_exception_buf",
+                "ticks_ms", "ticks_us", "ticks_diff", "sleep_ms", "sleep_us", "neopixel", "dht", "framebuf"
+            ]
+            for word in mcu_keywords:
+                pattern = QRegularExpression(rf"\b{word}\b")
+                self.highlighting_rules.append((pattern, mcu_hardware_format))
+
         # self parameter
         self.highlighting_rules.append((QRegularExpression(r"\bself\b"), self_format))
 
@@ -103,20 +136,20 @@ class PythonHighlighter(QSyntaxHighlighter):
         # Function names: def func_name
         self.highlighting_rules.append((QRegularExpression(r"\bdef\s+([a-zA-Z0-9_]+)"), function_format))
 
-        # Decorators: @decorator
-        self.highlighting_rules.append((QRegularExpression(r"@[a-zA-Z0-9_]+"), decorator_format))
+        # Decorators: @decorator or @micropython.native
+        self.highlighting_rules.append((QRegularExpression(r"@[a-zA-Z0-9_\.]+"), decorator_format))
 
         # Numbers
         self.highlighting_rules.append((QRegularExpression(r"\b[0-9]+(\.[0-9]+)?\b"), number_format))
 
-        # Strings
+        # Single-line strings
         self.highlighting_rules.append((QRegularExpression(r'"[^"\\]*(?:\\.[^"\\]*)*"'), string_format))
         self.highlighting_rules.append((QRegularExpression(r"'[^'\\]*(?:\\.[^'\\]*)*'"), string_format))
 
-        # Triple quote regexes for multi-line string highlighting
+        # Triple quote regexes for multi-line string / docstring highlighting
         self.tri_single = QRegularExpression(r"'''")
         self.tri_double = QRegularExpression(r'"""')
-        self.multi_line_string_format = string_format
+        self.multi_line_string_format = docstring_format
 
     def highlightBlock(self, text):
         # 1. Apply single-line patterns
@@ -130,9 +163,11 @@ class PythonHighlighter(QSyntaxHighlighter):
                 else:
                     start = match.capturedStart()
                     length = match.capturedLength()
-                self.setFormat(start, length, fmt)
+                if start >= 0 and length > 0:
+                    self.setFormat(start, length, fmt)
 
-        # 2. State-machine based triple-quote parser
+        # 2. State-machine based triple-quote parser (applies docstring formatting over multiline ranges)
+        self.setCurrentBlockState(0)
         state = self.previousBlockState()
         if state < 0:
             state = 0
@@ -148,35 +183,211 @@ class PythonHighlighter(QSyntaxHighlighter):
                 
                 if db_idx != -1 and (sg_idx == -1 or db_idx < sg_idx):
                     state = 1
-                    index = db_idx
+                    end_match = self.tri_double.match(text, db_idx + 3)
+                    if end_match.hasMatch():
+                        end_idx = end_match.capturedStart()
+                        length = end_idx - db_idx + 3
+                        self.setFormat(db_idx, length, self.multi_line_string_format)
+                        index = end_idx + 3
+                        state = 0
+                    else:
+                        self.setFormat(db_idx, len(text) - db_idx, self.multi_line_string_format)
+                        self.setCurrentBlockState(1)
+                        break
                 elif sg_idx != -1 and (db_idx == -1 or sg_idx < db_idx):
                     state = 2
-                    index = sg_idx
+                    end_match = self.tri_single.match(text, sg_idx + 3)
+                    if end_match.hasMatch():
+                        end_idx = end_match.capturedStart()
+                        length = end_idx - sg_idx + 3
+                        self.setFormat(sg_idx, length, self.multi_line_string_format)
+                        index = end_idx + 3
+                        state = 0
+                    else:
+                        self.setFormat(sg_idx, len(text) - sg_idx, self.multi_line_string_format)
+                        self.setCurrentBlockState(2)
+                        break
                 else:
                     break
+            elif state == 1:
+                end_match = self.tri_double.match(text, index)
+                if end_match.hasMatch():
+                    end_idx = end_match.capturedStart()
+                    length = end_idx - index + 3
+                    self.setFormat(index, length, self.multi_line_string_format)
+                    index = end_idx + 3
+                    state = 0
+                else:
+                    self.setFormat(index, len(text) - index, self.multi_line_string_format)
+                    self.setCurrentBlockState(1)
+                    break
+            elif state == 2:
+                end_match = self.tri_single.match(text, index)
+                if end_match.hasMatch():
+                    end_idx = end_match.capturedStart()
+                    length = end_idx - index + 3
+                    self.setFormat(index, length, self.multi_line_string_format)
+                    index = end_idx + 3
+                    state = 0
+                else:
+                    self.setFormat(index, len(text) - index, self.multi_line_string_format)
+                    self.setCurrentBlockState(2)
+                    break
+
+
+class CppHighlighter(QSyntaxHighlighter):
+    """
+    Syntax highlighter for C, C++, and MicroPython native C extension modules.
+    Provides styling for types, keywords, preprocessor directives, comments,
+    and MicroPython C APIs (mp_obj_t, MP_DEFINE_CONST_FUN_OBJ, etc.).
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.highlighting_rules = []
+        self._setup_rules()
+
+    def _setup_rules(self) -> None:
+        keyword_format = QTextCharFormat()
+        keyword_format.setForeground(QColor("#cf222e"))  # Crimson red
+        keyword_format.setFontWeight(QFont.Weight.Bold)
+
+        type_format = QTextCharFormat()
+        type_format.setForeground(QColor("#0969da"))  # Blue
+        type_format.setFontWeight(QFont.Weight.Bold)
+
+        preprocessor_format = QTextCharFormat()
+        preprocessor_format.setForeground(QColor("#bc4c00"))  # Burnt orange
+        preprocessor_format.setFontWeight(QFont.Weight.Bold)
+
+        mcu_api_format = QTextCharFormat()
+        mcu_api_format.setForeground(QColor("#0550ae"))  # Vibrant MCU blue
+        mcu_api_format.setFontWeight(QFont.Weight.Bold)
+
+        comment_format = QTextCharFormat()
+        comment_format.setForeground(QColor("#000000"))  # Solid black for comments
+        comment_format.setFontItalic(True)
+
+        string_format = QTextCharFormat()
+        string_format.setForeground(QColor("#0a3069"))  # Dark navy blue
+        
+        char_format = QTextCharFormat()
+        char_format.setForeground(QColor("#0a3069"))
+
+        number_format = QTextCharFormat()
+        number_format.setForeground(QColor("#0550ae"))
+
+        operator_format = QTextCharFormat()
+        operator_format.setForeground(QColor("#24292e"))
+
+        call_format = QTextCharFormat()
+        call_format.setForeground(QColor("#0969da"))
+
+        self.multi_line_comment_format = comment_format
+        self.comment_start_expr = QRegularExpression(r"/\*")
+        self.comment_end_expr = QRegularExpression(r"\*/")
+
+        # 1. Calls and operators
+        self.highlighting_rules.append((QRegularExpression(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()"), call_format))
+        self.highlighting_rules.append((QRegularExpression(r"[\+\-\*\/\%\=\!\<\>\&\|\^\~\?\:]"), operator_format))
+
+        # 2. C/C++ Keywords
+        cpp_keywords = [
+            "alignas", "alignof", "asm", "auto", "break", "case", "catch", "class",
+            "concept", "const", "consteval", "constexpr", "constinit", "continue",
+            "decltype", "default", "delete", "do", "dynamic_cast", "else", "enum",
+            "explicit", "export", "extern", "false", "for", "friend", "goto", "if",
+            "inline", "mutable", "namespace", "new", "noexcept", "nullptr", "operator",
+            "override", "private", "protected", "public", "register", "reinterpret_cast",
+            "requires", "return", "sizeof", "static", "static_assert", "static_cast",
+            "struct", "switch", "template", "this", "thread_local", "throw", "true",
+            "try", "typedef", "typeid", "typename", "union", "using", "virtual",
+            "volatile", "while"
+        ]
+        for kw in cpp_keywords:
+            pattern = QRegularExpression(rf"\b{kw}\b")
+            self.highlighting_rules.append((pattern, keyword_format))
+
+        # 3. Standard Types & Fixed-width Types
+        cpp_types = [
+            "bool", "char", "char8_t", "char16_t", "char32_t", "double", "float",
+            "int", "long", "short", "signed", "unsigned", "void", "wchar_t",
+            "size_t", "ssize_t", "intptr_t", "uintptr_t", "ptrdiff_t", "off_t",
+            "int8_t", "int16_t", "int32_t", "int64_t",
+            "uint8_t", "uint16_t", "uint32_t", "uint64_t",
+            "mp_obj_t", "mp_uint_t", "mp_int_t", "mp_obj_base_t", "mp_rom_map_elem_t"
+        ]
+        for t in cpp_types:
+            pattern = QRegularExpression(rf"\b{t}\b")
+            self.highlighting_rules.append((pattern, type_format))
+
+        # 4. MicroPython C Extension Macros & APIs
+        mcu_patterns = [
+            r"\bMP_DEFINE_CONST_FUN_OBJ_\w+\b",
+            r"\bMP_DEFINE_CONST_STATICMETHOD_OBJ\b",
+            r"\bMP_QSTR_\w+\b",
+            r"\bMP_ROM_QSTR\b",
+            r"\bMP_ROM_PTR\b",
+            r"\bMP_REGISTER_MODULE\b",
+            r"\bmp_raise_\w+\b",
+            r"\bSTATIC\b"
+        ]
+        for mp in mcu_patterns:
+            self.highlighting_rules.append((QRegularExpression(mp), mcu_api_format))
+
+        # 5. Preprocessor directives
+        preprocessor_pattern = QRegularExpression(r"^\s*#\s*(?:include|define|undef|ifdef|ifndef|if|elif|else|endif|pragma|error|warning)\b.*")
+        self.highlighting_rules.append((preprocessor_pattern, preprocessor_format))
+
+        # 6. Numbers (Hex, Binary, Floats, Decimals)
+        self.highlighting_rules.append((QRegularExpression(r"\b0x[0-9a-fA-F]+[uUlL]*\b"), number_format))
+        self.highlighting_rules.append((QRegularExpression(r"\b0b[01]+[uUlL]*\b"), number_format))
+        self.highlighting_rules.append((QRegularExpression(r"\b[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?[fFlLuU]*\b"), number_format))
+
+        # 7. Strings & Character literals
+        self.highlighting_rules.append((QRegularExpression(r'\"[^\"\\]*(?:\\.[^\"\\]*)*\"'), string_format))
+        self.highlighting_rules.append((QRegularExpression(r"'[^'\\]*(?:\\.[^'\\]*)*'"), char_format))
+
+        # 8. Single line comments (takes precedence over previous rules)
+        self.highlighting_rules.append((QRegularExpression(r"//[^\n]*"), comment_format))
+
+    def highlightBlock(self, text: str) -> None:
+        # 1. Apply regex rules
+        for pattern, fmt in self.highlighting_rules:
+            match_iterator = pattern.globalMatch(text)
+            while match_iterator.hasNext():
+                match = match_iterator.next()
+                if pattern.captureCount() > 0:
+                    start = match.capturedStart(1)
+                    length = match.capturedLength(1)
+                else:
+                    start = match.capturedStart()
+                    length = match.capturedLength()
+                if start >= 0 and length > 0:
+                    self.setFormat(start, length, fmt)
+
+        # 2. Multi-line comment block state machine (/* ... */)
+        self.setCurrentBlockState(0)
+        start_index = 0
+        if self.previousBlockState() == 1:
+            start_index = 0
+        else:
+            match = self.comment_start_expr.match(text)
+            start_index = match.capturedStart() if match.hasMatch() else -1
+
+        while start_index >= 0:
+            end_match = self.comment_end_expr.match(text, start_index)
+            end_index = end_match.capturedStart() if end_match.hasMatch() else -1
+            if end_index == -1:
+                self.setCurrentBlockState(1)
+                comment_len = len(text) - start_index
+            else:
+                comment_len = end_index - start_index + end_match.capturedLength()
+            self.setFormat(start_index, comment_len, self.multi_line_comment_format)
             
-            if state == 1:  # Inside """
-                end_match = self.tri_double.match(text, index + 3)
-                if end_match.hasMatch():
-                    end_idx = end_match.capturedStart()
-                    self.setFormat(index, end_idx - index + 3, self.multi_line_string_format)
-                    index = end_idx + 3
-                    state = 0
-                else:
-                    self.setFormat(index, len(text) - index, self.multi_line_string_format)
-                    break
-            elif state == 2:  # Inside '''
-                end_match = self.tri_single.match(text, index + 3)
-                if end_match.hasMatch():
-                    end_idx = end_match.capturedStart()
-                    self.setFormat(index, end_idx - index + 3, self.multi_line_string_format)
-                    index = end_idx + 3
-                    state = 0
-                else:
-                    self.setFormat(index, len(text) - index, self.multi_line_string_format)
-                    break
-                    
-        self.setCurrentBlockState(state)
+            if end_index == -1:
+                break
+            next_start = self.comment_start_expr.match(text, start_index + comment_len)
+            start_index = next_start.capturedStart() if next_start.hasMatch() else -1
 
 
 class LineNumberArea(QWidget):
@@ -217,6 +428,8 @@ class PyCodeEditor(QPlainTextEdit):
     """
     ai_request_triggered = pyqtSignal()
     diagnostic_hovered = pyqtSignal(str, str)
+    definition_requested = pyqtSignal(str)
+    create_note_requested = pyqtSignal(str, int, str, str, str, str)  # file, line, symbol, source, title, snippet
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -224,10 +437,10 @@ class PyCodeEditor(QPlainTextEdit):
         self.viewport().setMouseTracking(True)
         self.line_number_area = LineNumberArea(self)
         self.target_line = None
-        self.target_highlight_color = QColor("#3e302f")
+        self.target_highlight_color = QColor("#fff8c5")
         self.block_start_line = None
         self.block_end_line = None
-        self.block_highlight_color = QColor("#181825")
+        self.block_highlight_color = QColor("#f6f8fa")
         self._completer = None
         self.current_file_path = None
         self.diagnostics = []
@@ -246,12 +459,12 @@ class PyCodeEditor(QPlainTextEdit):
         # Colors & Layout
         self.setStyleSheet("""
             QPlainTextEdit {
-                background-color: #11111b;
-                color: #cdd6f4;
-                border: 1px solid #313244;
+                background-color: #ffffff;
+                color: #1f2328;
+                border: 1px solid #d0d7de;
                 border-radius: 4px;
-                selection-background-color: #45475a;
-                selection-color: #f5c2e7;
+                selection-background-color: #b6e3ff;
+                selection-color: #1f2328;
             }
         """)
 
@@ -293,7 +506,7 @@ class PyCodeEditor(QPlainTextEdit):
 
     def line_number_area_paint_event(self, event):
         painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), QColor("#181825"))  # Muted background for sidebar
+        painter.fillRect(event.rect(), QColor("#f6f8fa"))
 
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
@@ -301,8 +514,8 @@ class PyCodeEditor(QPlainTextEdit):
         bottom = top + round(self.blockBoundingRect(block).height())
 
         painter.setFont(self.font())
-        text_color = QColor("#585b70")
-        active_color = QColor("#cba6f7")
+        text_color = QColor("#6e7781")
+        active_color = QColor("#0969da")
         cursor_block_num = self.textCursor().blockNumber()
 
         while block.isValid() and top <= event.rect().bottom():
@@ -350,17 +563,17 @@ class PyCodeEditor(QPlainTextEdit):
             
             # Check if active line has live formatting diagnostics
             active_line = self.textCursor().blockNumber() + 1
-            line_color = QColor("#252636")  # Default subtle active-line highlight
+            line_color = QColor("#f6f8fa")  # Subtle active-line highlight
             
             line_diags = [d for d in getattr(self, "diagnostics", []) if d.get("line") == active_line]
             if line_diags:
                 severity = str(line_diags[0].get("severity", "")).lower()
                 if severity == "error":
-                    line_color = QColor("#3e262c")  # Soft red for error lines
+                    line_color = QColor("#ffebe9")  # Soft red for error lines
                 elif severity == "warning":
-                    line_color = QColor("#3c3224")  # Soft amber/orange for warnings
+                    line_color = QColor("#fff8c5")  # Soft amber for warnings
                 else:
-                    line_color = QColor("#222d3d")  # Soft blue for info checks
+                    line_color = QColor("#ddf4ff")  # Soft blue for info checks
                     
             selection.format.setBackground(line_color)
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
@@ -462,7 +675,40 @@ class PyCodeEditor(QPlainTextEdit):
         # Clear target line highlight on manual mouse clicks
         self.target_line = None
         self.highlight_current_line()
+        if (event.modifiers() & Qt.KeyboardModifier.ControlModifier) and event.button() == Qt.MouseButton.LeftButton:
+            cursor = self.cursorForPosition(event.pos())
+            self.setTextCursor(cursor)
+            word = self.textUnderCursor().strip()
+            if word:
+                self.definition_requested.emit(word)
+                return
         super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event) -> None:
+        menu = self.createStandardContextMenu()
+        menu.addSeparator()
+
+        word = self.textUnderCursor().strip()
+        cursor = self.textCursor()
+        line = cursor.blockNumber() + 1
+        snippet = cursor.selectedText().strip()
+
+        note_act = menu.addAction("📝 New Note from Selection / Line")
+        jump_def_act = menu.addAction(f"Jump to Definition of '{word}' (F12)") if word else None
+
+        selected = menu.exec(event.globalPos())
+        if selected == note_act:
+            tgt_file = str(self.current_file_path or "")
+            self.create_note_requested.emit(
+                tgt_file,
+                line,
+                word,
+                "Editor",
+                f"Note: {word or Path(tgt_file).name}:{line}",
+                snippet,
+            )
+        elif jump_def_act and selected == jump_def_act:
+            self.definition_requested.emit(word)
 
     def setCompleter(self, completer: QCompleter) -> None:
         if self._completer:
@@ -499,6 +745,13 @@ class PyCodeEditor(QPlainTextEdit):
         super().focusInEvent(event)
 
     def keyPressEvent(self, event) -> None:
+        # F12 Jump to Definition
+        if event.key() == Qt.Key.Key_F12:
+            word = self.textUnderCursor().strip()
+            if word:
+                self.definition_requested.emit(word)
+                return
+
         # Clear target line highlight on manual typing
         self.target_line = None
         self.highlight_current_line()
@@ -591,6 +844,8 @@ class EditorPane(QWidget):
     create_clicked = pyqtSignal(str) # role
     browse_clicked = pyqtSignal(str) # role
     ai_clicked = pyqtSignal(str) # role
+    definition_requested = pyqtSignal(str) # symbol_name
+    create_note_requested = pyqtSignal(str, int, str, str, str, str) # file, line, symbol, source, title, snippet
 
     def __init__(self, role: str, title: str, accent_color: str, parent=None):
         super().__init__(parent)
@@ -735,6 +990,8 @@ class EditorPane(QWidget):
         # 2. Text Editor
         self.editor = PyCodeEditor()
         self.editor.ai_request_triggered.connect(lambda: self.ai_clicked.emit(self.role))
+        self.editor.definition_requested.connect(self.definition_requested.emit)
+        self.editor.create_note_requested.connect(self.create_note_requested.emit)
         self.highlighter = PythonHighlighter(self.editor.document())
         self.main_layout.addWidget(self.editor)
 
@@ -944,13 +1201,13 @@ class EditorPane(QWidget):
         doc = self.editor.document()
         block = doc.findBlockByLineNumber(line - 1)
         if block.isValid():
-            # Get role-specific highlight color
+            # Get role-specific soft, delicate highlight color
             colors = {
-                'model': '#203d29',        # Soft green
-                'view': '#3d253a',         # Soft pink/magenta
-                'controller': '#1d2c40'    # Soft blue
+                'model': '#edf7ed',        # Soft pastel mint/sage tint
+                'view': '#fdf0f5',         # Soft pastel rose tint
+                'controller': '#edf4fe'    # Soft pastel sky blue tint
             }
-            color_hex = colors.get(self.role, '#3e302f')
+            color_hex = colors.get(self.role, '#fff8c5')  # Soft warm cream/amber
             self.editor.highlight_target_line(line, color_hex)
             
             cursor = self.editor.textCursor()
@@ -963,18 +1220,18 @@ class EditorPane(QWidget):
 
     def highlight_block_range(self, start_line: int, end_line: int):
         """
-        Highlights the block's line range using role-specific color.
+        Highlights the block's line range using ultra-soft role-specific pastel wash.
         """
         self.editor.block_start_line = start_line
         self.editor.block_end_line = end_line
         
-        # Determine background block color based on role
+        # Determine background block color based on role (ultra-soft wash)
         colors = {
-            'model': QColor("#142218"),       # Soft dark green
-            'view': QColor("#241623"),        # Soft dark pink
-            'controller': QColor("#121b27")   # Soft dark blue
+            'model': QColor("#f4faf6"),       # Ultra-soft pastel light green wash
+            'view': QColor("#fdf7fa"),        # Ultra-soft pastel light rose wash
+            'controller': QColor("#f5f8fc")   # Ultra-soft pastel light blue wash
         }
-        self.editor.block_highlight_color = colors.get(self.role, QColor("#1c1d30"))
+        self.editor.block_highlight_color = colors.get(self.role, QColor("#f8f9fa"))
         self.editor.highlight_current_line()
 
     def clear_block_highlight(self):
@@ -984,3 +1241,20 @@ class EditorPane(QWidget):
         self.editor.block_start_line = None
         self.editor.block_end_line = None
         self.editor.highlight_current_line()
+
+    def set_language(self, language: str) -> None:
+        """Switch syntax highlighter between 'python', 'micropython', and 'c'/'cpp'."""
+        lang = (language or "python").lower()
+        if lang in {"c", "cpp", "c++", "c/c++"}:
+            if not isinstance(self.highlighter, CppHighlighter):
+                if self.highlighter:
+                    self.highlighter.setDocument(None)
+                self.highlighter = CppHighlighter(self.editor.document())
+        else:
+            if not isinstance(self.highlighter, PythonHighlighter):
+                if self.highlighter:
+                    self.highlighter.setDocument(None)
+                self.highlighter = PythonHighlighter(self.editor.document(), micropython_mode=(lang == "micropython"))
+            else:
+                self.highlighter.set_micropython_mode(lang == "micropython")
+

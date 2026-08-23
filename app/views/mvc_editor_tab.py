@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QUrl
+from PyQt6.QtCore import QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+    QComboBox,
     QCompleter,
     QMessageBox,
 )
@@ -44,6 +45,7 @@ from app.views.mvc_sync.view import EditorView
 
 class MVCEditorTab(QWidget):
     """Embedded MVC Sync Editor with file-open integration hooks."""
+    create_note_requested = pyqtSignal(str, int, str, str, str, str)  # file, line, symbol, source, title, snippet
 
     def __init__(self, workspace_root: str = "", index_manager: IndexManager | None = None) -> None:
         super().__init__()
@@ -62,6 +64,7 @@ class MVCEditorTab(QWidget):
         self._view.file_selected.connect(self._remember_current_file)
         self._model.triad_changed.connect(self._sync_current_file_from_model)
         self._view.ai_request_triggered.connect(self.process_ai_request)
+        self._view.create_note_requested.connect(self.create_note_requested.emit)
 
         # Compatibility aliases for existing callers/tests.
         self.editor_tabs = self._view.main_tabs
@@ -104,11 +107,42 @@ class MVCEditorTab(QWidget):
         self.ai_request_button.setObjectName("mvcAIRequestButton")
         self.trigger_ai_button = QPushButton("Trigger Local AI", self)
         self.trigger_ai_button.setObjectName("mvcTriggerAIButton")
+
+        # MicroPython Live Code hardware action buttons
+        self.mcu_run_button = QPushButton("⚡ Run on MCU", self)
+        self.mcu_run_button.setObjectName("mvcMCURunButton")
+        self.mcu_run_button.setToolTip("Execute active file on connected microcontroller (requires Live Code enabled)")
+
+        self.mcu_debug_button = QPushButton("🚀 Upload & Debug", self)
+        self.mcu_debug_button.setObjectName("mvcMCUDebugButton")
+        self.mcu_debug_button.setToolTip("Upload active file to device flash, soft reset, and watch startup (requires Live Code enabled)")
+
         buttons_row.addWidget(self.save_current_button)
         buttons_row.addWidget(self.open_external_button)
         buttons_row.addWidget(self.ai_request_button)
         buttons_row.addWidget(self.trigger_ai_button)
+        buttons_row.addWidget(self.mcu_run_button)
+        buttons_row.addWidget(self.mcu_debug_button)
         buttons_row.addStretch(1)
+
+        # Editor Mode Selector (Single vs Triad)
+        buttons_row.addWidget(QLabel("Mode:", self))
+        self.mode_combo = QComboBox(self)
+        self.mode_combo.setObjectName("mvcEditorModeCombo")
+        self.mode_combo.addItems(["Single File", "Triad (MVC)"])
+        self.mode_combo.setToolTip("Switch between Single File Editor mode and Triad (MVC 3-pane) mode")
+        self.mode_combo.currentTextChanged.connect(self._on_mode_combo_changed)
+        buttons_row.addWidget(self.mode_combo)
+
+        # Language Awareness Selector
+        buttons_row.addWidget(QLabel("Language:", self))
+        self.language_combo = QComboBox(self)
+        self.language_combo.setObjectName("mvcLanguageCombo")
+        self.language_combo.addItems(["Auto-Detect", "MicroPython", "Python (Standard)", "C / C++"])
+        self.language_combo.setToolTip("Active syntax and indexing language mode")
+        self.language_combo.currentTextChanged.connect(self._on_language_combo_changed)
+        buttons_row.addWidget(self.language_combo)
+
         layout.addLayout(buttons_row)
 
         self._view.setParent(self)
@@ -122,6 +156,31 @@ class MVCEditorTab(QWidget):
         self.open_external_button.clicked.connect(self.open_current_externally)
         self.ai_request_button.clicked.connect(lambda: self.process_ai_request(None))
         self.trigger_ai_button.clicked.connect(self.trigger_local_ai)
+        self.mcu_run_button.clicked.connect(self.run_current_on_mcu)
+        self.mcu_debug_button.clicked.connect(self.debug_current_on_mcu)
+        self._view.definition_requested.connect(self.jump_to_symbol_definition)
+
+    def _on_mode_combo_changed(self, text: str) -> None:
+        """Switch between Single File and Triad (MVC) editing modes."""
+        is_single = (text == "Single File")
+        self._controller.editor_mode = "single" if is_single else "triad"
+        self._view.set_editor_mode("single" if is_single else "triad")
+        if self._current_file_path and self._current_file_path.exists():
+            if is_single:
+                self._controller.open_single_file(str(self._current_file_path))
+            else:
+                self._controller.open_file(str(self._current_file_path))
+
+    def _on_language_combo_changed(self, text: str) -> None:
+        """Handle manual language override in editor tab."""
+        if text == "MicroPython":
+            self._view.set_language_mode("micropython")
+        elif text == "C / C++":
+            self._view.set_language_mode("cpp")
+        elif text == "Python (Standard)":
+            self._view.set_language_mode("python")
+        else:
+            self._detect_and_apply_language_mode(self.get_active_editor_text())
 
     def _apply_native_integration_mode(self) -> None:
         """Strip standalone MVC shell UI and align with Librarian-hosted experience."""
@@ -144,10 +203,47 @@ class MVCEditorTab(QWidget):
             console_widget.setVisible(False)
             self._view.vertical_splitter.setSizes([1, 0])
 
-        # Drop standalone catppuccin styling so the tab inherits Librarian theme.
-        self._view.setStyleSheet("")
-        for child in self._view.findChildren(QWidget):
-            child.setStyleSheet("")
+        is_single = (getattr(self, "mode_combo", None) is None or self.mode_combo.currentText() == "Single File")
+        self._view.set_editor_mode("single" if is_single else "triad")
+
+    def _check_and_apply_micropython_syntax(self, content: str = "") -> None:
+        """Backward compatibility shim."""
+        self._detect_and_apply_language_mode(content)
+
+    def _detect_and_apply_language_mode(self, content: str = "") -> None:
+        """Auto-detect language (C/C++, MicroPython, Python) and apply appropriate highlighter."""
+        if hasattr(self, "language_combo") and self.language_combo.currentText() != "Auto-Detect":
+            mode = self.language_combo.currentText()
+            if mode == "C / C++":
+                self._view.set_language_mode("cpp")
+            elif mode == "MicroPython":
+                self._view.set_language_mode("micropython")
+            else:
+                self._view.set_language_mode("python")
+            return
+
+        # 1. Check file extension
+        if self._current_file_path:
+            ext = self._current_file_path.suffix.lower()
+            if ext in {".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".hh", ".hxx", ".ino"}:
+                self._view.set_language_mode("cpp")
+                return
+
+        # 2. Check for MicroPython imports
+        is_mcu = False
+        if self._index_manager and getattr(self._index_manager.config, "micropython_mode", False):
+            is_mcu = True
+        elif content:
+            from app.models.micropython_model import is_micropython_module
+            for line in content.splitlines()[:25]:
+                stripped = line.strip()
+                if stripped.startswith("import ") or stripped.startswith("from "):
+                    tokens = stripped.replace("from", " ").replace("import", " ").replace(",", " ").split()
+                    if any(is_micropython_module(t) for t in tokens):
+                        is_mcu = True
+                        break
+
+        self._view.set_language_mode("micropython" if is_mcu else "python")
 
     def set_workspace_root(self, workspace_root: str) -> None:
         """Set workspace root used by the embedded explorer and triad resolver."""
@@ -155,6 +251,7 @@ class MVCEditorTab(QWidget):
         self.workspace_root = normalized
         self.workspace_edit.setText(normalized)
         self._model.workspace_path = normalized
+        self._detect_and_apply_language_mode()
 
     def open_file(self, file_path: str | Path, line_number: int | None = None) -> bool:
         """Open a file and optionally jump to a target line."""
@@ -163,7 +260,8 @@ class MVCEditorTab(QWidget):
             self.status_label.setText(f"File not found: {resolved}")
             return False
 
-        self._controller.open_file(str(resolved))
+        mode = "single" if getattr(self, "mode_combo", None) and self.mode_combo.currentText() == "Single File" else "triad"
+        self._controller.open_file(str(resolved), mode=mode)
         self._current_file_path = resolved
         self.current_file_edit.setText(str(resolved))
 
@@ -171,8 +269,58 @@ class MVCEditorTab(QWidget):
             self._jump_to_line_for_path(resolved, line_number)
 
         self._view.main_tabs.setCurrentWidget(self._view.editor_tab)
+        self._detect_and_apply_language_mode(self.get_active_editor_text())
         self.status_label.setText(f"Opened: {resolved}")
         return True
+
+    def jump_to_symbol_definition(self, symbol_name: str) -> bool:
+        """Find symbol in index or current triad and jump to its definition."""
+        if not symbol_name:
+            return False
+
+        # 1. Search in index manager symbols if available
+        if self._index_manager and self._index_manager.state and self._index_manager.state.symbols:
+            matching = [
+                s for s in self._index_manager.state.symbols
+                if s.get("name") == symbol_name or s.get("qualified_name") == symbol_name
+            ]
+            if matching:
+                target = matching[0]
+                target_path = Path(self.workspace_root) / target["path"]
+                line = int(target.get("line") or 1)
+                self.open_file(target_path, line_number=line)
+                self.status_label.setText(f"Jumped to: {symbol_name} ({target['path']}:{line})")
+                return True
+
+        # 2. Search in current open triad files
+        role_map = {
+            "model": self._model.get_path("model"),
+            "view": self._model.get_path("view"),
+            "controller": self._model.get_path("controller"),
+        }
+        for role, r_path in role_map.items():
+            outline = self._model._triad_outlines.get(role) or {}
+            for c in outline.get("classes", []):
+                if c["name"] == symbol_name:
+                    pane = getattr(self._view, f"{role}_pane")
+                    pane.jump_to_line(c["start_line"])
+                    self.status_label.setText(f"Jumped to: {symbol_name} (Line {c['start_line']})")
+                    return True
+                for m in c.get("methods", []):
+                    if m["name"] == symbol_name:
+                        pane = getattr(self._view, f"{role}_pane")
+                        pane.jump_to_line(m["start_line"])
+                        self.status_label.setText(f"Jumped to: {symbol_name} (Line {m['start_line']})")
+                        return True
+            for f in outline.get("functions", []):
+                if f["name"] == symbol_name:
+                    pane = getattr(self._view, f"{role}_pane")
+                    pane.jump_to_line(f["start_line"])
+                    self.status_label.setText(f"Jumped to: {symbol_name} (Line {f['start_line']})")
+                    return True
+
+        self.status_label.setText(f"Definition not found for: '{symbol_name}'")
+        return False
 
     def _jump_to_line_for_path(self, resolved: Path, line_number: int) -> None:
         role_map = {
@@ -198,9 +346,20 @@ class MVCEditorTab(QWidget):
             self._remember_current_file(controller_path)
 
     def save_current_file(self) -> None:
-        """Save dirty MVC files via controller."""
+        """Save dirty files via controller."""
+        if getattr(self, "mode_combo", None) and self.mode_combo.currentText() == "Single File":
+            if self._current_file_path:
+                try:
+                    content = self.controller_editor.toPlainText()
+                    with open(self._current_file_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    self.status_label.setText(f"Saved: {self._current_file_path.name}")
+                    return
+                except Exception as e:
+                    self.status_label.setText(f"Save error: {e}")
+                    return
         self._controller.save_all_files()
-        self.status_label.setText("Saved current MVC context")
+        self.status_label.setText("Saved current context")
 
     def open_current_externally(self) -> None:
         """Open currently active file in external shell-associated application."""
@@ -331,6 +490,13 @@ class MVCEditorTab(QWidget):
             return 'controller', self._view.controller_pane
         return None
 
+    def get_active_editor_text(self) -> str:
+        """Return the text of the currently active/focused editor pane or primary editor."""
+        active = self._get_active_editor()
+        if active:
+            return active[1].editor.toPlainText()
+        return self._view.controller_pane.editor.toPlainText()
+
     def _extract_ai_request(self, code: str) -> str | None:
         for line in code.splitlines():
             trimmed = line.strip()
@@ -379,10 +545,110 @@ class MVCEditorTab(QWidget):
                 
         self._controller.run_ai_generation(handle_result)
 
+    def open_current_externally(self) -> None:
+        """Open currently active file in external shell-associated application."""
+        if not self._current_file_path:
+            self.status_label.setText("No active file to open externally")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._current_file_path)))
+
     def _on_diagnostic_hovered(self, message: str, file_path: str) -> None:
         if message:
             self.status_label.setText(message)
         elif file_path:
             self.status_label.setText(f"Opened: {file_path}")
 
+    def run_current_on_mcu(self) -> None:
+        """Run active file on connected microcontroller if Live Code is enabled."""
+        if not self._index_manager or not getattr(self._index_manager.config, "micropython_live_code", False):
+            QMessageBox.warning(
+                self,
+                "Live Code Disabled",
+                "Live Code execution is currently disabled to prevent accidental writes.\n\n"
+                "Enable 'Live Code Execution (Safety Guard)' in the Integrations tab or Settings to run on hardware.",
+            )
+            return
 
+        if not self._current_file_path:
+            QMessageBox.information(self, "No File Selected", "Please open or save a file first before running on MCU.")
+            return
+
+        self.save_current_file()
+        from app.controllers.micropython_controller import MicroPythonController
+        from app.views.sudo_dialog import SudoAuthDialog
+        controller = MicroPythonController(self._index_manager.config)
+        port = getattr(self._index_manager.config, "micropython_port", "auto")
+        self.status_label.setText(f"Running {self._current_file_path.name} on MCU ({port})...")
+        ok, output = controller.run_file(self._current_file_path, port=port)
+
+        if not ok and controller.is_permission_error(output):
+            sudo_dlg = SudoAuthDialog(port=port, error_detail=output, parent=self)
+            if sudo_dlg.exec() == SudoAuthDialog.DialogCode.Accepted:
+                password = sudo_dlg.get_password()
+                if sudo_dlg.should_fix_port_permissions():
+                    fix_ok, fix_msg = controller.fix_port_permissions(port, password)
+                    if fix_ok:
+                        self.status_label.setText("Port permissions fixed. Retrying run...")
+                        ok, output = controller.run_file(self._current_file_path, port=port)
+                    else:
+                        QMessageBox.warning(self, "Permission Fix Failed", fix_msg)
+                        return
+                else:
+                    ok, output = controller.run_with_sudo(["run", str(self._current_file_path)], password, port=port)
+
+        if ok:
+            self.status_label.setText(f"MCU execution complete: {self._current_file_path.name}")
+            QMessageBox.information(self, "MCU Run Output", f"Device Output:\n\n{output}")
+        else:
+            self.status_label.setText(f"MCU execution failed: {self._current_file_path.name}")
+            QMessageBox.warning(self, "MCU Run Error", f"Failed to execute on device:\n\n{output}")
+
+    def debug_current_on_mcu(self) -> None:
+        """Upload active file, soft reset, and monitor startup sequence."""
+        if not self._index_manager or not getattr(self._index_manager.config, "micropython_live_code", False):
+            QMessageBox.warning(
+                self,
+                "Live Code Disabled",
+                "Live Code execution is currently disabled to prevent accidental writes.\n\n"
+                "Enable 'Live Code Execution (Safety Guard)' in the Integrations tab or Settings to upload and debug.",
+            )
+            return
+
+        if not self._current_file_path:
+            QMessageBox.information(self, "No File Selected", "Please open or save a file first before uploading.")
+            return
+
+        self.save_current_file()
+        from app.controllers.micropython_controller import MicroPythonController
+        from app.views.sudo_dialog import SudoAuthDialog
+        controller = MicroPythonController(self._index_manager.config)
+        port = getattr(self._index_manager.config, "micropython_port", "auto")
+        self.status_label.setText(f"Uploading and debugging {self._current_file_path.name} on MCU...")
+        
+        ok, msg = controller.upload_file(self._current_file_path, remote_path=self._current_file_path.name, port=port)
+        if not ok and controller.is_permission_error(msg):
+            sudo_dlg = SudoAuthDialog(port=port, error_detail=msg, parent=self)
+            if sudo_dlg.exec() == SudoAuthDialog.DialogCode.Accepted:
+                password = sudo_dlg.get_password()
+                if sudo_dlg.should_fix_port_permissions():
+                    fix_ok, fix_msg = controller.fix_port_permissions(port, password)
+                    if fix_ok:
+                        self.status_label.setText("Permissions fixed. Retrying upload...")
+                        ok, msg = controller.upload_file(self._current_file_path, remote_path=self._current_file_path.name, port=port)
+                    else:
+                        QMessageBox.warning(self, "Permission Fix Failed", fix_msg)
+                        return
+                else:
+                    ok, msg = controller.run_with_sudo(["fs", "cp", str(self._current_file_path), f":{self._current_file_path.name}"], password, port=port)
+
+        if ok:
+            controller.soft_reset(port=port)
+            self.status_label.setText(f"Uploaded & Reset: {self._current_file_path.name}. Monitor output in Integrations tab.")
+            QMessageBox.information(
+                self,
+                "Upload & Debug Started",
+                f"{msg}\n\nDevice was soft-reset. Open the 'Integrations' tab to monitor the live REPL startup sequence!",
+            )
+        else:
+            self.status_label.setText("Upload & Debug failed.")
+            QMessageBox.warning(self, "Upload Failed", f"Could not upload file to device:\n\n{msg}")

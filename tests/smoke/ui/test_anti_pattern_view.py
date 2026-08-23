@@ -330,3 +330,98 @@ def test_anti_pattern_view_formatting_list_comprehension_and_settings(qtbot, app
     assert "Formatting: Line Too Long" not in rules_found_after
 
 
+def test_anti_pattern_view_single_line_statements_no_missing_colon(qtbot, app_config, sample_repo):
+    """Verify single-line if/elif statements with colons are not falsely flagged as missing colon."""
+    valid_code_file = sample_repo / "app" / "single_line_valid.py"
+    valid_code_file.write_text(
+        "class Calc:\n"
+        "    def _reg_calc(self, v1, v2, op):\n"
+        "        if op == '+': return v1 + v2\n"
+        "        elif op == '-': return v1 - v2\n"
+        "        elif op in ['*', 'x']: return v1 * v2\n"
+        "        elif op in ['/', '÷']:\n"
+        "            if v2 == 0:\n"
+        "                return 'Error'\n"
+        "            return v1 / v2\n",
+        encoding="utf-8"
+    )
+
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    widget = AntiPatternView(manager)
+    qtbot.addWidget(widget)
+
+    # Disable presets, enable formatting checks
+    for i in range(widget.presets_list.count()):
+        widget.presets_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+    widget.format_check_checkbox.setChecked(True)
+
+    widget.run_scan()
+    qtbot.waitUntil(lambda: not getattr(widget, "_scan_thread", None).isRunning(), timeout=5000)
+
+    rules_found = [widget.results_table.item(row, 2).text() for row in range(widget.results_table.rowCount())]
+    assert "Formatting: Missing Colon" not in rules_found
+
+
+def test_anti_pattern_view_language_awareness_and_override(qtbot, app_config, sample_repo):
+    """Verify language banner shows detected language and respects language override."""
+    # Add a MicroPython file with hardware imports
+    mcu_file = sample_repo / "app" / "mcu_driver.py"
+    mcu_file.write_text(
+        "import machine\n"
+        "from machine import Pin, I2C\n"
+        "pin = Pin(0, Pin.OUT)\n",
+        encoding="utf-8"
+    )
+
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    widget = AntiPatternView(manager)
+    qtbot.addWidget(widget)
+
+    # Check detected language banner
+    assert widget.language_combo is not None
+    assert widget.language_badge is not None
+    assert "MicroPython" in widget.language_badge.text() or "Python" in widget.language_badge.text()
+
+    # Change target language override to C / C++
+    widget.language_combo.setCurrentText("C / C++")
+    qtbot.waitUntil(lambda: not getattr(widget, "_scan_thread", None) or not widget._scan_thread.isRunning(), timeout=5000)
+    assert "C / C++" in widget.language_badge.text()
+
+
+def test_anti_pattern_view_multiline_c_statements(qtbot, app_config, sample_repo):
+    """Verify multiline C statements split across lines with operators are not falsely flagged as missing semicolons."""
+    c_file = sample_repo / "app" / "psram_tool.c"
+    c_file.write_text(
+        "void setup() {\n"
+        "    qmi_hw->m[1].timing = QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB | // Break between pages.\n"
+        "        3 << QMI_M1_TIMING_SELECT_HOLD_LSB | // Delay releasing CS for 3 extra system cycles.\n"
+        "        1 << QMI_M1_TIMING_COOLDOWN_LSB | 1 << QMI_M1_TIMING_RXDELAY_LSB |\n"
+        "        maxSelect << QMI_M1_TIMING_MAX_SELECT_LSB | minDeselect << QMI_M1_TIMING_MIN_DESELECT_LSB |\n"
+        "        clockDivider << QMI_M1_TIMING_CLKDIV_LSB;\n"
+        "    restore_interrupts(intr_stash);\n"
+        "}\n",
+        encoding="utf-8"
+    )
+
+    manager = IndexManager(app_config)
+    manager.refresh()
+
+    widget = AntiPatternView(manager)
+    qtbot.addWidget(widget)
+
+    # Disable presets, enable formatting checks
+    for i in range(widget.presets_list.count()):
+        widget.presets_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+    widget.format_check_checkbox.setChecked(True)
+
+    widget.run_scan()
+    qtbot.waitUntil(lambda: not getattr(widget, "_scan_thread", None) or not widget._scan_thread.isRunning(), timeout=5000)
+
+    rules_found = [widget.results_table.item(row, 2).text() for row in range(widget.results_table.rowCount())]
+    assert "Formatting: Missing Semicolon" not in rules_found
+
+

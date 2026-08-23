@@ -136,6 +136,8 @@ class EditorView(QMainWindow):
     about_triggered = pyqtSignal()
     ai_request_triggered = pyqtSignal(str) # role
     inspector_refresh_triggered = pyqtSignal()
+    definition_requested = pyqtSignal(str) # symbol_name
+    create_note_requested = pyqtSignal(str, int, str, str, str, str) # file, line, symbol, source, title, snippet
 
     def __init__(self):
         super().__init__()
@@ -481,6 +483,16 @@ class EditorView(QMainWindow):
         self.view_pane.ai_clicked.connect(self.ai_request_triggered.emit)
         self.controller_pane.ai_clicked.connect(self.ai_request_triggered.emit)
 
+        # Connect Jump to Definition signals
+        self.model_pane.definition_requested.connect(self.definition_requested.emit)
+        self.view_pane.definition_requested.connect(self.definition_requested.emit)
+        self.controller_pane.definition_requested.connect(self.definition_requested.emit)
+
+        # Connect Create Note signals
+        self.model_pane.create_note_requested.connect(self.create_note_requested.emit)
+        self.view_pane.create_note_requested.connect(self.create_note_requested.emit)
+        self.controller_pane.create_note_requested.connect(self.create_note_requested.emit)
+
         self.editors_splitter.addWidget(self.model_pane)
         self.editors_splitter.addWidget(self.view_pane)
         self.editors_splitter.addWidget(self.controller_pane)
@@ -808,3 +820,47 @@ class EditorView(QMainWindow):
             r['path'].setText(f"Missing file at expected path:\n{path}")
             r['create'].show()
             r['browse'].show()
+
+    def set_language_mode(self, language: str) -> None:
+        """Propagate language syntax mode ('python', 'micropython', 'c', 'cpp') to all editor panes."""
+        for pane in (self.model_pane, self.view_pane, self.controller_pane):
+            if hasattr(pane, "set_language"):
+                pane.set_language(language)
+
+    def set_micropython_mode(self, enabled: bool) -> None:
+        """Propagate MicroPython syntax highlighting mode to all editor panes."""
+        self.set_language_mode("micropython" if enabled else "python")
+
+    def set_editor_mode(self, mode: str) -> None:
+        """Switch between 'single' (single file editor) and 'triad' (MVC 3-pane synced editor)."""
+        is_single = (mode.lower() in ("single", "single file"))
+        if is_single:
+            self.model_pane.hide()
+            self.view_pane.hide()
+            self.inspector_widget.hide()
+            self.controller_pane.show()
+            self.controller_pane.badge.setText("FILE")
+            self.controller_pane.badge.setStyleSheet(
+                "background-color: #0969da; color: #ffffff; font-weight: bold; border-radius: 4px; padding: 2px 8px;"
+            )
+            self.editors_splitter.setSizes([0, 0, 1000])
+            self.editor_tab_splitter.setSizes([1000, 0])
+        else:
+            self.model_pane.show()
+            self.view_pane.show()
+            self.controller_pane.show()
+            self.inspector_widget.show()
+            self.model_pane.badge.setText("MODEL")
+            self.model_pane.badge.setStyleSheet(
+                "background-color: #a6e3a1; color: #11111b; font-weight: bold; border-radius: 4px; padding: 2px 6px;"
+            )
+            self.view_pane.badge.setText("VIEW")
+            self.view_pane.badge.setStyleSheet(
+                "background-color: #f5c2e7; color: #11111b; font-weight: bold; border-radius: 4px; padding: 2px 6px;"
+            )
+            self.controller_pane.badge.setText("CONTROLLER")
+            self.controller_pane.badge.setStyleSheet(
+                "background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 4px; padding: 2px 6px;"
+            )
+            self.editors_splitter.setSizes([400, 400, 400])
+            self.editor_tab_splitter.setSizes([900, 250])

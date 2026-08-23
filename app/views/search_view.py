@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Callable
 
 from PyQt6 import uic
-from PyQt6.QtCore import QPoint, Qt, QUrl
+from PyQt6.QtCore import QPoint, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -47,6 +47,7 @@ from app.indexer.index_manager import IndexManager
 
 class SearchView(QWidget):
     """Widget providing near-instant search over in-memory index state."""
+    create_note_requested = pyqtSignal(str, int, str, str, str, str)  # file, line, symbol, source, title, snippet
 
     def __init__(
         self,
@@ -207,41 +208,37 @@ class SearchView(QWidget):
     def _on_results_context_menu(self, position: QPoint) -> None:
         """Show result context menu with open/copy/export actions."""
         row = self.results_table.rowAt(position.y())
-        has_selection = (0 <= row < len(self._last_results))
-
-        menu = QMenu(self)
-        open_action = None
-        copy_path_action = None
-        copy_ref_action = None
-
-        if has_selection:
-            self.results_table.selectRow(row)
-            result = self._last_results[row]
-            path_text = str(result.get("path", "")).strip()
-            reference = self._reference_location(result)
-
-            open_action = menu.addAction("Open File")
-            copy_path_action = menu.addAction("Copy Path")
-            copy_ref_action = menu.addAction("Copy Reference Location")
-            menu.addSeparator()
-
-        export_csv_action = menu.addAction("Export All Results to CSV...")
-        export_csv_action.setEnabled(len(self._last_results) > 0)
-
-        selected = menu.exec(self.results_table.viewport().mapToGlobal(position))
-        if not selected:
+        if row < 0 or row >= len(self._last_results):
             return
 
-        if selected == open_action and has_selection:
-            self._open_result_file(result)
-        elif selected == copy_path_action and has_selection:
-            folder_path = self._path_controller.containing_folder_path(path_text)
-            if folder_path:
-                QApplication.clipboard().setText(folder_path)
-        elif selected == copy_ref_action and has_selection:
-            QApplication.clipboard().setText(reference)
-        elif selected == export_csv_action:
-            self.export_results_to_csv()
+        from app.views.context_menu_builder import ContextMenuBuilder, ItemContext, ContextMenuCallbacks
+
+        self.results_table.selectRow(row)
+        result = self._last_results[row]
+        path_text = str(result.get("path", "")).strip()
+        line_raw = result.get("line")
+        line = int(line_raw) if line_raw is not None and str(line_raw).isdigit() else None
+        sym = str(result.get("title", "")).strip() if result.get("type") == "symbol" else ""
+        preview = str(result.get("preview", ""))
+
+        ctx = ItemContext(
+            path=path_text,
+            line=line,
+            symbol=sym,
+            source="Search Browser",
+            title=f"Edit {result.get('title') or Path(path_text).name}",
+            snippet=preview,
+            extra_actions=[
+                ("Export All Results to CSV...", self.export_results_to_csv)
+            ] if len(self._last_results) > 0 else [],
+        )
+
+        callbacks = ContextMenuCallbacks(
+            open_file=lambda p, l: self._open_result_file(result),
+            create_note=lambda p, l, s, src, t, snip: self.create_note_requested.emit(p, l, s, src, t, snip),
+        )
+
+        ContextMenuBuilder.exec_menu(self, self.results_table.viewport().mapToGlobal(position), ctx, callbacks)
 
     def export_results_to_csv(self) -> None:
         """Prompt user for a file location and export all search results to CSV."""

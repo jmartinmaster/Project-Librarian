@@ -40,7 +40,7 @@ def test_main_window_builds_tabs(qtbot, app_config):
     assert central.count() >= 2
     assert central.tabText(0) == "Search Browser"
     assert central.tabText(1) == "Excel Library"
-    assert "MVC Editor" in [central.tabText(index) for index in range(central.count())]
+    assert "Editor" in [central.tabText(index) for index in range(central.count())]
     assert "Workspace Tools" in [central.tabText(index) for index in range(central.count())]
     assert "Integrations" in [central.tabText(index) for index in range(central.count())]
     assert not window.windowIcon().isNull()
@@ -215,3 +215,52 @@ def test_main_window_rebuilds_library_tree_for_large_refresh_results(qtbot, app_
     assert library_tree is not None
     assert library_tree.topLevelItem(0).text(0) == "Files (55)"
     assert library_tree.topLevelItem(1).text(0) == "Symbols (312)"
+
+
+def test_main_window_view_menu_and_sidebar_toggle(qtbot, app_config):
+    manager = IndexManager(app_config)
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    # Verify Sidebar Toggle
+    assert not window._library_dock.isHidden()
+    assert window._action_toggle_sidebar.isChecked()
+
+    # Hide sidebar
+    window._toggle_library_dock(False)
+    assert window._library_dock.isHidden()
+
+    # Show sidebar again
+    window._toggle_library_dock(True)
+    assert not window._library_dock.isHidden()
+
+    # Verify Notes Tab and create_note_for
+    assert hasattr(window, "notes_view")
+    window.create_note_for(
+        target_file="app/test.py",
+        line=10,
+        symbol="test_func",
+        source="Code Audit",
+        title="Check bounds",
+        snippet="if x < 0: return",
+    )
+    assert window._tabs.currentWidget() == window.notes_view
+    assert window.notes_view.title_edit.text() == "Check bounds"
+    assert window.notes_view.target_file_edit.text() == "app/test.py"
+
+    # Verify triggering from Search View propagates to Notes Tab
+    window.search_view.create_note_requested.emit(
+        "app/views/search_view.py",
+        55,
+        "SearchView",
+        "Search Browser",
+        "Refactor search query",
+        "query = self.query_input.text()",
+    )
+    assert window._tabs.currentWidget() == window.notes_view
+    assert window.notes_view.title_edit.text() == "Refactor search query"
+    assert window.notes_view.target_file_edit.text() == "app/views/search_view.py"
+    assert window.notes_view.target_line_spin.value() == 55
+    assert window.notes_view.source_label.text() == "Search Browser"
+
+

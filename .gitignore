@@ -26,4 +26,6 @@ dist/
 .pyinstaller_tmp/
 demo_workspace/
 tests/__pycache__/
+.vscode/
+The_Librarian/
 
