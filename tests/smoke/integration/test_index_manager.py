@@ -23,7 +23,14 @@ import threading
 import time
 from pathlib import Path
 
-from app.indexer.index_manager import CORPUS_NAME, HISTORY_NAME, SNAPSHOT_NAME, IndexManager
+from app.indexer.index_manager import (
+    CORPUS_NAME,
+    HISTORY_NAME,
+    MAX_CORPUS_FILE_BYTES,
+    SNAPSHOT_NAME,
+    IndexManager,
+    format_bytes,
+)
 
 
 def test_refresh_builds_in_memory_and_persisted_outputs(app_config, sample_repo: Path):
@@ -227,3 +234,56 @@ def test_refresh_worker_records_last_refresh_error(monkeypatch, app_config):
     manager.stop_refresh_worker(join_timeout=1.0)
 
     assert status["last_refresh_error"] == "ValueError: worker-failure"
+
+
+def test_estimate_scan_counts_indexable_files_and_ram(app_config, sample_repo: Path):
+    manager = IndexManager(app_config)
+
+    estimate = manager.estimate_scan(sample_repo)
+
+    assert estimate.file_count == 2
+    assert estimate.skipped_large_count == 0
+    assert estimate.total_bytes > 0
+    assert estimate.estimated_ram_bytes > estimate.total_bytes
+    assert "B" in estimate.total_size_text
+    assert "B" in estimate.estimated_ram_text
+
+
+def test_estimate_scan_defaults_to_configured_project_root(app_config, sample_repo: Path):
+    manager = IndexManager(app_config)
+
+    estimate = manager.estimate_scan()
+
+    assert estimate.file_count == 2
+
+
+def test_estimate_scan_skips_oversized_files(app_config, sample_repo: Path):
+    huge_file = sample_repo / "huge.txt"
+    huge_file.write_bytes(b"0" * (MAX_CORPUS_FILE_BYTES + 1))
+
+    manager = IndexManager(app_config)
+    estimate = manager.estimate_scan(sample_repo)
+
+    assert estimate.skipped_large_count == 1
+    assert estimate.file_count == 2
+
+
+def test_estimate_scan_respects_extension_and_exclusion_filters(app_config, sample_repo: Path):
+    ignored_dir = sample_repo / "build"
+    ignored_dir.mkdir()
+    (ignored_dir / "generated.py").write_text("x = 1\n", encoding="utf-8")
+    (sample_repo / "notes.rst").write_text("ignored extension\n", encoding="utf-8")
+
+    manager = IndexManager(app_config)
+    estimate = manager.estimate_scan(sample_repo)
+
+    # Only the original sample.py/sample.c count; excluded dir and unmatched
+    # extension are not included.
+    assert estimate.file_count == 2
+
+
+def test_format_bytes_produces_readable_units():
+    assert format_bytes(0) == "0 B"
+    assert format_bytes(1536) == "1.5 KB"
+    assert format_bytes(5 * 1024 * 1024) == "5.0 MB"
+

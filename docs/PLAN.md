@@ -96,6 +96,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Phase 11 task 6 complete: full smoke suite execution and pass.
 - [x] Phase 12 complete: update repository documentation (README.md, runbook, checklist) and implement premium in-app Help System (F1) user guide.
 - [/] Next up: validate packaging outputs on native Windows and Ubuntu hosts (Windows validated, Ubuntu pending).
+- [x] Phase 13 complete: pre-load workspace RAM estimate added, gated behind a Continue/Cancel prompt in the Open Workspace flow.
 
 ## Phase Checklist
 - [x] Phase 1: Scaffolding and baseline project config
@@ -110,6 +111,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [/] Phase 10: Cross-platform packaging and branding (Windows completed, Ubuntu pending validation)
 - [x] Phase 11: Full MVC compliance refactor (model/view/controller separation + utility extraction)
 - [x] Phase 12: Documentation finalization and in-app Help System
+- [x] Phase 13: Pre-load workspace RAM estimate with Continue/Cancel prompt
 
 ## Phase 11 Implementation Plan (One Task At A Time)
 ### Goal
@@ -223,6 +225,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-07-08: Completed Phase 11 Task 5 by adding smoke coverage for controller seam delegation and explicit non-view-layer PyQt boundary enforcement.
 - 2026-07-08: Completed Phase 11 Task 6 phase gate with full smoke suite pass after MVC migration updates.
 - 2026-07-12: Added Phase 12 for updating README.md and active docs with new architecture/features, and implementing a searchable, themed in-app User Guide (shortcut F1).
+- 2026-08-24: Added Phase 13 for a pre-load workspace scan that estimates RAM required to index a selected folder and prompts the user to Continue or Cancel before the workspace root/index actually loads.
 
 ## Out Of Scope (Initial Build)
 - REPL and CLI parity with legacy script

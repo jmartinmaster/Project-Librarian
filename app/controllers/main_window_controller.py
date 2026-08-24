@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.indexer.index_manager import IndexManager
+from app.indexer.index_manager import IndexManager, ScanEstimate
 from app.models.mcp_server_manager import MCPServerManager
 
 
@@ -30,6 +30,10 @@ class MainWindowViewController:
 
     def __init__(self, index_manager: IndexManager) -> None:
         self._index_manager = index_manager
+
+    def estimate_workspace_scan(self, project_root: str) -> ScanEstimate:
+        """Scan a candidate workspace folder and estimate its RAM footprint."""
+        return self._index_manager.estimate_scan(project_root)
 
     def request_refresh(self) -> bool:
         """Request one asynchronous index refresh."""

@@ -35,8 +35,8 @@ def _read_one_file_for_corpus(path: Path, repo_root: Path) -> tuple[str, str | N
     local_skipped: list[dict[str, str]] = []
     rel_path = path.relative_to(repo_root).as_posix()
     try:
-        # Skip files larger than 5MB to prevent memory explosion or hanging
-        if path.stat().st_size > 5 * 1024 * 1024:
+        # Skip large files to prevent memory explosion or hanging
+        if path.stat().st_size > MAX_CORPUS_FILE_BYTES:
             local_skipped.append({"path": rel_path, "stage": "file_corpus", "reason": "skip_large_file"})
             return rel_path, None, local_skipped
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -56,6 +56,26 @@ SNAPSHOT_NAME = "librarian-snapshot.json"
 CORPUS_NAME = "search-corpus.json"
 HISTORY_NAME = "change-history.jsonl"
 
+# Files larger than this are skipped during corpus indexing (see
+# `_read_one_file_for_corpus`) and are therefore excluded from RAM estimates.
+MAX_CORPUS_FILE_BYTES = 5 * 1024 * 1024
+
+# Multiplier applied to raw on-disk file bytes to approximate the actual
+# in-memory footprint once files are loaded as Python strings and duplicated
+# across the file corpus, symbol index, and generated snapshot/history
+# artifacts kept in memory during a refresh.
+RAM_OVERHEAD_MULTIPLIER = 3.0
+
+
+def format_bytes(num_bytes: float) -> str:
+    """Format a byte count as a short human-readable string (KB/MB/GB)."""
+    value = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024.0 or unit == "TB":
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} {unit}"
+        value /= 1024.0
+    return f"{value:.1f} TB"
+
 
 @dataclass
 class IndexState:
@@ -65,6 +85,26 @@ class IndexState:
     excel_rows: list[dict[str, object]]
     file_corpus: dict[str, str]
     skipped_files: list[dict[str, str]]
+
+
+@dataclass
+class ScanEstimate:
+    """Result of scanning a folder to estimate load cost before indexing."""
+
+    file_count: int
+    skipped_large_count: int
+    total_bytes: int
+    estimated_ram_bytes: int
+
+    @property
+    def total_size_text(self) -> str:
+        """Human-readable on-disk size of files that will be loaded."""
+        return format_bytes(self.total_bytes)
+
+    @property
+    def estimated_ram_text(self) -> str:
+        """Human-readable estimated in-memory RAM footprint."""
+        return format_bytes(self.estimated_ram_bytes)
 
 
 class IndexManager:
@@ -157,6 +197,47 @@ class IndexManager:
         self._worker_thread = None
         if worker is not None and worker.is_alive():
             worker.join(timeout=max(0.0, float(join_timeout)))
+
+    def estimate_scan(self, repo_root: str | Path | None = None) -> ScanEstimate:
+        """Scan a folder and estimate the RAM required to load it as an index.
+
+        Walks the given folder (or the configured project root when omitted)
+        counting indexable files that match the configured extensions and
+        exclusions, without reading their contents. This lets the UI warn the
+        user about large workspaces before a full refresh is triggered.
+        """
+        import os
+
+        target_root = Path(repo_root).resolve() if repo_root is not None else self._repo_root()
+        allowed = {ext.lower() for ext in self.config.file_extensions}
+        excluded = set(self.config.excluded_dirs)
+
+        file_count = 0
+        skipped_large_count = 0
+        total_bytes = 0
+
+        for root, dirs, files in os.walk(target_root):
+            dirs[:] = [d for d in dirs if d not in excluded and not d.startswith(".")]
+            for file in files:
+                ext = os.path.splitext(file)[1].lower()
+                if ext not in allowed:
+                    continue
+                try:
+                    size = (Path(root) / file).stat().st_size
+                except OSError:
+                    continue
+                if size > MAX_CORPUS_FILE_BYTES:
+                    skipped_large_count += 1
+                    continue
+                file_count += 1
+                total_bytes += size
+
+        return ScanEstimate(
+            file_count=file_count,
+            skipped_large_count=skipped_large_count,
+            total_bytes=total_bytes,
+            estimated_ram_bytes=int(total_bytes * RAM_OVERHEAD_MULTIPLIER),
+        )
 
     def shutdown(self) -> None:
         """Fully stop the manager and all running refreshes during app exit."""

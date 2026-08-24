@@ -322,15 +322,42 @@ class MainWindowView(QMainWindow):
             self.index_manager.config.project_root or "",
             QFileDialog.Option.DontUseNativeDialog,
         )
-        if path:
-            self.index_manager.config.project_root = path
-            self.index_manager.config.mvc_editor_root = path
-            from app.config import save_config
-            save_config(self.index_manager.config)
-            
-            self._on_project_root_changed(path)
-            self.integrations_view.sync_from_config()
-            self._refresh_index()
+        if not path:
+            return
+        if not self._confirm_workspace_load(path):
+            self.statusBar().showMessage("Workspace load cancelled.", 3000)
+            return
+
+        self.index_manager.config.project_root = path
+        self.index_manager.config.mvc_editor_root = path
+        from app.config import save_config
+        save_config(self.index_manager.config)
+
+        self._on_project_root_changed(path)
+        self.integrations_view.sync_from_config()
+        self._refresh_index()
+
+    def _confirm_workspace_load(self, path: str) -> bool:
+        """Scan a candidate folder, show the estimated RAM cost, and ask to proceed."""
+        estimate = self._controller.estimate_workspace_scan(path)
+        message = (
+            f"Scanned folder: {path}\n\n"
+            f"Indexable files: {estimate.file_count}\n"
+            f"On-disk size: {estimate.total_size_text}\n"
+            f"Estimated RAM required to load: {estimate.estimated_ram_text}\n"
+        )
+        if estimate.skipped_large_count:
+            message += f"Files skipped (too large): {estimate.skipped_large_count}\n"
+        message += "\nContinue loading this workspace?"
+
+        choice = QMessageBox.question(
+            self,
+            "Confirm Workspace Load",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        return choice == QMessageBox.StandardButton.Yes
 
     def _save_files(self) -> None:
         """Trigger save on the embedded MVC editor tab."""

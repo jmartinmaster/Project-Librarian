@@ -23,7 +23,7 @@ import threading
 import time
 from pathlib import Path
 
-from PyQt6.QtWidgets import QCheckBox, QLabel, QLineEdit, QMenu, QTreeWidget
+from PyQt6.QtWidgets import QCheckBox, QFileDialog, QLabel, QLineEdit, QMenu, QMessageBox, QTreeWidget
 
 from app import build_about_text
 from app.indexer.index_manager import IndexManager, IndexState
@@ -216,3 +216,50 @@ def test_main_window_rebuilds_library_tree_for_large_refresh_results(qtbot, app_
     assert library_tree is not None
     assert library_tree.topLevelItem(0).text(0) == "Files (55)"
     assert library_tree.topLevelItem(1).text(0) == "Symbols (312)"
+
+
+def test_open_workspace_dialog_cancels_load_when_user_declines(monkeypatch, qtbot, app_config, sample_repo: Path):
+    manager = IndexManager(app_config)
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    original_root = manager.config.project_root
+    refresh_calls: list[bool] = []
+    monkeypatch.setattr(window, "_refresh_index", lambda: refresh_calls.append(True))
+    monkeypatch.setattr(
+        "app.views.main_window_view.QFileDialog.getExistingDirectory",
+        lambda *args, **kwargs: str(sample_repo),
+    )
+    monkeypatch.setattr(
+        "app.views.main_window_view.QMessageBox.question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Cancel,
+    )
+
+    window._open_workspace_dialog()
+
+    assert manager.config.project_root == original_root
+    assert refresh_calls == []
+    assert "cancelled" in window.statusBar().currentMessage().lower()
+
+
+def test_open_workspace_dialog_loads_when_user_continues(monkeypatch, qtbot, app_config, sample_repo: Path):
+    manager = IndexManager(app_config)
+    window = MainWindowView(manager)
+    qtbot.addWidget(window)
+
+    refresh_calls: list[bool] = []
+    monkeypatch.setattr(window, "_refresh_index", lambda: refresh_calls.append(True))
+    monkeypatch.setattr(
+        "app.views.main_window_view.QFileDialog.getExistingDirectory",
+        lambda *args, **kwargs: str(sample_repo),
+    )
+    monkeypatch.setattr(
+        "app.views.main_window_view.QMessageBox.question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+    )
+
+    window._open_workspace_dialog()
+
+    assert manager.config.project_root == str(sample_repo)
+    assert refresh_calls == [True]
+
