@@ -70,6 +70,23 @@ def _module_symbols(
     except SyntaxError:
         _record_skip(skipped_files, path=path, repo_root=repo_root, reason="syntax_error")
         return []
+    except Exception as exc:
+        # A single malformed or unusual file (e.g. one that trips a rare
+        # ValueError/RecursionError in the parser) must never abort the
+        # whole workspace scan. Skip just this file and keep going.
+        _record_skip(skipped_files, path=path, repo_root=repo_root, reason=f"parse_error:{exc.__class__.__name__}")
+        return []
+
+    try:
+        symbols = _extract_module_symbols(tree, path=path, repo_root=repo_root)
+    except Exception as exc:
+        _record_skip(skipped_files, path=path, repo_root=repo_root, reason=f"symbol_error:{exc.__class__.__name__}")
+        return []
+    return symbols
+
+
+def _extract_module_symbols(tree: ast.Module, path: Path, repo_root: Path) -> list[dict[str, object]]:
+    """Walk a parsed module's top-level body and collect class/function symbols."""
     symbols: list[dict[str, object]] = []
     relative_path = path.relative_to(repo_root).as_posix()
 
@@ -213,17 +230,23 @@ def _process_single_python_file(
 ) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
     local_skipped: list[dict[str, str]] = []
     try:
-        if path.stat().st_size > 5 * 1024 * 1024:
-            relative = path.relative_to(repo_root).as_posix()
-            _record_skip(local_skipped, path=path, repo_root=repo_root, reason="skip_large_file")
-            return [], local_skipped
-    except OSError:
-        pass
-    if use_cst:
-        symbols = _module_symbols_cst(path=path, repo_root=repo_root, skipped_files=local_skipped)
-    else:
-        symbols = _module_symbols(path=path, repo_root=repo_root, skipped_files=local_skipped)
-    return symbols, local_skipped
+        try:
+            if path.stat().st_size > 5 * 1024 * 1024:
+                _record_skip(local_skipped, path=path, repo_root=repo_root, reason="skip_large_file")
+                return [], local_skipped
+        except OSError:
+            pass
+        if use_cst:
+            symbols = _module_symbols_cst(path=path, repo_root=repo_root, skipped_files=local_skipped)
+        else:
+            symbols = _module_symbols(path=path, repo_root=repo_root, skipped_files=local_skipped)
+        return symbols, local_skipped
+    except Exception as exc:
+        # Last-resort safety net: a single unexpected failure on one file
+        # must never crash the whole workspace scan (which would leave the
+        # index stuck on stale/empty data). Skip just this file.
+        _record_skip(local_skipped, path=path, repo_root=repo_root, reason=f"unexpected_error:{exc.__class__.__name__}")
+        return [], local_skipped
 
 
 def index_python_symbols(
@@ -260,14 +283,21 @@ def index_python_symbols(
 
     symbols: list[dict[str, object]] = []
     with ProcessPoolExecutor(max_workers=max(1, thread_count)) as executor:
-        results = executor.map(_process_single_python_file, paths, [repo_root]*len(paths), [use_cst]*len(paths))
-        for file_symbols, local_skipped in results:
+        futures = [
+            executor.submit(_process_single_python_file, path, repo_root, use_cst) for path in paths
+        ]
+        for path, future in zip(paths, futures):
             try:
-                symbols.extend(file_symbols)
+                file_symbols, local_skipped = future.result()
+            except Exception as exc:
+                # A worker process failure (e.g. a crash while unpickling a
+                # result) must not abort indexing of the remaining files.
                 if skipped_files is not None:
-                    skipped_files.extend(local_skipped)
-            except Exception:
-                pass
+                    _record_skip(skipped_files, path=path, repo_root=repo_root, reason=f"worker_error:{exc.__class__.__name__}")
+                continue
+            symbols.extend(file_symbols)
+            if skipped_files is not None:
+                skipped_files.extend(local_skipped)
 
     return symbols
 

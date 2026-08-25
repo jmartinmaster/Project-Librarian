@@ -35,7 +35,10 @@ from app.indexer.python_indexer import index_python_symbols
 
 def _read_one_file_for_corpus(path: Path, repo_root: Path) -> tuple[str, str | None, list[dict[str, str]]]:
     local_skipped: list[dict[str, str]] = []
-    rel_path = path.relative_to(repo_root).as_posix()
+    try:
+        rel_path = path.relative_to(repo_root).as_posix()
+    except ValueError:
+        rel_path = path.as_posix()
     try:
         # Skip large files to prevent memory explosion or hanging
         if path.stat().st_size > MAX_CORPUS_FILE_BYTES:
@@ -49,6 +52,17 @@ def _read_one_file_for_corpus(path: Path, repo_root: Path) -> tuple[str, str | N
                 "path": rel_path,
                 "stage": "file_corpus",
                 "reason": f"read_error:{exc.__class__.__name__}",
+            }
+        )
+        return rel_path, None, local_skipped
+    except Exception as exc:
+        # A single unexpected failure on one file must never abort the
+        # whole corpus build (which would leave the index unrefreshed).
+        local_skipped.append(
+            {
+                "path": rel_path,
+                "stage": "file_corpus",
+                "reason": f"unexpected_error:{exc.__class__.__name__}",
             }
         )
         return rel_path, None, local_skipped
@@ -354,13 +368,27 @@ class IndexManager:
         from concurrent.futures import ProcessPoolExecutor
         thread_count = getattr(self.config, 'indexing_thread_count', 4)
         with ProcessPoolExecutor(max_workers=max(1, thread_count)) as executor:
-            # We map across the module-level function because sub-processes require picklable top-level functions.
-            results = executor.map(_read_one_file_for_corpus, paths, [repo_root] * len(paths))
-            for res in results:
+            # We submit per-file so a single worker failure can be caught at
+            # its own future.result() call, instead of aborting the whole
+            # corpus build when iterating a shared executor.map() generator.
+            futures = [executor.submit(_read_one_file_for_corpus, path, repo_root) for path in paths]
+            for path, future in zip(paths, futures):
                 # Cancel pending futures instantly if the application is shutting down.
                 if self._exit_event.is_set():
                     executor.shutdown(wait=False, cancel_futures=True)
                     break
+                try:
+                    res = future.result()
+                except Exception as exc:
+                    if skipped_files is not None:
+                        try:
+                            rel_path = path.relative_to(repo_root).as_posix()
+                        except ValueError:
+                            rel_path = path.as_posix()
+                        skipped_files.append(
+                            {"path": rel_path, "stage": "file_corpus", "reason": f"worker_error:{exc.__class__.__name__}"}
+                        )
+                    continue
                 if res is None:
                     continue
                 rel_path, text, local_skipped = res

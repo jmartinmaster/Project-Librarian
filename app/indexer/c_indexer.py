@@ -137,13 +137,16 @@ def index_c_symbols(
 
     symbols: list[dict[str, object]] = []
     with ProcessPoolExecutor(max_workers=max(1, thread_count)) as executor:
-        results = executor.map(_process_single_c_file, paths, [repo_root]*len(paths))
-        for file_symbols, local_skipped in results:
+        futures = [executor.submit(_process_single_c_file, path, repo_root) for path in paths]
+        for path, future in zip(paths, futures):
             try:
-                symbols.extend(file_symbols)
+                file_symbols, local_skipped = future.result()
+            except Exception as exc:
                 if skipped_files is not None:
-                    skipped_files.extend(local_skipped)
-            except Exception:
-                pass
+                    _record_skip(skipped_files, relative_path=path.relative_to(repo_root).as_posix(), reason=f"worker_error:{exc.__class__.__name__}")
+                continue
+            symbols.extend(file_symbols)
+            if skipped_files is not None:
+                skipped_files.extend(local_skipped)
 
     return symbols
