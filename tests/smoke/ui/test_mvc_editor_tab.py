@@ -391,6 +391,7 @@ def test_mvc_sync_inspector_symbols_listing_and_double_click_jump(qtbot, tmp_pat
 
     widget = MVCEditorTab(workspace_root=str(workspace))
     qtbot.addWidget(widget)
+    widget.mode_combo.setCurrentText("Triad (MVC)")
 
     with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
         widget.open_file(str(workspace / "models" / "counter_model.py"))
