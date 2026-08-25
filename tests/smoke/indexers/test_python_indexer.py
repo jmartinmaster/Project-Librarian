@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import warnings
 
-from app.indexer.python_indexer import _module_symbols, index_python_symbols
+from app.indexer.python_indexer import _module_symbols, _process_single_python_file, index_python_symbols
 
 
 def test_index_python_symbols_finds_class_and_function(sample_repo):
@@ -69,4 +69,44 @@ def test_module_symbols_suppresses_invalid_escape_sequence_warnings(tmp_path, sa
         _module_symbols(offending_file, sample_repo)
 
     assert not any(issubclass(w.category, SyntaxWarning) for w in caught)
+
+
+def test_module_symbols_skips_file_on_unexpected_parse_exception(monkeypatch, tmp_path):
+    """A file that trips a non-SyntaxError/OSError exception during parsing
+    must be skipped, not allowed to crash the whole workspace scan."""
+    import ast
+
+    offending_file = tmp_path / "weird.py"
+    offending_file.write_text("x = 1\n", encoding="utf-8")
+
+    def _boom(source):
+        raise ValueError("simulated unexpected parser failure")
+
+    monkeypatch.setattr(ast, "parse", _boom)
+
+    skipped: list[dict[str, str]] = []
+    symbols = _module_symbols(offending_file, tmp_path, skipped_files=skipped)
+
+    assert symbols == []
+    assert any(entry["reason"].startswith("parse_error:ValueError") for entry in skipped)
+
+
+def test_process_single_python_file_never_raises(monkeypatch, tmp_path):
+    """The per-file worker function must always return, even if internal
+    symbol extraction misbehaves, so a ProcessPoolExecutor worker can never
+    take down the entire refresh."""
+    import app.indexer.python_indexer as python_indexer
+
+    offending_file = tmp_path / "weird.py"
+    offending_file.write_text("x = 1\n", encoding="utf-8")
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated unexpected failure")
+
+    monkeypatch.setattr(python_indexer, "_module_symbols", _boom)
+
+    symbols, skipped = _process_single_python_file(offending_file, tmp_path, use_cst=False)
+
+    assert symbols == []
+    assert any(entry["reason"].startswith("unexpected_error:RuntimeError") for entry in skipped)
 
