@@ -84,15 +84,17 @@ class SearchController:
         """Export search results to a CSV file path."""
         with open(file_path, "w", newline="", encoding="utf-8") as file_handle:
             writer = csv.writer(file_handle)
-            writer.writerow(["Type", "File Type", "Path", "Line", "Title", "Preview"])
+            writer.writerow(["Title", "File", "Path", "Line", "Type", "File Type", "Preview"])
             for item in results:
+                file_name = str(item.get("file") or (Path(str(item.get("path", ""))).name if item.get("path") else ""))
                 writer.writerow(
                     [
-                        item.get("type", ""),
-                        item.get("file_type", ""),
+                        item.get("title", ""),
+                        file_name,
                         item.get("path", ""),
                         item.get("line", ""),
-                        item.get("title", ""),
+                        item.get("type", ""),
+                        item.get("file_type", ""),
                         item.get("preview", ""),
                     ]
                 )

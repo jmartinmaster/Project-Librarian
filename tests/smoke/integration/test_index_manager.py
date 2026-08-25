@@ -30,6 +30,7 @@ from app.indexer.index_manager import (
     SNAPSHOT_NAME,
     IndexManager,
     format_bytes,
+    get_memory_usage,
 )
 
 
@@ -196,8 +197,10 @@ def test_refresh_status_reports_elapsed_running_time_while_in_progress(monkeypat
     a frozen UI instead of just showing a static "in progress" flag."""
     manager = IndexManager(app_config)
     release_refresh = threading.Event()
+    refresh_entered = threading.Event()
 
     def fake_repo_root():
+        refresh_entered.set()
         release_refresh.wait(timeout=1.0)
         return Path(app_config.project_root)
 
@@ -207,7 +210,7 @@ def test_refresh_status_reports_elapsed_running_time_while_in_progress(monkeypat
     assert idle_status["refresh_running_seconds"] is None
 
     manager.start_refresh_worker(interval_seconds=1.0, run_immediately=True)
-    time.sleep(0.1)
+    assert refresh_entered.wait(timeout=1.0)
 
     running_status = manager.refresh_status()
     assert running_status["refresh_in_progress"] is True
@@ -215,7 +218,7 @@ def test_refresh_status_reports_elapsed_running_time_while_in_progress(monkeypat
     assert running_status["refresh_running_seconds"] >= 0
 
     release_refresh.set()
-    manager.stop_refresh_worker(join_timeout=1.0)
+    manager.stop_refresh_worker(join_timeout=5.0)
 
     final_status = manager.refresh_status()
     assert final_status["refresh_running_seconds"] is None
@@ -344,4 +347,79 @@ def test_format_bytes_produces_readable_units():
     assert format_bytes(0) == "0 B"
     assert format_bytes(1536) == "1.5 KB"
     assert format_bytes(5 * 1024 * 1024) == "5.0 MB"
+
+
+def test_get_memory_usage_returns_dict_with_formatted_strings():
+    mem = get_memory_usage()
+    assert isinstance(mem, dict)
+    assert "process_ram_bytes" in mem
+    assert "process_ram_text" in mem
+    assert "system_ram_total_bytes" in mem
+    assert "system_ram_avail_bytes" in mem
+    assert "system_ram_text" in mem
+    assert isinstance(mem["process_ram_bytes"], int)
+
+
+def test_refresh_status_reports_progress_and_memory_fields(app_config, sample_repo: Path):
+    manager = IndexManager(app_config)
+    status = manager.refresh_status()
+
+    assert "progress_stage" in status
+    assert "progress_percent" in status
+    assert "process_ram_text" in status
+    assert "system_ram_text" in status
+    assert status["progress_stage"] is None
+    assert status["progress_percent"] is None
+
+    manager.refresh()
+    post_status = manager.refresh_status()
+    assert post_status["refresh_count"] == 1
+    assert post_status["process_ram_text"] != ""
+
+
+def test_incremental_refresh_preserves_and_updates_cache(app_config, sample_repo: Path):
+    app_config.incremental_indexing = True
+    manager = IndexManager(app_config)
+
+    # Initial refresh
+    state1 = manager.refresh()
+    assert len(state1.file_corpus) > 0
+    assert len(manager._file_signatures) == len(state1.file_corpus)
+    initial_signatures = dict(manager._file_signatures)
+
+    # Second refresh without file changes (instant incremental)
+    state2 = manager.refresh()
+    assert state2.file_corpus == state1.file_corpus
+    assert manager._file_signatures == initial_signatures
+
+    # Modify one file
+    mod_file = sample_repo / "pkg" / "module_a.py"
+    if mod_file.exists():
+        mod_file.write_text("def added_function(): pass\n", encoding="utf-8")
+        state3 = manager.refresh()
+        assert "def added_function(): pass\n" in state3.file_corpus.get("pkg/module_a.py", "")
+
+
+def test_cst_guard_and_skip_paths(app_config, sample_repo: Path):
+    app_config.use_cst = True
+    app_config.cst_max_file_size_kb = 1  # Low threshold: 1KB
+    app_config.cst_excluded_paths = ["skip_folder/"]
+    manager = IndexManager(app_config)
+
+    # Create a 2KB python file (exceeds threshold)
+    large_file = sample_repo / "large_file.py"
+    large_file.write_text("# filler\n" * 150 + "def big_func(): pass\n", encoding="utf-8")
+
+    # Create a file inside skip_folder
+    skip_dir = sample_repo / "skip_folder"
+    skip_dir.mkdir(parents=True, exist_ok=True)
+    skip_file = skip_dir / "skipped.py"
+    skip_file.write_text("def skip_func(): pass\n", encoding="utf-8")
+
+    state = manager.refresh()
+    symbol_names = [s.get("name") for s in state.symbols]
+    assert "big_func" in symbol_names
+    assert "skip_func" in symbol_names
+
+
 

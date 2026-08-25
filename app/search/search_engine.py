@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import re
 
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_./:-]+")
@@ -154,8 +155,11 @@ def search_snapshot(
             if score <= 0:
                 continue
             preview_line, preview = _best_preview_for_query(text, query, tokens, match_case, pattern)
+            file_name = Path(path).name
             results.append(
                 {
+                    "title": file_name,
+                    "file": file_name,
                     "type": "file",
                     "file_type": _file_type_from_path(path),
                     "path": path,
@@ -170,13 +174,17 @@ def search_snapshot(
             score = _score_symbol_record(symbol, query, tokens, match_case, pattern)
             if score <= 0:
                 continue
+            symbol_path = str(symbol.get("path", ""))
+            file_name = Path(symbol_path).name if symbol_path else ""
+            symbol_title = str(symbol.get("name") or symbol.get("qualified_name") or "")
             results.append(
                 {
+                    "title": symbol_title,
+                    "file": file_name,
                     "type": "symbol",
-                    "file_type": _file_type_from_path(str(symbol.get("path", ""))),
+                    "file_type": _file_type_from_path(symbol_path),
                     "path": symbol.get("path"),
                     "line": symbol.get("line"),
-                    "title": symbol.get("qualified_name"),
                     "preview": symbol.get("signature") or symbol.get("kind"),
                     "score": score,
                 }
@@ -201,13 +209,15 @@ def search_snapshot(
                     continue
                 score = 55 + sum(5 for token in tokens if token in combined)
 
+            file_name = Path(file_val).name if file_val else ""
             results.append(
                 {
+                    "title": field_val,
+                    "file": file_name,
                     "type": "excel",
                     "file_type": _file_type_from_path(file_val),
                     "path": file_val,
                     "line": row.get("row"),
-                    "title": field_val,
                     "preview": value_val,
                     "score": score,
                 }

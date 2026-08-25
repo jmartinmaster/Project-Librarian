@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QMenu,
+    QProgressBar,
     QPushButton,
     QTabWidget,
     QTreeWidget,
@@ -162,6 +163,8 @@ class MainWindowView(QMainWindow):
         self._action_auto_refresh: QAction
         self._help_menu: QMenu
         self._action_about: QAction
+        self._progress_bar: QProgressBar
+        self._ram_label: QLabel
         self._auto_refresh_label: QLabel
         self._skipped_label: QLabel
         self._last_refresh_label: QLabel
@@ -248,14 +251,39 @@ class MainWindowView(QMainWindow):
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
+        self._progress_bar = QProgressBar(self)
+        self._progress_bar.setRange(0, 100)
+        self._progress_bar.setFixedHeight(16)
+        self._progress_bar.setFixedWidth(160)
+        self._progress_bar.setTextVisible(True)
+        self._progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #45475a;
+                border-radius: 4px;
+                background-color: #1e1e2e;
+                text-align: center;
+                color: #cdd6f4;
+                font-size: 11px;
+            }
+            QProgressBar::chunk {
+                background-color: #89b4fa;
+                border-radius: 3px;
+            }
+        """)
+        self._progress_bar.hide()
+
+        self._ram_label = QLabel("RAM: --")
+        self._ram_label.setStyleSheet("padding: 0 4px;")
         self._auto_refresh_label = QLabel("Auto-Refresh: --")
         self._skipped_label = QLabel("Skipped: --")
         self._last_refresh_label = QLabel("Last Refresh: --")
+        self.statusBar().addPermanentWidget(self._progress_bar)
+        self.statusBar().addPermanentWidget(self._ram_label)
         self.statusBar().addPermanentWidget(self._auto_refresh_label)
         self.statusBar().addPermanentWidget(self._skipped_label)
         self.statusBar().addPermanentWidget(self._last_refresh_label)
         self._status_timer.timeout.connect(self._update_refresh_indicator)
-        self._status_timer.start(1000)
+        self._status_timer.start(500)
         self._update_refresh_indicator()
         self.statusBar().showMessage("Ready")
 
@@ -726,7 +754,7 @@ class MainWindowView(QMainWindow):
         self._update_refresh_indicator()
 
     def _update_refresh_indicator(self) -> None:
-        """Refresh status-bar labels for worker state and last refresh time."""
+        """Refresh status-bar labels for worker state, progress bar, RAM stats, and last refresh time."""
         status = self._controller.refresh_status()
         refresh_count = int(status.get("refresh_count") or 0)
         worker_running = bool(status.get("worker_running"))
@@ -738,6 +766,20 @@ class MainWindowView(QMainWindow):
         last_refresh_error = str(status.get("last_refresh_error") or "")
         worker_text = "running" if worker_running else "stopped"
 
+        # RAM Usage summary
+        process_ram_text = str(status.get("process_ram_text") or "--")
+        system_ram_text = str(status.get("system_ram_text") or "--")
+        sys_load = status.get("system_ram_load_percent")
+        sys_load_text = f" (Sys: {sys_load}%)" if sys_load else ""
+        self._ram_label.setText(f"RAM: {process_ram_text}{sys_load_text}")
+        self._ram_label.setToolTip(f"Process Working Set: {process_ram_text}\nSystem Physical RAM: {system_ram_text}")
+
+        # Progress tracking & active stage
+        progress_stage = status.get("progress_stage")
+        progress_percent = status.get("progress_percent")
+        progress_completed = status.get("progress_completed")
+        progress_total = status.get("progress_total")
+
         if refresh_count != self._last_applied_refresh_count:
             self._rebuild_library_tree()
             self.mvc_editor_tab.update_completer_words()
@@ -745,10 +787,25 @@ class MainWindowView(QMainWindow):
             self.statusBar().showMessage(self._controller.refresh_summary_text())
 
         if refresh_in_progress:
-            # Show elapsed time so a long-running scan is visibly active
-            # (ticking upward every second) instead of looking frozen/stuck.
+            # Show elapsed time and active stage so long-running scans are visibly active
             elapsed = int(refresh_running_seconds) if refresh_running_seconds is not None else 0
             worker_text = f"{worker_text}, indexing ({elapsed}s)"
+
+            self._progress_bar.show()
+            if progress_percent is not None:
+                self._progress_bar.setRange(0, 100)
+                self._progress_bar.setValue(int(progress_percent))
+                self._progress_bar.setFormat(f"{int(progress_percent)}%")
+            else:
+                self._progress_bar.setRange(0, 0)
+                self._progress_bar.setFormat("Indexing...")
+
+            stage_desc = str(progress_stage or "Indexing workspace")
+            if progress_total is not None and progress_completed is not None and progress_total > 0:
+                stage_desc = f"{stage_desc} ({progress_completed}/{progress_total})"
+            self.statusBar().showMessage(f"Indexing ({elapsed}s): {stage_desc}...")
+        else:
+            self._progress_bar.hide()
 
         self._auto_refresh_label.setText(f"Auto-Refresh: {worker_text} ({interval:.1f}s)")
         self._skipped_label.setText(f"Skipped: {skipped_count}")

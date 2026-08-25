@@ -56,8 +56,11 @@ def test_main_window_shows_refresh_indicators_and_toggle(qtbot, app_config):
 
     indicator_labels = [label.text() for label in window.statusBar().findChildren(QLabel)]
     assert any(text.startswith("Auto-Refresh:") for text in indicator_labels)
+    assert any(text.startswith("RAM:") for text in indicator_labels)
     assert any(text.startswith("Skipped:") for text in indicator_labels)
     assert any(text.startswith("Last Refresh:") for text in indicator_labels)
+    assert window._progress_bar is not None
+    assert window._ram_label is not None
 
     window._toggle_auto_refresh(False)
     assert not manager.is_refresh_worker_running()

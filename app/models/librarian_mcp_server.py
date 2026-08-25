@@ -37,7 +37,13 @@ import uvicorn
 from fastapi import FastAPI, Request, Response, HTTPException, Query, Header, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pycparser import c_ast, c_parser
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.mcpserver import MCPServer as FastMCP
+except ImportError:
+    try:
+        from mcp.server.fastmcp import FastMCP
+    except ImportError:
+        from mcp.server import MCPServer as FastMCP
 
 from app.config import load_config
 from app.indexer.index_manager import IndexManager

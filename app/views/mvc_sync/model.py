@@ -135,9 +135,9 @@ class DocumentModel(QObject):
             self.outline_changed.emit(role, {})
             return True
 
-        use_cst = False
+        use_cst = True
         if self.config is not None:
-            use_cst = getattr(self.config, 'use_cst', False)
+            use_cst = getattr(self.config, 'use_cst', True)
 
         if use_cst and cst is not None:
             try:
@@ -151,6 +151,8 @@ class DocumentModel(QObject):
                         super().__init__()
                         self.classes = []
                         self.functions = []
+                        self.signals = []
+                        self.declarations = []
                         self.class_stack = []
 
                     def get_extended_range(self, node: cst.CSTNode):
@@ -158,26 +160,48 @@ class DocumentModel(QObject):
                         start_line = pos.start.line
                         end_line = pos.end.line
 
+                        # Only include contiguous leading comments directly attached to this node
                         if node.leading_lines:
-                            first_leading = node.leading_lines[0]
-                            lpos = self.get_metadata(PositionProvider, first_leading)
-                            start_line = min(start_line, lpos.start.line)
+                            leading_comment_start = None
+                            for ll in reversed(node.leading_lines):
+                                if getattr(ll, "comment", None) is not None:
+                                    lpos = self.get_metadata(PositionProvider, ll)
+                                    leading_comment_start = lpos.start.line
+                                else:
+                                    # Hit a blank line: do not extend further upward
+                                    break
+                            if leading_comment_start is not None:
+                                start_line = min(start_line, leading_comment_start)
 
+                        # Only include contiguous footer comments directly inside this block
                         if hasattr(node, 'body') and isinstance(node.body, cst.IndentedBlock):
                             if node.body.footer:
-                                last_footer = node.body.footer[-1]
-                                fpos = self.get_metadata(PositionProvider, last_footer)
-                                end_line = max(end_line, fpos.end.line)
+                                footer_comment_end = None
+                                for f in node.body.footer:
+                                    if getattr(f, "comment", None) is not None:
+                                        fpos = self.get_metadata(PositionProvider, f)
+                                        footer_comment_end = fpos.end.line
+                                    else:
+                                        # Hit a blank line: do not extend further downward
+                                        break
+                                if footer_comment_end is not None:
+                                    end_line = max(end_line, footer_comment_end)
 
                         return start_line, end_line
 
                     def visit_ClassDef(self, node: cst.ClassDef) -> bool:
                         start_line, end_line = self.get_extended_range(node)
+                        pos = self.get_metadata(PositionProvider, node)
                         class_info = {
+                            'type': 'class',
                             'name': node.name.value,
                             'start_line': start_line,
                             'end_line': end_line,
-                            'methods': []
+                            'line': pos.start.line,
+                            'methods': [],
+                            'properties': [],
+                            'signals': [],
+                            'declarations': []
                         }
                         if not self.class_stack:
                             self.classes.append(class_info)
@@ -192,26 +216,114 @@ class DocumentModel(QObject):
                             return False
 
                         start_line, end_line = self.get_extended_range(node)
+                        pos = self.get_metadata(PositionProvider, node)
                         args = [param.name.value for param in node.params.params if param.name.value != 'self']
+                        sig = f"({', '.join(args)})"
 
-                        method_info = {
+                        is_property = False
+                        for d in node.decorators:
+                            dec_code = ""
+                            if isinstance(d.decorator, cst.Name):
+                                dec_code = d.decorator.value
+                            elif isinstance(d.decorator, cst.Attribute):
+                                if hasattr(d.decorator.value, 'value'):
+                                    dec_code = f"{d.decorator.value.value}.{d.decorator.attr.value}"
+                            if "property" in dec_code or "setter" in dec_code:
+                                is_property = True
+
+                        current_class = self.class_stack[-1]['name'] if self.class_stack else None
+                        item_type = 'property' if is_property else ('method' if current_class else 'function')
+
+                        item_info = {
+                            'type': item_type,
                             'name': node.name.value,
                             'start_line': start_line,
                             'end_line': end_line,
-                            'args': args
+                            'line': pos.start.line,
+                            'args': args,
+                            'signature': sig,
+                            'class_name': current_class
                         }
 
                         if self.class_stack:
-                            self.class_stack[-1]['methods'].append(method_info)
+                            if is_property:
+                                self.class_stack[-1]['properties'].append(item_info)
+                            else:
+                                self.class_stack[-1]['methods'].append(item_info)
                         else:
-                            self.functions.append(method_info)
+                            self.functions.append(item_info)
 
+                        return False
+
+                    def visit_Assign(self, node: cst.Assign) -> bool:
+                        pos = self.get_metadata(PositionProvider, node)
+                        current_class = self.class_stack[-1]['name'] if self.class_stack else None
+                        val_str = ""
+                        is_signal = False
+                        if isinstance(node.value, cst.Call):
+                            func_name = ""
+                            if isinstance(node.value.func, cst.Name):
+                                func_name = node.value.func.value
+                            elif isinstance(node.value.func, cst.Attribute):
+                                func_name = node.value.func.attr.value
+                            if "Signal" in func_name or "pyqtSignal" in func_name:
+                                is_signal = True
+                                val_str = func_name
+
+                        for target in node.targets:
+                            if isinstance(target.target, cst.Name):
+                                name = target.target.value
+                                item = {
+                                    'type': 'signal' if is_signal else 'declaration',
+                                    'name': name,
+                                    'line': pos.start.line,
+                                    'start_line': pos.start.line,
+                                    'end_line': pos.end.line,
+                                    'class_name': current_class,
+                                    'details': val_str
+                                }
+                                if is_signal:
+                                    if self.class_stack:
+                                        self.class_stack[-1]['signals'].append(item)
+                                    else:
+                                        self.signals.append(item)
+                                else:
+                                    if self.class_stack:
+                                        self.class_stack[-1]['declarations'].append(item)
+                                    else:
+                                        self.declarations.append(item)
+                        return False
+
+                    def visit_AnnAssign(self, node: cst.AnnAssign) -> bool:
+                        pos = self.get_metadata(PositionProvider, node)
+                        current_class = self.class_stack[-1]['name'] if self.class_stack else None
+                        if isinstance(node.target, cst.Name):
+                            name = node.target.value
+                            item = {
+                                'type': 'declaration',
+                                'name': name,
+                                'line': pos.start.line,
+                                'start_line': pos.start.line,
+                                'end_line': pos.end.line,
+                                'class_name': current_class,
+                                'details': ""
+                            }
+                            if self.class_stack:
+                                self.class_stack[-1]['declarations'].append(item)
+                            else:
+                                self.declarations.append(item)
                         return False
 
                 visitor = OutlineCSTVisitor()
                 wrapper.visit(visitor)
 
-                outline = {'classes': visitor.classes, 'functions': visitor.functions}
+                outline = {
+                    'classes': visitor.classes,
+                    'functions': visitor.functions,
+                    'signals': visitor.signals,
+                    'declarations': visitor.declarations,
+                    'is_cst': True
+                }
                 self._triad_outlines[role] = outline
                 self.outline_changed.emit(role, outline)
                 return True
@@ -229,36 +341,219 @@ class DocumentModel(QObject):
 
         classes = []
         functions = []
+        signals = []
+        declarations = []
 
         for node in tree.body:
             if isinstance(node, ast.ClassDef):
-                methods = []
+                c_start = getattr(node, 'lineno', 1)
+                if node.decorator_list:
+                    c_start = min(c_start, node.decorator_list[0].lineno)
+                class_info = {
+                    'type': 'class',
+                    'name': node.name,
+                    'start_line': c_start,
+                    'end_line': getattr(node, 'end_lineno', node.lineno),
+                    'line': node.lineno,
+                    'methods': [],
+                    'properties': [],
+                    'signals': [],
+                    'declarations': []
+                }
                 for subnode in node.body:
-                    if isinstance(subnode, ast.FunctionDef):
-                        methods.append({
+                    if isinstance(subnode, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        f_start = subnode.lineno
+                        if subnode.decorator_list:
+                            f_start = min(f_start, subnode.decorator_list[0].lineno)
+                        args = [arg.arg for arg in subnode.args.args if arg.arg != 'self']
+                        sig = f"({', '.join(args)})"
+                        is_property = any(
+                            (isinstance(d, ast.Name) and "property" in d.id)
+                            or (isinstance(d, ast.Attribute) and ("property" in d.attr or "setter" in d.attr))
+                            for d in subnode.decorator_list
+                        )
+                        m_type = 'property' if is_property else 'method'
+                        m_info = {
+                            'type': m_type,
                             'name': subnode.name,
-                            'start_line': subnode.lineno,
+                            'start_line': f_start,
                             'end_line': getattr(subnode, 'end_lineno', subnode.lineno),
-                            'args': [arg.arg for arg in subnode.args.args if arg.arg != 'self']
-                        })
-                classes.append({
-                    'name': node.name,
-                    'start_line': node.lineno,
-                    'end_line': getattr(node, 'end_lineno', node.lineno),
-                    'methods': methods
-                })
-            elif isinstance(node, ast.FunctionDef):
+                            'line': subnode.lineno,
+                            'args': args,
+                            'signature': sig,
+                            'class_name': node.name
+                        }
+                        if is_property:
+                            class_info['properties'].append(m_info)
+                        else:
+                            class_info['methods'].append(m_info)
+                    elif isinstance(subnode, ast.Assign):
+                        is_sig = False
+                        sig_name = ""
+                        if isinstance(subnode.value, ast.Call):
+                            if isinstance(subnode.value.func, ast.Name) and ("Signal" in subnode.value.func.id or "pyqtSignal" in subnode.value.func.id):
+                                is_sig = True
+                                sig_name = subnode.value.func.id
+                            elif isinstance(subnode.value.func, ast.Attribute) and ("Signal" in subnode.value.func.attr or "pyqtSignal" in subnode.value.func.attr):
+                                is_sig = True
+                                sig_name = subnode.value.func.attr
+                        for target in subnode.targets:
+                            if isinstance(target, ast.Name):
+                                item = {
+                                    'type': 'signal' if is_sig else 'declaration',
+                                    'name': target.id,
+                                    'line': subnode.lineno,
+                                    'start_line': subnode.lineno,
+                                    'end_line': getattr(subnode, 'end_lineno', subnode.lineno),
+                                    'class_name': node.name,
+                                    'details': sig_name
+                                }
+                                if is_sig:
+                                    class_info['signals'].append(item)
+                                else:
+                                    class_info['declarations'].append(item)
+                    elif isinstance(subnode, ast.AnnAssign):
+                        if isinstance(subnode.target, ast.Name):
+                            class_info['declarations'].append({
+                                'type': 'declaration',
+                                'name': subnode.target.id,
+                                'line': subnode.lineno,
+                                'start_line': subnode.lineno,
+                                'end_line': getattr(subnode, 'end_lineno', subnode.lineno),
+                                'class_name': node.name,
+                                'details': ""
+                            })
+                classes.append(class_info)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                f_start = node.lineno
+                if node.decorator_list:
+                    f_start = min(f_start, node.decorator_list[0].lineno)
+                args = [arg.arg for arg in node.args.args]
                 functions.append({
+                    'type': 'function',
                     'name': node.name,
-                    'start_line': node.lineno,
+                    'start_line': f_start,
                     'end_line': getattr(node, 'end_lineno', node.lineno),
-                    'args': [arg.arg for arg in node.args.args]
+                    'line': node.lineno,
+                    'args': args,
+                    'signature': f"({', '.join(args)})",
+                    'class_name': None
                 })
 
-        outline = {'classes': classes, 'functions': functions}
+        outline = {
+            'classes': classes,
+            'functions': functions,
+            'signals': signals,
+            'declarations': declarations,
+            'is_cst': False
+        }
         self._triad_outlines[role] = outline
         self.outline_changed.emit(role, outline)
         return True
+
+    def get_symbols_list(self, role: str) -> list[dict]:
+        """
+        Returns a flat list of symbol dictionaries for the given role,
+        including classes, methods, properties, signals, and declarations.
+        """
+        outline = self._triad_outlines.get(role)
+        if not outline:
+            return []
+
+        symbols = []
+        for c in outline.get('classes', []):
+            symbols.append({
+                'type': 'class',
+                'name': c['name'],
+                'line': c.get('line', c['start_line']),
+                'start_line': c['start_line'],
+                'end_line': c['end_line'],
+                'role': role,
+                'class_name': None,
+                'details': f"lines {c['start_line']}-{c['end_line']}"
+            })
+            for sig in c.get('signals', []):
+                symbols.append({
+                    'type': 'signal',
+                    'name': sig['name'],
+                    'line': sig['line'],
+                    'start_line': sig.get('start_line', sig['line']),
+                    'end_line': sig.get('end_line', sig['line']),
+                    'role': role,
+                    'class_name': c['name'],
+                    'details': sig.get('details', '')
+                })
+            for decl in c.get('declarations', []):
+                symbols.append({
+                    'type': 'declaration',
+                    'name': decl['name'],
+                    'line': decl['line'],
+                    'start_line': decl.get('start_line', decl['line']),
+                    'end_line': decl.get('end_line', decl['line']),
+                    'role': role,
+                    'class_name': c['name'],
+                    'details': decl.get('details', '')
+                })
+            for prop in c.get('properties', []):
+                symbols.append({
+                    'type': 'property',
+                    'name': prop['name'],
+                    'line': prop.get('line', prop['start_line']),
+                    'start_line': prop['start_line'],
+                    'end_line': prop['end_line'],
+                    'role': role,
+                    'class_name': c['name'],
+                    'details': prop.get('signature', '')
+                })
+            for m in c.get('methods', []):
+                symbols.append({
+                    'type': 'method',
+                    'name': m['name'],
+                    'line': m.get('line', m['start_line']),
+                    'start_line': m['start_line'],
+                    'end_line': m['end_line'],
+                    'role': role,
+                    'class_name': c['name'],
+                    'details': m.get('signature', '')
+                })
+
+        for f in outline.get('functions', []):
+            symbols.append({
+                'type': 'function',
+                'name': f['name'],
+                'line': f.get('line', f['start_line']),
+                'start_line': f['start_line'],
+                'end_line': f['end_line'],
+                'role': role,
+                'class_name': None,
+                'details': f.get('signature', '')
+            })
+
+        for sig in outline.get('signals', []):
+            symbols.append({
+                'type': 'signal',
+                'name': sig['name'],
+                'line': sig['line'],
+                'start_line': sig.get('start_line', sig['line']),
+                'end_line': sig.get('end_line', sig['line']),
+                'role': role,
+                'class_name': None,
+                'details': sig.get('details', '')
+            })
+
+        for decl in outline.get('declarations', []):
+            symbols.append({
+                'type': 'declaration',
+                'name': decl['name'],
+                'line': decl['line'],
+                'start_line': decl.get('start_line', decl['line']),
+                'end_line': decl.get('end_line', decl['line']),
+                'role': role,
+                'class_name': None,
+                'details': decl.get('details', '')
+            })
+
+        return symbols
 
     def update_active_location(self, role: str, line: int):
         """
@@ -272,19 +567,22 @@ class DocumentModel(QObject):
         cls_name = None
         method_name = None
 
-        # Check classes first
-        for c in outline['classes']:
+        for c in outline.get('classes', []):
             if c['start_line'] <= line <= c['end_line']:
                 cls_name = c['name']
-                for m in c['methods']:
-                    if m['start_line'] <= line <= m['end_line']:
-                        method_name = m['name']
+                for p in c.get('properties', []):
+                    if p['start_line'] <= line <= p['end_line']:
+                        method_name = p['name']
                         break
+                if not method_name:
+                    for m in c.get('methods', []):
+                        if m['start_line'] <= line <= m['end_line']:
+                            method_name = m['name']
+                            break
                 break
 
-        # Check global functions if not inside a class
         if not cls_name:
-            for f in outline['functions']:
+            for f in outline.get('functions', []):
                 if f['start_line'] <= line <= f['end_line']:
                     method_name = f['name']
                     break
@@ -296,21 +594,40 @@ class DocumentModel(QObject):
 
     def get_active_block_range(self, role: str, line: int) -> tuple[int, int] | None:
         """
-        Calculates the start and end lines of the class, method, or function
+        Calculates the start and end lines of the class, method, property, or function
         containing the given line number.
         """
-        outline = self._triad_outlines[role]
+        outline = self._triad_outlines.get(role)
         if not outline:
             return None
 
         # Check classes first
         for c in outline.get('classes', []):
             if c['start_line'] <= line <= c['end_line']:
+                # Check properties inside this class
+                for p in c.get('properties', []):
+                    if p['start_line'] <= line <= p['end_line']:
+                        return p['start_line'], p['end_line']
                 # Check methods inside this class
                 for m in c.get('methods', []):
                     if m['start_line'] <= line <= m['end_line']:
                         return m['start_line'], m['end_line']
-                # If inside class but not any specific method, return class range
+                # Check signals inside this class
+                for s in c.get('signals', []):
+                    if s['start_line'] <= line <= s['end_line']:
+                        return s['start_line'], s['end_line']
+                # Check declarations inside this class
+                for d in c.get('declarations', []):
+                    if d['start_line'] <= line <= d['end_line']:
+                        return d['start_line'], d['end_line']
+
+                # If inside class before first member, highlight class header and docstring
+                members = c.get('methods', []) + c.get('properties', []) + c.get('signals', []) + c.get('declarations', [])
+                if members:
+                    first_member_start = min(item['start_line'] for item in members)
+                    if line < first_member_start:
+                        return c['start_line'], max(c['start_line'], first_member_start - 1)
+
                 return c['start_line'], c['end_line']
 
         # Check global functions

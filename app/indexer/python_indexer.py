@@ -227,24 +227,42 @@ def _process_single_python_file(
     path: Path,
     repo_root: Path,
     use_cst: bool,
+    cst_max_file_size_kb: int = 200,
+    cst_excluded_paths: list[str] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
     local_skipped: list[dict[str, str]] = []
     try:
         try:
-            if path.stat().st_size > 5 * 1024 * 1024:
+            file_size = path.stat().st_size
+            if file_size > 5 * 1024 * 1024:
                 _record_skip(local_skipped, path=path, repo_root=repo_root, reason="skip_large_file")
                 return [], local_skipped
         except OSError:
-            pass
-        if use_cst:
+            file_size = 0
+
+        # CST File-size guard and exclusion checks
+        effective_use_cst = use_cst
+        if effective_use_cst:
+            try:
+                rel_path = path.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel_path = path.as_posix()
+
+            if file_size > cst_max_file_size_kb * 1024:
+                effective_use_cst = False
+            elif cst_excluded_paths:
+                for excl in cst_excluded_paths:
+                    cleaned = excl.strip().replace("\\", "/").strip("/")
+                    if cleaned and (cleaned in rel_path or rel_path.startswith(cleaned)):
+                        effective_use_cst = False
+                        break
+
+        if effective_use_cst:
             symbols = _module_symbols_cst(path=path, repo_root=repo_root, skipped_files=local_skipped)
         else:
             symbols = _module_symbols(path=path, repo_root=repo_root, skipped_files=local_skipped)
         return symbols, local_skipped
     except Exception as exc:
-        # Last-resort safety net: a single unexpected failure on one file
-        # must never crash the whole workspace scan (which would leave the
-        # index stuck on stale/empty data). Skip just this file.
         _record_skip(local_skipped, path=path, repo_root=repo_root, reason=f"unexpected_error:{exc.__class__.__name__}")
         return [], local_skipped
 
@@ -254,6 +272,11 @@ def index_python_symbols(
     skipped_files: list[dict[str, str]] | None = None,
     use_cst: bool = True,
     thread_count: int = 4,
+    excluded_dirs: list[str] | set[str] | None = None,
+    cst_max_file_size_kb: int = 200,
+    cst_excluded_paths: list[str] | None = None,
+    cached_symbols: list[dict[str, object]] | None = None,
+    cached_signatures: dict[str, tuple[float, int]] | None = None,
 ) -> list[dict[str, object]]:
     """Index Python symbols for all source files beneath repo_root."""
     if use_cst:
@@ -270,28 +293,65 @@ def index_python_symbols(
                 })
 
     paths: list[Path] = []
-    excluded = {".git", ".venv", "__pycache__", "build", "tests"}
+    default_excluded = {".git", ".venv", "__pycache__", "build", "tests"}
+    excluded = default_excluded.union(excluded_dirs) if excluded_dirs else default_excluded
     import os
     for root, dirs, files in os.walk(repo_root):
-        # Prune hidden directories and excluded directories in-place
         dirs[:] = [d for d in dirs if d not in excluded and not d.startswith(".")]
         for file in files:
             if file.endswith(".py"):
                 paths.append(Path(root) / file)
 
+    retained_symbols: list[dict[str, object]] = []
+    paths_to_process: list[Path] = []
+
+    if cached_signatures is not None and cached_symbols is not None:
+        cached_by_file: dict[str, list[dict[str, object]]] = {}
+        for sym in cached_symbols:
+            p = str(sym.get("path", ""))
+            cached_by_file.setdefault(p, []).append(sym)
+
+        for path in paths:
+            try:
+                rel = path.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel = path.as_posix()
+            try:
+                st = path.stat()
+                sig = (st.st_mtime, st.st_size)
+            except OSError:
+                paths_to_process.append(path)
+                continue
+
+            if rel in cached_signatures and cached_signatures[rel] == sig and rel in cached_by_file:
+                retained_symbols.extend(cached_by_file[rel])
+            else:
+                paths_to_process.append(path)
+    else:
+        paths_to_process = paths
+
+    if not paths_to_process:
+        return retained_symbols
+
     from concurrent.futures import ProcessPoolExecutor
 
-    symbols: list[dict[str, object]] = []
+    symbols: list[dict[str, object]] = list(retained_symbols)
     with ProcessPoolExecutor(max_workers=max(1, thread_count)) as executor:
         futures = [
-            executor.submit(_process_single_python_file, path, repo_root, use_cst) for path in paths
+            executor.submit(
+                _process_single_python_file,
+                path,
+                repo_root,
+                use_cst,
+                cst_max_file_size_kb,
+                cst_excluded_paths,
+            )
+            for path in paths_to_process
         ]
-        for path, future in zip(paths, futures):
+        for path, future in zip(paths_to_process, futures):
             try:
                 file_symbols, local_skipped = future.result()
             except Exception as exc:
-                # A worker process failure (e.g. a crash while unpickling a
-                # result) must not abort indexing of the remaining files.
                 if skipped_files is not None:
                     _record_skip(skipped_files, path=path, repo_root=repo_root, reason=f"worker_error:{exc.__class__.__name__}")
                 continue

@@ -70,6 +70,12 @@ class MVCEditorTab(QWidget):
         self.view_editor = self._view.view_pane.editor
         self.controller_editor = self._view.controller_pane.editor
         self.file_editor = self._view.controller_pane.editor
+        self.inspector_tabs = self._view.inspector_tabs
+        self.symbol_filter_input = self._view.symbol_filter_input
+        self.symbols_tab_widget = self._view.symbols_tab_widget
+        self.model_symbols_list = self._view.model_symbols_list
+        self.view_symbols_list = self._view.view_symbols_list
+        self.controller_symbols_list = self._view.controller_symbols_list
 
         self.update_completer_words()
 

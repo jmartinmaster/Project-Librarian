@@ -420,14 +420,14 @@ def _iter_python_files(repo_root):
 
 def _build_file_entry(path, repo_root, managed_module_names):
     try:
-        source_text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise SymbolIndexError(f"Unable to read {path}: {exc}") from exc
+        source_text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
 
     try:
         tree = ast.parse(source_text, filename=str(path))
-    except SyntaxError as exc:
-        raise SymbolIndexError(f"Unable to parse {path}: {exc}") from exc
+    except (SyntaxError, Exception):
+        return None
 
     relative_path = _relative_path_text(path, repo_root)
     entry = {
@@ -648,7 +648,10 @@ def generate_symbol_index(repo_root=None, output_dir=None):
     repo_root = Path(repo_root or _repo_root_from_here()).resolve()
     output_dir = Path(output_dir or (repo_root / DEFAULT_OUTPUT_DIR)).resolve()
     managed_module_names = _load_managed_module_names(repo_root)
-    file_entries = [_build_file_entry(path, repo_root, managed_module_names) for path in _iter_python_files(repo_root)]
+    file_entries = [
+        entry for path in _iter_python_files(repo_root)
+        if (entry := _build_file_entry(path, repo_root, managed_module_names)) is not None
+    ]
     summary = _build_summary(file_entries, managed_module_names)
 
     payload = {
