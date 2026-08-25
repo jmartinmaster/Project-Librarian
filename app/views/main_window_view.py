@@ -387,7 +387,14 @@ class MainWindowView(QMainWindow):
         if started:
             self.statusBar().showMessage("Refreshing index in background...")
         else:
-            self.statusBar().showMessage("Refresh already in progress.")
+            status = self._controller.refresh_status()
+            running_seconds = status.get("refresh_running_seconds")
+            if running_seconds is not None:
+                self.statusBar().showMessage(
+                    f"Refresh already in progress (running for {int(running_seconds)}s)."
+                )
+            else:
+                self.statusBar().showMessage("Refresh already in progress.")
         self._update_refresh_indicator()
 
     def _build_library_pane(self) -> None:
@@ -724,6 +731,7 @@ class MainWindowView(QMainWindow):
         refresh_count = int(status.get("refresh_count") or 0)
         worker_running = bool(status.get("worker_running"))
         refresh_in_progress = bool(status.get("refresh_in_progress"))
+        refresh_running_seconds = status.get("refresh_running_seconds")
         interval = float(status.get("interval_seconds") or 0.0)
         last_refresh = status.get("last_refresh_at") or "--"
         skipped_count = int(status.get("skipped_count") or 0)
@@ -737,7 +745,10 @@ class MainWindowView(QMainWindow):
             self.statusBar().showMessage(self._controller.refresh_summary_text())
 
         if refresh_in_progress:
-            worker_text = f"{worker_text}, indexing"
+            # Show elapsed time so a long-running scan is visibly active
+            # (ticking upward every second) instead of looking frozen/stuck.
+            elapsed = int(refresh_running_seconds) if refresh_running_seconds is not None else 0
+            worker_text = f"{worker_text}, indexing ({elapsed}s)"
 
         self._auto_refresh_label.setText(f"Auto-Refresh: {worker_text} ({interval:.1f}s)")
         self._skipped_label.setText(f"Skipped: {skipped_count}")

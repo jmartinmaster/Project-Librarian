@@ -190,6 +190,37 @@ def test_refresh_status_tracks_last_refresh_and_count(app_config):
     assert isinstance(after["skipped_count"], int)
 
 
+def test_refresh_status_reports_elapsed_running_time_while_in_progress(monkeypatch, app_config):
+    """The status bar shows a ticking elapsed-time counter while a refresh is
+    active, so a long-running (or stuck) scan is visibly distinguishable from
+    a frozen UI instead of just showing a static "in progress" flag."""
+    manager = IndexManager(app_config)
+    release_refresh = threading.Event()
+
+    def fake_repo_root():
+        release_refresh.wait(timeout=1.0)
+        return Path(app_config.project_root)
+
+    monkeypatch.setattr(manager, "_repo_root", fake_repo_root)
+
+    idle_status = manager.refresh_status()
+    assert idle_status["refresh_running_seconds"] is None
+
+    manager.start_refresh_worker(interval_seconds=1.0, run_immediately=True)
+    time.sleep(0.1)
+
+    running_status = manager.refresh_status()
+    assert running_status["refresh_in_progress"] is True
+    assert running_status["refresh_running_seconds"] is not None
+    assert running_status["refresh_running_seconds"] >= 0
+
+    release_refresh.set()
+    manager.stop_refresh_worker(join_timeout=1.0)
+
+    final_status = manager.refresh_status()
+    assert final_status["refresh_running_seconds"] is None
+
+
 def test_refresh_handles_non_utf8_and_malformed_python_files(app_config, sample_repo: Path):
     invalid_text = sample_repo / "latin1_text.txt"
     invalid_text.write_bytes(b"ol\xfc index me")

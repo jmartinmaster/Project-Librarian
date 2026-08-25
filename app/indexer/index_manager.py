@@ -141,6 +141,7 @@ class IndexManager:
         self._last_refresh_at: str | None = None
         self._refresh_count = 0
         self._last_refresh_error: str | None = None
+        self._refresh_started_monotonic: float | None = None
 
     def is_refresh_worker_running(self) -> bool:
         """Return True when the background refresh worker is currently active."""
@@ -149,9 +150,12 @@ class IndexManager:
     def refresh_status(self) -> dict[str, object]:
         """Return current refresh worker/runtime metadata for UI display."""
         with self._refresh_lock:
+            started_at = self._refresh_started_monotonic
+            running_seconds = (time.monotonic() - started_at) if started_at is not None else None
             return {
                 "worker_running": self.is_refresh_worker_running(),
                 "refresh_in_progress": self._refresh_in_progress.is_set(),
+                "refresh_running_seconds": running_seconds,
                 "interval_seconds": self._worker_interval_seconds,
                 "last_refresh_at": self._last_refresh_at,
                 "refresh_count": self._refresh_count,
@@ -403,6 +407,8 @@ class IndexManager:
         """Rebuild all configured indexes and persist snapshot artifacts."""
         with self._refresh_run_lock:
             self._refresh_in_progress.set()
+            with self._refresh_lock:
+                self._refresh_started_monotonic = time.monotonic()
             try:
                 repo_root = self._repo_root()
                 output_dir = self._output_dir()
@@ -471,3 +477,5 @@ class IndexManager:
                 raise
             finally:
                 self._refresh_in_progress.clear()
+                with self._refresh_lock:
+                    self._refresh_started_monotonic = None
