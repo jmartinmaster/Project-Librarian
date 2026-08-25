@@ -97,3 +97,61 @@ def test_settings_view_indexing_thread_count_roundtrip(monkeypatch, qtbot, tmp_p
     assert config.indexing_thread_count == 8
     assert written["indexing_thread_count"] == 8
 
+
+def test_settings_view_incremental_and_cst_guard_controls(monkeypatch, qtbot, tmp_path: Path):
+    config = AppConfig(
+        cst_max_file_size_kb=200,
+        cst_excluded_paths=["generated/"],
+        incremental_indexing=True,
+        search_result_limit=100,
+        search_debounce_ms=300,
+    )
+    dialog = SettingsView(config)
+    qtbot.addWidget(dialog)
+
+    assert dialog.cst_max_file_size_spin.value() == 200
+    assert dialog.incremental_indexing_check.isChecked() is True
+    assert dialog.search_limit_spin.value() == 100
+    assert dialog.search_debounce_spin.value() == 300
+    assert dialog.cst_excluded_list.count() == 1
+    assert dialog.cst_excluded_list.item(0).text() == "generated/"
+
+    # Add/remove CST excluded item
+    dialog.cst_excluded_input.setText("large_data.py")
+    dialog._add_cst_excluded()
+    assert dialog.cst_excluded_list.count() == 2
+
+    dialog.cst_excluded_list.item(1).setSelected(True)
+    dialog._remove_cst_excluded()
+    assert dialog.cst_excluded_list.count() == 1
+
+    # Test presets
+    initial_excl = dialog.excluded_list.count()
+    dialog._add_default_exclusions()
+    assert dialog.excluded_list.count() >= initial_excl
+
+    initial_exts = dialog.extensions_list.count()
+    dialog._add_common_extensions()
+    assert dialog.extensions_list.count() >= initial_exts
+
+    # Update values and save
+    dialog.cst_max_file_size_spin.setValue(500)
+    dialog.incremental_indexing_check.setChecked(False)
+    dialog.search_limit_spin.setValue(250)
+    dialog.search_debounce_spin.setValue(500)
+
+    written = {}
+
+    def fake_save_config(saved_config):
+        written["saved"] = saved_config
+        return tmp_path / "config.json"
+
+    monkeypatch.setattr("app.controllers.settings_controller.save_config", fake_save_config)
+    dialog._save_and_accept()
+
+    assert config.cst_max_file_size_kb == 500
+    assert config.incremental_indexing is False
+    assert config.search_result_limit == 250
+    assert config.search_debounce_ms == 500
+
+

@@ -55,7 +55,22 @@ class AppConfig:
     project_root: str = ""
     output_dir: str = field(default_factory=_default_output_dir)
     excluded_dirs: list[str] = field(
-        default_factory=lambda: [".git", ".venv", "__pycache__", "build", "The_Librarian"]
+        default_factory=lambda: [
+            ".git",
+            ".venv",
+            "venv",
+            "__pycache__",
+            "node_modules",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".vscode",
+            ".idea",
+            "dist",
+            "build",
+            "target",
+            "vendor",
+            "The_Librarian",
+        ]
     )
     file_extensions: list[str] = field(
         default_factory=lambda: [".py", ".c", ".h", ".md", ".json", ".txt", ".xlsx", ".csv"]
@@ -73,7 +88,12 @@ class AppConfig:
     mcp_transport: str = "streamable-http"
     mcp_autostart: bool = False
     use_cst: bool = True
+    cst_max_file_size_kb: int = 200
+    cst_excluded_paths: list[str] = field(default_factory=list)
+    incremental_indexing: bool = True
     indexing_thread_count: int = 4
+    search_result_limit: int = 100
+    search_debounce_ms: int = 300
     ai_url: str = "http://localhost:11434/api/generate"
     ai_model: str = "qwen2.5-coder:14b"
     ai_boilerplate_only: bool = False

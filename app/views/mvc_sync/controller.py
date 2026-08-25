@@ -118,6 +118,7 @@ class EditorController(QObject):
         self.view.stop_triggered.connect(self.stop_application)
         self.view.file_selected.connect(self.open_file)
         self.view.connection_double_clicked.connect(self.navigate_to_connection)
+        self.view.symbol_double_clicked.connect(self.navigate_to_symbol)
         self.view.create_sibling_requested.connect(self.create_sibling_file)
         self.view.create_triad_requested.connect(self.create_new_mvc_triad)
         self.view.browse_sibling_requested.connect(self.browse_sibling_file)
@@ -258,6 +259,7 @@ class EditorController(QObject):
         self.model.trigger_status_message("Loaded MVC layout successfully.")
         self._is_loading = False
 
+        self.refresh_inspector()
         # Defer the heavy connection analysis so the UI paints the loaded files first.
         QTimer.singleShot(0, self.model.update_connections)
         QTimer.singleShot(0, self.update_view_dashboard)
@@ -661,50 +663,16 @@ class EditorController(QObject):
 
     def refresh_inspector(self, connections=None):
         """
-        Determines whether to show the multi-file MVC connections or the single-file method outline.
+        Populates both the multi-file MVC connections tab and the per-role symbol subtabs.
         """
-        existing_roles = []
+        self.view.set_inspector_title("MVC SYNC INSPECTOR")
+        if connections is None:
+            connections = self.model.connections
+        self.view.populate_connections(connections)
+
         for role in ['model', 'view', 'controller']:
-            path = self.model.get_path(role)
-            if path and os.path.exists(path):
-                existing_roles.append(role)
-                
-        if len(existing_roles) == 1:
-            active_role = existing_roles[0]
-            outline = self.model.get_outline(active_role)
-            filename = os.path.basename(self.model.get_path(active_role))
-            self.view.set_inspector_title(f"METHOD INSPECTOR ({filename.upper()})")
-            
-            items = []
-            if outline:
-                for cls in outline.get('classes', []):
-                    items.append({
-                        'type': 'class',
-                        'name': cls['name'],
-                        'line': cls['start_line'],
-                        'role': active_role
-                    })
-                    for m in cls.get('methods', []):
-                        items.append({
-                            'type': 'method',
-                            'name': m['name'],
-                            'line': m['start_line'],
-                            'class_name': cls['name'],
-                            'role': active_role
-                        })
-                for func in outline.get('functions', []):
-                    items.append({
-                        'type': 'function',
-                        'name': func['name'],
-                        'line': func['start_line'],
-                        'role': active_role
-                    })
-            self.view.populate_methods(items)
-        else:
-            self.view.set_inspector_title("MVC SYNC INSPECTOR")
-            if connections is None:
-                connections = self.model.connections
-            self.view.populate_connections(connections)
+            symbols = self.model.get_symbols_list(role)
+            self.view.populate_symbols(role, symbols)
 
     def force_refresh_inspector(self):
         """
@@ -985,6 +953,27 @@ class EditorController(QObject):
         sibling_element = conn['source_element'] if conn['target_role'] == 'controller' else conn['target_element']
         
         self.scroll_pane_to_element(sibling_role, sibling_element)
+
+    def navigate_to_symbol(self, symbol_info: dict):
+        """
+        Handles double-click in Symbols Inspector to jump the respective editor pane to that line
+        and highlight the block range with CST.
+        """
+        role = symbol_info.get('role')
+        line = symbol_info.get('line')
+        if not role or line is None:
+            return
+
+        pane = getattr(self.view, f"{role}_pane", None)
+        if pane and not pane.editor.isHidden():
+            pane.editor.blockSignals(True)
+            pane.jump_to_line(line)
+            pane.editor.blockSignals(False)
+
+            # Ensure block highlight is updated using the CST range
+            start_line = symbol_info.get('start_line', line)
+            end_line = symbol_info.get('end_line', line)
+            pane.highlight_block_range(start_line, end_line)
 
     # Subprocess run console execution
     def run_application(self):

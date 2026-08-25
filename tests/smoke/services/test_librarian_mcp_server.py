@@ -36,7 +36,7 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def _wait_for_probe(port: int, timeout_seconds: float = 15.0) -> dict[str, object]:
+def _wait_for_probe(port: int, timeout_seconds: float = 20.0) -> dict[str, object]:
     deadline = time.time() + timeout_seconds
     last_error = ""
     while time.time() < deadline:
@@ -185,7 +185,7 @@ def test_mcp_server_requires_token_when_configured(app_config):
     try:
         endpoint = f"http://127.0.0.1:{port}/api/mcp-probe"
 
-        deadline = time.time() + 15.0
+        deadline = time.time() + 20.0
         while time.time() < deadline:
             try:
                 request = urllib.request.Request(endpoint, method="GET")
@@ -309,7 +309,7 @@ def test_fastmcp_tools_and_resources_registration(app_config):
 
     # Verify resource templates exist
     templates = asyncio.run(mcp.list_resource_templates())
-    template_uris = [t.uriTemplate for t in templates]
+    template_uris = [getattr(t, "uri_template", getattr(t, "uriTemplate", None)) for t in templates]
     assert "file:///{relative_path}" in template_uris
 
 

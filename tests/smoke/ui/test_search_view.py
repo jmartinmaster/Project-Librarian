@@ -33,15 +33,17 @@ def test_search_view_shows_clickable_results_columns(qtbot, app_config):
 
     browser.set_query("sample", scope="all", execute=True)
 
-    assert browser.results_table.columnCount() == 6
+    assert browser.results_table.columnCount() == 7
     assert not browser.results_table.horizontalHeader().isHidden()
     assert browser.results_table.rowCount() > 0
-    first_type = browser.results_table.item(0, 0)
-    first_file_type = browser.results_table.item(0, 1)
-    assert first_type is not None
-    assert first_file_type is not None
-    assert first_type.text() != ""
-    assert first_file_type.text() != ""
+    headers = [browser.results_table.horizontalHeaderItem(i).text() for i in range(7)]
+    assert headers == ["Title", "File", "Path", "Line", "Type", "File Type", "Preview"]
+    first_title = browser.results_table.item(0, 0)
+    first_file = browser.results_table.item(0, 1)
+    first_path = browser.results_table.item(0, 2)
+    assert first_title is not None and first_title.text() != ""
+    assert first_file is not None and first_file.text() != ""
+    assert first_path is not None and first_path.text() != ""
 
 
 def test_search_view_shows_line_context_for_selected_result(qtbot, app_config):
@@ -55,11 +57,12 @@ def test_search_view_shows_line_context_for_selected_result(qtbot, app_config):
 
     widget.query_input.setText("needle")
     widget.scope_combo.setCurrentText("files")
-    widget.run_search()
+    widget.run_search(synchronous=True)
 
     preview = widget.preview_pane.toPlainText()
     assert "Path: app/sample.py" in preview
     assert "needle line" in preview
+    assert "Found 1 match" in widget.stats_label.text()
 
 
 def test_search_view_double_click_opens_file(monkeypatch, qtbot, app_config):
@@ -136,3 +139,28 @@ def test_search_view_create_note_signal(qtbot, app_config):
     assert "sample.py" in received_notes[0][0]
     assert received_notes[0][3] == "Search Browser"
 
+
+def test_search_view_live_search_updates_as_you_type(qtbot, app_config):
+    manager = IndexManager(app_config)
+    manager.state.file_corpus = {"app/sample.py": "line one\nneedle line\nline three\n"}
+    manager.state.symbols = []
+    manager.state.excel_rows = []
+
+    widget = SearchView(manager)
+    qtbot.addWidget(widget)
+
+    # Initial state should be 0 rows
+    assert widget.results_table.rowCount() == 0
+
+    # Type into the query input
+    widget.query_input.setText("needle")
+    assert widget._search_timer.isActive()
+
+    # Wait for debounce timer (300ms) to fire
+    qtbot.waitUntil(lambda: widget.results_table.rowCount() > 0, timeout=1000)
+    assert widget.results_table.rowCount() == 1
+
+    # Clear query
+    widget.query_input.setText("")
+    qtbot.waitUntil(lambda: widget.results_table.rowCount() == 0, timeout=1000)
+    assert "Type a query" in widget.preview_pane.toPlainText()

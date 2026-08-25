@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, 
     QTreeView, QListWidget, QListWidgetItem, QTextEdit, QPushButton, 
     QLabel, QStatusBar, QMenuBar, QToolBar, QCheckBox, QFileDialog,
-    QTabWidget
+    QTabWidget, QLineEdit
 )
 from PyQt6.QtGui import QFileSystemModel, QFont, QIcon, QAction
 from PyQt6.QtCore import pyqtSignal, Qt, QDir, QModelIndex
@@ -72,6 +72,75 @@ class ConnectionItemWidget(QWidget):
         layout.addStretch()
 
 
+class SymbolItemWidget(QWidget):
+    """
+    Custom widget to display classes, methods, functions, properties, signals, and declarations
+    in the Symbols inspector tabs.
+    """
+    def __init__(self, item_info: dict, parent=None):
+        super().__init__(parent)
+        self.item_info = item_info
+        
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+        
+        # Color definitions for type badges
+        colors = {
+            'class': ('#f9e2af', '#11111b', 'CLASS'),      # Yellow
+            'method': ('#89dceb', '#11111b', 'METHOD'),     # Sky
+            'function': ('#cba6f7', '#11111b', 'FUNC'),      # Lavender
+            'property': ('#94e2d5', '#11111b', 'PROP'),     # Teal
+            'signal': ('#fab387', '#11111b', 'SIGNAL'),     # Peach
+            'declaration': ('#a6e3a1', '#11111b', 'DECL')   # Green
+        }
+        bg, fg, badge_text = colors.get(item_info.get('type', ''), ('#cdd6f4', '#11111b', 'ITEM'))
+        
+        badge = QLabel(badge_text)
+        badge.setStyleSheet(f"""
+            background-color: {bg};
+            color: {fg};
+            font-weight: bold;
+            font-size: 9px;
+            border-radius: 3px;
+            padding: 1px 4px;
+        """)
+        badge.setFixedWidth(55)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(badge)
+        
+        # Format display text
+        item_type = item_info.get('type')
+        name = item_info.get('name', '')
+        line = item_info.get('line', '')
+        class_name = item_info.get('class_name')
+        details = item_info.get('details', '')
+
+        if item_type == 'class':
+            display_text = f"class {name}  (line {line})"
+        elif item_type in ('method', 'property') and class_name:
+            sig = details if details else ""
+            display_text = f"{class_name}.{name}{sig}  (line {line})"
+        elif item_type == 'function':
+            sig = details if details else ""
+            display_text = f"{name}{sig}  (line {line})"
+        elif item_type == 'signal':
+            sig_info = f" [{details}]" if details else ""
+            display_text = f"{name}{sig_info}  (line {line})"
+        elif item_type == 'declaration':
+            if class_name:
+                display_text = f"{class_name}.{name}  (line {line})"
+            else:
+                display_text = f"{name}  (line {line})"
+        else:
+            display_text = f"{name}  (line {line})"
+            
+        text_label = QLabel(display_text)
+        text_label.setStyleSheet("color: #cdd6f4; font-size: 11px; font-weight: 500;")
+        layout.addWidget(text_label)
+        layout.addStretch()
+
+
 class MethodItemWidget(QWidget):
     """
     Custom widget to display classes, methods, or functions in the single-file Method Inspector.
@@ -88,9 +157,12 @@ class MethodItemWidget(QWidget):
         colors = {
             'class': ('#f9e2af', '#11111b', 'CLASS'),      # Yellow
             'method': ('#89dceb', '#11111b', 'METHOD'),     # Sky
-            'function': ('#cba6f7', '#11111b', 'FUNC')      # Lavender
+            'function': ('#cba6f7', '#11111b', 'FUNC'),      # Lavender
+            'property': ('#94e2d5', '#11111b', 'PROP'),     # Teal
+            'signal': ('#fab387', '#11111b', 'SIGNAL'),     # Peach
+            'declaration': ('#a6e3a1', '#11111b', 'DECL')   # Green
         }
-        bg, fg, badge_text = colors.get(item_info['type'], ('#cdd6f4', '#11111b', 'ITEM'))
+        bg, fg, badge_text = colors.get(item_info.get('type', ''), ('#cdd6f4', '#11111b', 'ITEM'))
         
         badge = QLabel(badge_text)
         badge.setStyleSheet(f"""
@@ -106,10 +178,10 @@ class MethodItemWidget(QWidget):
         layout.addWidget(badge)
         
         # Format text
-        if item_info['type'] == 'method' and item_info.get('class_name'):
+        if item_info.get('type') == 'method' and item_info.get('class_name'):
             display_text = f"{item_info['class_name']}.{item_info['name']}  (line {item_info['line']})"
         else:
-            display_text = f"{item_info['name']}  (line {item_info['line']})"
+            display_text = f"{item_info.get('name', '')}  (line {item_info.get('line', '')})"
             
         text_label = QLabel(display_text)
         text_label.setStyleSheet("color: #cdd6f4; font-size: 11px; font-weight: 500;")
@@ -129,6 +201,7 @@ class EditorView(QMainWindow):
     stop_triggered = pyqtSignal()
     file_selected = pyqtSignal(str)
     connection_double_clicked = pyqtSignal(dict)
+    symbol_double_clicked = pyqtSignal(dict)
     create_sibling_requested = pyqtSignal(str, str) # role, source_path
     create_triad_requested = pyqtSignal(str, str)   # base_name, target_dir
     browse_sibling_requested = pyqtSignal(str)      # role
@@ -536,9 +609,134 @@ class EditorView(QMainWindow):
         
         inspector_layout.addLayout(header_layout)
         
+        # Inspector tabs: Tab 1 = Connections, Tab 2 = Symbols
+        self.inspector_tabs = QTabWidget()
+        self.inspector_tabs.setObjectName("InspectorTabs")
+        self.inspector_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #313244;
+                background-color: #181825;
+                border-radius: 6px;
+            }
+            QTabBar::tab {
+                background-color: #11111b;
+                color: #a6adc8;
+                padding: 6px 12px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                margin-right: 2px;
+                font-weight: bold;
+                font-size: 10px;
+            }
+            QTabBar::tab:hover {
+                background-color: #313244;
+            }
+            QTabBar::tab:selected {
+                background-color: #181825;
+                color: #f5c2e7;
+                border-bottom: 2px solid #f5c2e7;
+            }
+        """)
+
+        # TAB 1: Connections
+        self.connections_tab = QWidget()
+        connections_layout = QVBoxLayout(self.connections_tab)
+        connections_layout.setContentsMargins(2, 2, 2, 2)
+        connections_layout.setSpacing(4)
         self.connections_list = QListWidget()
+        self.connections_list.itemClicked.connect(self._on_connection_double_clicked)
         self.connections_list.itemDoubleClicked.connect(self._on_connection_double_clicked)
-        inspector_layout.addWidget(self.connections_list)
+        connections_layout.addWidget(self.connections_list)
+        self.inspector_tabs.addTab(self.connections_tab, "Connections")
+
+        # TAB 2: Symbols (Filter Input + Subtabs for Model, View, Controller)
+        self.symbols_tab = QWidget()
+        symbols_layout = QVBoxLayout(self.symbols_tab)
+        symbols_layout.setContentsMargins(2, 2, 2, 2)
+        symbols_layout.setSpacing(4)
+
+        # Quick Filter Box
+        self.symbol_filter_input = QLineEdit()
+        self.symbol_filter_input.setObjectName("SymbolFilterInput")
+        self.symbol_filter_input.setPlaceholderText("Filter symbols...")
+        self.symbol_filter_input.setStyleSheet("""
+            QLineEdit {
+                background-color: #11111b;
+                border: 1px solid #313244;
+                border-radius: 4px;
+                padding: 4px 8px;
+                color: #cdd6f4;
+                font-size: 11px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #89dceb;
+            }
+        """)
+        self.symbol_filter_input.textChanged.connect(self._on_symbol_filter_text_changed)
+        symbols_layout.addWidget(self.symbol_filter_input)
+
+        self.symbols_tab_widget = QTabWidget()
+        self.symbols_tab_widget.setObjectName("SymbolsTabWidget")
+        self.symbols_tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #313244;
+                background-color: #181825;
+                border-radius: 4px;
+            }
+            QTabBar::tab {
+                background-color: #11111b;
+                color: #a6adc8;
+                padding: 4px 8px;
+                border-top-left-radius: 3px;
+                border-top-right-radius: 3px;
+                margin-right: 2px;
+                font-weight: 600;
+                font-size: 10px;
+            }
+            QTabBar::tab:hover {
+                background-color: #313244;
+            }
+            QTabBar::tab:selected {
+                background-color: #181825;
+                color: #89dceb;
+                border-bottom: 2px solid #89dceb;
+            }
+        """)
+
+        # Subtab 1: Model
+        self.model_symbols_tab = QWidget()
+        m_layout = QVBoxLayout(self.model_symbols_tab)
+        m_layout.setContentsMargins(0, 0, 0, 0)
+        self.model_symbols_list = QListWidget()
+        self.model_symbols_list.itemClicked.connect(self._on_symbol_double_clicked)
+        self.model_symbols_list.itemDoubleClicked.connect(self._on_symbol_double_clicked)
+        m_layout.addWidget(self.model_symbols_list)
+        self.symbols_tab_widget.addTab(self.model_symbols_tab, "Model")
+
+        # Subtab 2: View
+        self.view_symbols_tab = QWidget()
+        v_layout = QVBoxLayout(self.view_symbols_tab)
+        v_layout.setContentsMargins(0, 0, 0, 0)
+        self.view_symbols_list = QListWidget()
+        self.view_symbols_list.itemClicked.connect(self._on_symbol_double_clicked)
+        self.view_symbols_list.itemDoubleClicked.connect(self._on_symbol_double_clicked)
+        v_layout.addWidget(self.view_symbols_list)
+        self.symbols_tab_widget.addTab(self.view_symbols_tab, "View")
+
+        # Subtab 3: Controller
+        self.controller_symbols_tab = QWidget()
+        c_layout = QVBoxLayout(self.controller_symbols_tab)
+        c_layout.setContentsMargins(0, 0, 0, 0)
+        self.controller_symbols_list = QListWidget()
+        self.controller_symbols_list.itemClicked.connect(self._on_symbol_double_clicked)
+        self.controller_symbols_list.itemDoubleClicked.connect(self._on_symbol_double_clicked)
+        c_layout.addWidget(self.controller_symbols_list)
+        self.symbols_tab_widget.addTab(self.controller_symbols_tab, "Controller")
+
+        symbols_layout.addWidget(self.symbols_tab_widget)
+        self.inspector_tabs.addTab(self.symbols_tab, "Symbols")
+
+        inspector_layout.addWidget(self.inspector_tabs)
         
         self.editor_tab_splitter.addWidget(self.inspector_widget)
 
@@ -776,8 +974,63 @@ class EditorView(QMainWindow):
         widget = self.connections_list.itemWidget(item)
         if widget and isinstance(widget, ConnectionItemWidget):
             self.connection_double_clicked.emit(widget.conn)
-        elif widget and isinstance(widget, MethodItemWidget):
+        elif widget and isinstance(widget, (MethodItemWidget, SymbolItemWidget)):
             self.connection_double_clicked.emit(widget.item_info)
+
+    def _on_symbol_double_clicked(self, item: QListWidgetItem):
+        list_widget = item.listWidget()
+        if list_widget:
+            widget = list_widget.itemWidget(item)
+            if widget and isinstance(widget, SymbolItemWidget):
+                self.symbol_double_clicked.emit(widget.item_info)
+            elif widget and isinstance(widget, MethodItemWidget):
+                self.symbol_double_clicked.emit(widget.item_info)
+
+    def _on_symbol_filter_text_changed(self, filter_text: str):
+        """Filter items across all symbol lists matching the entered query."""
+        query = filter_text.strip().lower()
+        for role in ["model", "view", "controller"]:
+            list_widget = getattr(self, f"{role}_symbols_list", None)
+            if list_widget is None:
+                continue
+            for i in range(list_widget.count()):
+                item = list_widget.item(i)
+                widget = list_widget.itemWidget(item)
+                if isinstance(widget, SymbolItemWidget):
+                    name = str(widget.item_info.get("name", "")).lower()
+                    kind = str(widget.item_info.get("kind", "")).lower()
+                    sig = str(widget.item_info.get("signature", "")).lower()
+                    cls_name = str(widget.item_info.get("class_name", "")).lower()
+                    match = not query or (query in name or query in kind or query in sig or query in cls_name)
+                    item.setHidden(not match)
+
+    def populate_symbols(self, role: str, symbols: list):
+        """
+        Populates the symbols list for a specific role (model, view, controller).
+        """
+        list_widget = getattr(self, f"{role}_symbols_list", None)
+        if list_widget is None:
+            return
+
+        list_widget.clear()
+        if not symbols:
+            placeholder_item = QListWidgetItem()
+            placeholder_lbl = QLabel(f"No symbols found in {role.capitalize()}", list_widget)
+            placeholder_lbl.setStyleSheet("color: #6c7086; font-size: 11px; font-style: italic; padding: 6px;")
+            list_widget.addItem(placeholder_item)
+            list_widget.setItemWidget(placeholder_item, placeholder_lbl)
+            return
+
+        for sym in symbols:
+            item = QListWidgetItem()
+            widget = SymbolItemWidget(sym, list_widget)
+            item.setSizeHint(widget.sizeHint())
+            list_widget.addItem(item)
+            list_widget.setItemWidget(item, widget)
+
+        # Apply active filter if user already typed in filter box
+        if hasattr(self, "symbol_filter_input") and self.symbol_filter_input.text().strip():
+            self._on_symbol_filter_text_changed(self.symbol_filter_input.text())
 
     def _on_sync_toggled(self, state):
         self.sync_nav_toggled.emit(state == 2) # 2 corresponds to Checked in Qt

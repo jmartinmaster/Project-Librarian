@@ -133,8 +133,12 @@ def _show_rebuild_dialog(app: QApplication, manager: IndexManager) -> None:
 
     def on_error(err_msg):
         dialog.reject()
-        QMessageBox.critical(None, "Indexing Error", f"Failed to build search index: {err_msg}")
-        sys.exit(1)
+        QMessageBox.warning(
+            None,
+            "Indexing Warning",
+            f"Initial index build encountered an issue:\n{err_msg}\n\n"
+            "The application will open so you can review Settings or retry indexing.",
+        )
 
     thread.finished_signal.connect(on_finished)
     thread.error_signal.connect(on_error)

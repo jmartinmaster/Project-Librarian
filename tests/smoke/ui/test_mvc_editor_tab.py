@@ -291,8 +291,157 @@ def test_mvc_editor_tab_jump_to_definition(qtbot, tmp_path: Path):
     assert tab._current_file_path.name == "helpers.py"
 
 
+def test_cst_ranges_with_blank_lines_and_class_docstring(qtbot):
+    from app.config import AppConfig
+    from app.views.mvc_sync.model import DocumentModel
+
+    config = AppConfig(use_cst=True)
+    model = DocumentModel(config=config)
+
+    content = (
+        "import os\n"
+        "\n"
+        "# Class comment\n"
+        "class MyView:\n"
+        '    """Class docstring."""\n'
+        "\n"
+        "    # Method comment\n"
+        "    def __init__(self):\n"
+        "        self.x = 1\n"
+        "\n"
+        "    def render(self):\n"
+        "        pass\n"
+    )
+    model.parse_outline("view", content)
+    outline = model.get_outline("view")
+
+    assert outline is not None
+    assert outline["is_cst"] is True
+    cls = outline["classes"][0]
+    assert cls["name"] == "MyView"
+    assert cls["line"] == 4  # exact 'class MyView' line
+    assert cls["start_line"] == 3  # '# Class comment'
+    assert cls["end_line"] == 12
+
+    init_m = cls["methods"][0]
+    assert init_m["name"] == "__init__"
+    assert init_m["line"] == 8  # exact 'def __init__' line
+    assert init_m["start_line"] == 7  # '# Method comment' (does not include blank line 6)
+    assert init_m["end_line"] == 9
+
+    render_m = cls["methods"][1]
+    assert render_m["name"] == "render"
+    assert render_m["line"] == 11
+    assert render_m["start_line"] == 11  # does not include blank line 10
+    assert render_m["end_line"] == 12
+
+    # Verify active block range when cursor is on docstring (line 5)
+    docstring_range = model.get_active_block_range("view", 5)
+    assert docstring_range == (3, 6)  # Class header before first method
+
+    # Verify active block range when cursor is on __init__ (line 8)
+    init_range = model.get_active_block_range("view", 8)
+    assert init_range == (7, 9)
+
+    # Verify active block range when cursor is on render (line 11)
+    render_range = model.get_active_block_range("view", 11)
+    assert render_range == (11, 12)
 
 
+def test_mvc_sync_inspector_tabs_and_symbol_subtabs(qtbot):
+    widget = MVCEditorTab()
+    qtbot.addWidget(widget)
 
+    # Check top-level inspector tabs
+    assert widget.inspector_tabs.count() == 2
+    assert widget.inspector_tabs.tabText(0) == "Connections"
+    assert widget.inspector_tabs.tabText(1) == "Symbols"
+
+    # Check inner symbols subtabs (one for each triad role)
+    assert widget.symbols_tab_widget.count() == 3
+    assert widget.symbols_tab_widget.tabText(0) == "Model"
+    assert widget.symbols_tab_widget.tabText(1) == "View"
+    assert widget.symbols_tab_widget.tabText(2) == "Controller"
+
+
+def test_mvc_sync_inspector_symbols_listing_and_double_click_jump(qtbot, tmp_path: Path):
+    workspace = tmp_path / "mvc_symbols_test"
+    (workspace / "models").mkdir(parents=True)
+    (workspace / "views").mkdir(parents=True)
+    (workspace / "controllers").mkdir(parents=True)
+
+    model_code = (
+        "from PyQt6.QtCore import QObject, pyqtSignal\n\n"
+        "class CounterModel(QObject):\n"
+        "    count_changed = pyqtSignal(int)\n"
+        "    MAX_COUNT = 100\n\n"
+        "    def __init__(self):\n"
+        "        super().__init__()\n"
+        "        self._count = 0\n\n"
+        "    @property\n"
+        "    def count(self) -> int:\n"
+        "        return self._count\n\n"
+        "    def increment(self):\n"
+        "        self._count += 1\n"
+        "        self.count_changed.emit(self._count)\n"
+    )
+    (workspace / "models" / "counter_model.py").write_text(model_code, encoding="utf-8")
+    (workspace / "views" / "counter_view.py").write_text("class CounterView:\n    pass\n", encoding="utf-8")
+    (workspace / "controllers" / "counter_controller.py").write_text("class CounterController:\n    pass\n", encoding="utf-8")
+
+    widget = MVCEditorTab(workspace_root=str(workspace))
+    qtbot.addWidget(widget)
+
+    with qtbot.waitSignal(widget._controller.triad_loaded, timeout=5000):
+        widget.open_file(str(workspace / "models" / "counter_model.py"))
+
+    # Verify Model symbols list is populated
+    model_list = widget.model_symbols_list
+    qtbot.waitUntil(lambda: model_list.count() >= 5, timeout=5000)
+
+    # Check widget types and names
+    extracted_names = []
+    for i in range(model_list.count()):
+        item = model_list.item(i)
+        w = model_list.itemWidget(item)
+        if hasattr(w, "item_info"):
+            extracted_names.append((w.item_info.get("type"), w.item_info.get("name")))
+
+    types = [t for t, n in extracted_names]
+    names = [n for t, n in extracted_names]
+    assert "class" in types
+    assert "CounterModel" in names
+    assert "signal" in types
+    assert "count_changed" in names
+    assert "declaration" in types
+    assert "MAX_COUNT" in names
+    assert "property" in types
+    assert "count" in names
+    assert "method" in types
+    assert "increment" in names
+
+    # Double click on increment method item and verify editor cursor and highlight
+    inc_item_idx = next(i for i, (t, n) in enumerate(extracted_names) if n == "increment")
+    item = model_list.item(inc_item_idx)
+    model_list.itemDoubleClicked.emit(item)
+
+    assert widget.model_editor.block_start_line is not None
+    assert widget.model_editor.block_end_line is not None
+    assert widget.model_editor.textCursor().blockNumber() + 1 >= widget.model_editor.block_start_line
+
+    # Test symbol filter box
+    widget.symbol_filter_input.setText("increment")
+    assert model_list.item(inc_item_idx).isHidden() is False
+    # Check that non-matching items are hidden
+    for i in range(model_list.count()):
+        if i != inc_item_idx:
+            w = model_list.itemWidget(model_list.item(i))
+            if hasattr(w, "item_info") and "increment" not in str(w.item_info.get("name", "")).lower():
+                assert model_list.item(i).isHidden() is True
+
+    # Clear filter
+    widget.symbol_filter_input.setText("")
+    for i in range(model_list.count()):
+        assert model_list.item(i).isHidden() is False
 
 

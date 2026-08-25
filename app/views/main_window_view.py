@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QMenu,
+    QProgressBar,
     QPushButton,
     QTabWidget,
     QTreeWidget,
@@ -163,6 +164,8 @@ class MainWindowView(QMainWindow):
         self._action_auto_refresh: QAction
         self._help_menu: QMenu
         self._action_about: QAction
+        self._progress_bar: QProgressBar
+        self._ram_label: QLabel
         self._auto_refresh_label: QLabel
         self._skipped_label: QLabel
         self._last_refresh_label: QLabel
@@ -263,14 +266,39 @@ class MainWindowView(QMainWindow):
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
+        self._progress_bar = QProgressBar(self)
+        self._progress_bar.setRange(0, 100)
+        self._progress_bar.setFixedHeight(16)
+        self._progress_bar.setFixedWidth(160)
+        self._progress_bar.setTextVisible(True)
+        self._progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #45475a;
+                border-radius: 4px;
+                background-color: #1e1e2e;
+                text-align: center;
+                color: #cdd6f4;
+                font-size: 11px;
+            }
+            QProgressBar::chunk {
+                background-color: #89b4fa;
+                border-radius: 3px;
+            }
+        """)
+        self._progress_bar.hide()
+
+        self._ram_label = QLabel("RAM: --")
+        self._ram_label.setStyleSheet("padding: 0 4px;")
         self._auto_refresh_label = QLabel("Auto-Refresh: --")
         self._skipped_label = QLabel("Skipped: --")
         self._last_refresh_label = QLabel("Last Refresh: --")
+        self.statusBar().addPermanentWidget(self._progress_bar)
+        self.statusBar().addPermanentWidget(self._ram_label)
         self.statusBar().addPermanentWidget(self._auto_refresh_label)
         self.statusBar().addPermanentWidget(self._skipped_label)
         self.statusBar().addPermanentWidget(self._last_refresh_label)
         self._status_timer.timeout.connect(self._update_refresh_indicator)
-        self._status_timer.start(1000)
+        self._status_timer.start(500)
         self._update_refresh_indicator()
         self.statusBar().showMessage("Ready")
 
@@ -377,15 +405,50 @@ class MainWindowView(QMainWindow):
             self.index_manager.config.project_root or "",
             QFileDialog.Option.DontUseNativeDialog,
         )
-        if path:
-            self.index_manager.config.project_root = path
-            self.index_manager.config.mvc_editor_root = path
-            from app.config import save_config
-            save_config(self.index_manager.config)
-            
-            self._on_project_root_changed(path)
-            self.integrations_view.sync_from_config()
-            self._refresh_index()
+        if not path:
+            return
+        if not self._confirm_workspace_load(path):
+            self.statusBar().showMessage("Workspace load cancelled.", 3000)
+            return
+
+        self.index_manager.config.project_root = path
+        self.index_manager.config.mvc_editor_root = path
+        from app.config import save_config
+        save_config(self.index_manager.config)
+
+        self._on_project_root_changed(path)
+        self.integrations_view.sync_from_config()
+        self._refresh_index()
+
+    def _confirm_workspace_load(self, path: str) -> bool:
+        """Show live scan progress, then the estimated RAM cost, and ask to proceed."""
+        from app.views.scan_progress_view import WorkspaceScanProgressDialog
+
+        progress_dialog = WorkspaceScanProgressDialog(self._controller, path, self)
+        progress_dialog.exec()
+
+        if progress_dialog.was_cancelled() or progress_dialog.result_estimate() is None:
+            return False
+
+        estimate = progress_dialog.result_estimate()
+        message = (
+            f"Scanned folder: {path}\n\n"
+            f"Indexable files: {estimate.file_count}\n"
+            f"On-disk size: {estimate.total_size_text}\n"
+            f"Estimated RAM required to load: {estimate.estimated_ram_text}\n"
+        )
+        if estimate.skipped_large_count:
+            message += f"Files skipped (too large): {estimate.skipped_large_count}\n"
+        message += "\nContinue loading this workspace?"
+
+        choice = QMessageBox.question(
+            self,
+            "Confirm Workspace Load",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        return choice == QMessageBox.StandardButton.Yes
 
     def _save_files(self) -> None:
         """Trigger save on the embedded MVC editor tab."""
@@ -407,7 +470,14 @@ class MainWindowView(QMainWindow):
         if started:
             self.statusBar().showMessage("Refreshing index in background...")
         else:
-            self.statusBar().showMessage("Refresh already in progress.")
+            status = self._controller.refresh_status()
+            running_seconds = status.get("refresh_running_seconds")
+            if running_seconds is not None:
+                self.statusBar().showMessage(
+                    f"Refresh already in progress (running for {int(running_seconds)}s)."
+                )
+            else:
+                self.statusBar().showMessage("Refresh already in progress.")
         self._update_refresh_indicator()
 
     def _build_library_pane(self) -> None:
@@ -809,16 +879,31 @@ class MainWindowView(QMainWindow):
         self._update_refresh_indicator()
 
     def _update_refresh_indicator(self) -> None:
-        """Refresh status-bar labels for worker state and last refresh time."""
+        """Refresh status-bar labels for worker state, progress bar, RAM stats, and last refresh time."""
         status = self._controller.refresh_status()
         refresh_count = int(status.get("refresh_count") or 0)
         worker_running = bool(status.get("worker_running"))
         refresh_in_progress = bool(status.get("refresh_in_progress"))
+        refresh_running_seconds = status.get("refresh_running_seconds")
         interval = float(status.get("interval_seconds") or 0.0)
         last_refresh = status.get("last_refresh_at") or "--"
         skipped_count = int(status.get("skipped_count") or 0)
         last_refresh_error = str(status.get("last_refresh_error") or "")
         worker_text = "running" if worker_running else "stopped"
+
+        # RAM Usage summary
+        process_ram_text = str(status.get("process_ram_text") or "--")
+        system_ram_text = str(status.get("system_ram_text") or "--")
+        sys_load = status.get("system_ram_load_percent")
+        sys_load_text = f" (Sys: {sys_load}%)" if sys_load else ""
+        self._ram_label.setText(f"RAM: {process_ram_text}{sys_load_text}")
+        self._ram_label.setToolTip(f"Process Working Set: {process_ram_text}\nSystem Physical RAM: {system_ram_text}")
+
+        # Progress tracking & active stage
+        progress_stage = status.get("progress_stage")
+        progress_percent = status.get("progress_percent")
+        progress_completed = status.get("progress_completed")
+        progress_total = status.get("progress_total")
 
         if refresh_count != self._last_applied_refresh_count:
             self._rebuild_library_tree()
@@ -827,7 +912,25 @@ class MainWindowView(QMainWindow):
             self.statusBar().showMessage(self._controller.refresh_summary_text())
 
         if refresh_in_progress:
-            worker_text = f"{worker_text}, indexing"
+            # Show elapsed time and active stage so long-running scans are visibly active
+            elapsed = int(refresh_running_seconds) if refresh_running_seconds is not None else 0
+            worker_text = f"{worker_text}, indexing ({elapsed}s)"
+
+            self._progress_bar.show()
+            if progress_percent is not None:
+                self._progress_bar.setRange(0, 100)
+                self._progress_bar.setValue(int(progress_percent))
+                self._progress_bar.setFormat(f"{int(progress_percent)}%")
+            else:
+                self._progress_bar.setRange(0, 0)
+                self._progress_bar.setFormat("Indexing...")
+
+            stage_desc = str(progress_stage or "Indexing workspace")
+            if progress_total is not None and progress_completed is not None and progress_total > 0:
+                stage_desc = f"{stage_desc} ({progress_completed}/{progress_total})"
+            self.statusBar().showMessage(f"Indexing ({elapsed}s): {stage_desc}...")
+        else:
+            self._progress_bar.hide()
 
         self._auto_refresh_label.setText(f"Auto-Refresh: {worker_text} ({interval:.1f}s)")
         self._skipped_label.setText(f"Skipped: {skipped_count}")

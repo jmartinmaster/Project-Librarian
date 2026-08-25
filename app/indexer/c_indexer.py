@@ -281,10 +281,15 @@ def index_c_symbols(
     repo_root: Path,
     skipped_files: list[dict[str, str]] | None = None,
     thread_count: int = 4,
+    excluded_dirs: list[str] | set[str] | None = None,
+    cached_symbols: list[dict[str, object]] | None = None,
+    cached_signatures: dict[str, tuple[float, int]] | None = None,
 ) -> list[dict[str, object]]:
     """Index symbols from C & C++ source and header files under repo_root."""
     paths: list[Path] = []
-    excluded = {".git", ".venv", "__pycache__", "build", "tests"}
+    default_excluded = {".git", ".venv", "__pycache__", "build", "tests"}
+    excluded = default_excluded.union(excluded_dirs) if excluded_dirs else default_excluded
+    import os
     for root, dirs, files in os.walk(repo_root):
         dirs[:] = [d for d in dirs if d not in excluded and not d.startswith(".")]
         for file in files:
@@ -292,20 +297,51 @@ def index_c_symbols(
             if ext in C_CPP_EXTENSIONS:
                 paths.append(Path(root) / file)
 
+    retained_symbols: list[dict[str, object]] = []
+    paths_to_process: list[Path] = []
+
+    if cached_signatures is not None and cached_symbols is not None:
+        cached_by_file: dict[str, list[dict[str, object]]] = {}
+        for sym in cached_symbols:
+            p = str(sym.get("path", ""))
+            cached_by_file.setdefault(p, []).append(sym)
+
+        for path in paths:
+            try:
+                rel = path.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel = path.as_posix()
+            try:
+                st = path.stat()
+                sig = (st.st_mtime, st.st_size)
+            except OSError:
+                paths_to_process.append(path)
+                continue
+
+            if rel in cached_signatures and cached_signatures[rel] == sig and rel in cached_by_file:
+                retained_symbols.extend(cached_by_file[rel])
+            else:
+                paths_to_process.append(path)
+    else:
+        paths_to_process = paths
+
+    if not paths_to_process:
+        return retained_symbols
+
     from concurrent.futures import ProcessPoolExecutor
 
-    symbols: list[dict[str, object]] = []
-    if not paths:
-        return symbols
-
-    with ProcessPoolExecutor(max_workers=max(1, min(thread_count, len(paths)))) as executor:
-        results = executor.map(_process_single_c_file, paths, [repo_root] * len(paths))
-        for file_symbols, local_skipped in results:
+    symbols: list[dict[str, object]] = list(retained_symbols)
+    with ProcessPoolExecutor(max_workers=max(1, thread_count)) as executor:
+        futures = [executor.submit(_process_single_c_file, path, repo_root) for path in paths_to_process]
+        for path, future in zip(paths_to_process, futures):
             try:
-                symbols.extend(file_symbols)
+                file_symbols, local_skipped = future.result()
+            except Exception as exc:
                 if skipped_files is not None:
-                    skipped_files.extend(local_skipped)
-            except Exception:
-                pass
+                    _record_skip(skipped_files, relative_path=path.relative_to(repo_root).as_posix(), reason=f"worker_error:{exc.__class__.__name__}")
+                continue
+            symbols.extend(file_symbols)
+            if skipped_files is not None:
+                skipped_files.extend(local_skipped)
 
     return symbols

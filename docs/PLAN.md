@@ -95,6 +95,8 @@ along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [x] Phase 11 task 6 complete: full smoke suite execution and pass.
 - [x] Phase 12 complete: update repository documentation (README.md, runbook, checklist) and implement premium in-app Help System (F1) user guide.
 - [/] Next up: validate packaging outputs on native Windows and Ubuntu hosts (Windows validated, Ubuntu pending).
+- [x] Phase 13 complete: pre-load workspace RAM estimate added, gated behind a Continue/Cancel prompt in the Open Workspace flow.
+- [x] UX enhancement complete: workspace scan now runs on a background thread behind a live progress popup (adjusting file count/size/RAM estimate, with Cancel) so the pre-load scan no longer appears frozen before the Continue/Cancel prompt.
 
 ## Phase Checklist
 - [x] Phase 1: Scaffolding and baseline project config
@@ -109,6 +111,7 @@ along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 - [/] Phase 10: Cross-platform packaging and branding (Windows completed, Ubuntu pending validation)
 - [x] Phase 11: Full MVC compliance refactor (model/view/controller separation + utility extraction)
 - [x] Phase 12: Documentation finalization and in-app Help System
+- [x] Phase 13: Pre-load workspace RAM estimate with Continue/Cancel prompt
 
 ## Phase 11 Implementation Plan (One Task At A Time)
 ### Goal
@@ -223,6 +226,9 @@ along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-07-08: Completed Phase 11 Task 6 phase gate with full smoke suite pass after MVC migration updates.
 - 2026-07-12: Added Phase 12 for updating README.md and active docs with new architecture/features, and implementing a searchable, themed in-app User Guide (shortcut F1).
 - 2026-07-26: Resolved MCP server 404 Not Found error by adding root / and /mcp probe landing routes, dual-mounting FastMCP HTTP app endpoints at / and /mcp, and reporting sse and messages endpoints in probe payload metadata.
+- 2026-08-24: Added Phase 13 for a pre-load workspace scan that estimates RAM required to index a selected folder and prompts the user to Continue or Cancel before the workspace root/index actually loads.
+- 2026-08-25: `IndexManager.estimate_scan` now supports optional progress callbacks and cancellation; the Open Workspace flow runs this scan on a background `QThread` behind a new `WorkspaceScanProgressDialog` popup that shows a live, adjusting file count/size/RAM estimate (with Cancel) so the pre-load scan no longer appears frozen before the existing Continue/Cancel confirmation.
+- 2026-08-25: Fixed terminal noise during folder indexing: Python symbol indexing (`ast.parse` and `libcst.parse_module` in `app/indexer/python_indexer.py`) now suppresses `SyntaxWarning: invalid escape sequence` warnings, since these come from arbitrary third-party source being scanned (not our own code) and previously flooded stderr for every offending string literal in a large workspace.
 
 ## Out Of Scope (Initial Build)
 - REPL and CLI parity with legacy script
