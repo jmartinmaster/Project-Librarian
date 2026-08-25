@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import json
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -95,6 +97,7 @@ class ScanEstimate:
     skipped_large_count: int
     total_bytes: int
     estimated_ram_bytes: int
+    cancelled: bool = False
 
     @property
     def total_size_text(self) -> str:
@@ -198,13 +201,26 @@ class IndexManager:
         if worker is not None and worker.is_alive():
             worker.join(timeout=max(0.0, float(join_timeout)))
 
-    def estimate_scan(self, repo_root: str | Path | None = None) -> ScanEstimate:
+    def estimate_scan(
+        self,
+        repo_root: str | Path | None = None,
+        progress_callback: Callable[[ScanEstimate], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+        progress_interval_seconds: float = 0.15,
+    ) -> ScanEstimate:
         """Scan a folder and estimate the RAM required to load it as an index.
 
         Walks the given folder (or the configured project root when omitted)
         counting indexable files that match the configured extensions and
         exclusions, without reading their contents. This lets the UI warn the
         user about large workspaces before a full refresh is triggered.
+
+        When `progress_callback` is provided it is invoked periodically (at
+        most every `progress_interval_seconds`) with a partial `ScanEstimate`
+        reflecting the scan's running totals, so callers such as a progress
+        popup can show a live, adjusting estimate instead of appearing
+        frozen. When `cancel_check` is provided and returns True, the walk
+        stops early and the returned estimate has `cancelled=True`.
         """
         import os
 
@@ -215,10 +231,35 @@ class IndexManager:
         file_count = 0
         skipped_large_count = 0
         total_bytes = 0
+        cancelled = False
+        last_progress_at = time.monotonic()
+
+        def _emit_progress(force: bool = False) -> None:
+            nonlocal last_progress_at
+            if progress_callback is None:
+                return
+            now = time.monotonic()
+            if not force and (now - last_progress_at) < progress_interval_seconds:
+                return
+            last_progress_at = now
+            progress_callback(
+                ScanEstimate(
+                    file_count=file_count,
+                    skipped_large_count=skipped_large_count,
+                    total_bytes=total_bytes,
+                    estimated_ram_bytes=int(total_bytes * RAM_OVERHEAD_MULTIPLIER),
+                )
+            )
 
         for root, dirs, files in os.walk(target_root):
+            if cancel_check is not None and cancel_check():
+                cancelled = True
+                break
             dirs[:] = [d for d in dirs if d not in excluded and not d.startswith(".")]
             for file in files:
+                if cancel_check is not None and cancel_check():
+                    cancelled = True
+                    break
                 ext = os.path.splitext(file)[1].lower()
                 if ext not in allowed:
                     continue
@@ -231,12 +272,18 @@ class IndexManager:
                     continue
                 file_count += 1
                 total_bytes += size
+                _emit_progress()
+            if cancelled:
+                break
+
+        _emit_progress(force=True)
 
         return ScanEstimate(
             file_count=file_count,
             skipped_large_count=skipped_large_count,
             total_bytes=total_bytes,
             estimated_ram_bytes=int(total_bytes * RAM_OVERHEAD_MULTIPLIER),
+            cancelled=cancelled,
         )
 
     def shutdown(self) -> None:

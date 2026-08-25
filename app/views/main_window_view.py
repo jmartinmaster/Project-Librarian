@@ -338,8 +338,16 @@ class MainWindowView(QMainWindow):
         self._refresh_index()
 
     def _confirm_workspace_load(self, path: str) -> bool:
-        """Scan a candidate folder, show the estimated RAM cost, and ask to proceed."""
-        estimate = self._controller.estimate_workspace_scan(path)
+        """Show live scan progress, then the estimated RAM cost, and ask to proceed."""
+        from app.views.scan_progress_view import WorkspaceScanProgressDialog
+
+        progress_dialog = WorkspaceScanProgressDialog(self._controller, path, self)
+        progress_dialog.exec()
+
+        if progress_dialog.was_cancelled() or progress_dialog.result_estimate() is None:
+            return False
+
+        estimate = progress_dialog.result_estimate()
         message = (
             f"Scanned folder: {path}\n\n"
             f"Indexable files: {estimate.file_count}\n"

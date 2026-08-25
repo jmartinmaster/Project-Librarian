@@ -282,6 +282,33 @@ def test_estimate_scan_respects_extension_and_exclusion_filters(app_config, samp
     assert estimate.file_count == 2
 
 
+def test_estimate_scan_reports_progress_and_final_totals_match(app_config, sample_repo: Path):
+    manager = IndexManager(app_config)
+    updates = []
+
+    estimate = manager.estimate_scan(
+        sample_repo,
+        progress_callback=updates.append,
+        progress_interval_seconds=0.0,
+    )
+
+    assert estimate.cancelled is False
+    assert len(updates) >= 1
+    assert updates[-1].file_count == estimate.file_count
+    assert updates[-1].total_bytes == estimate.total_bytes
+    # Progress should never overshoot the final totals.
+    assert all(update.file_count <= estimate.file_count for update in updates)
+
+
+def test_estimate_scan_stops_early_when_cancelled(app_config, sample_repo: Path):
+    manager = IndexManager(app_config)
+
+    estimate = manager.estimate_scan(sample_repo, cancel_check=lambda: True)
+
+    assert estimate.cancelled is True
+    assert estimate.file_count == 0
+
+
 def test_format_bytes_produces_readable_units():
     assert format_bytes(0) == "0 B"
     assert format_bytes(1536) == "1.5 KB"
