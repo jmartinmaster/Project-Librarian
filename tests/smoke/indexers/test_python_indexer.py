@@ -19,7 +19,9 @@
 
 from __future__ import annotations
 
-from app.indexer.python_indexer import index_python_symbols
+import warnings
+
+from app.indexer.python_indexer import _module_symbols, index_python_symbols
 
 
 def test_index_python_symbols_finds_class_and_function(sample_repo):
@@ -53,4 +55,18 @@ def test_index_python_symbols_cst_matches_ast(sample_repo):
         assert ast_sym["line"] == cst_sym["line"]
         assert ast_sym["path"] == cst_sym["path"]
         assert ast_sym["signature"].replace(" ", "") == cst_sym["signature"].replace(" ", "")
+
+
+def test_module_symbols_suppresses_invalid_escape_sequence_warnings(tmp_path, sample_repo):
+    """Indexed source is arbitrary third-party code; invalid escape sequences in
+    its string literals should not spam the terminal with SyntaxWarnings while
+    scanning a workspace."""
+    offending_file = sample_repo / "legacy_regex.py"
+    offending_file.write_text('pattern = "\\d+\\s"\n', encoding="utf-8")
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _module_symbols(offending_file, sample_repo)
+
+    assert not any(issubclass(w.category, SyntaxWarning) for w in caught)
 

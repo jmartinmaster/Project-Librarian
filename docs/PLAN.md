@@ -228,6 +228,7 @@ along with Project Librarian. If not, see <https://www.gnu.org/licenses/>.
 - 2026-07-12: Added Phase 12 for updating README.md and active docs with new architecture/features, and implementing a searchable, themed in-app User Guide (shortcut F1).
 - 2026-08-24: Added Phase 13 for a pre-load workspace scan that estimates RAM required to index a selected folder and prompts the user to Continue or Cancel before the workspace root/index actually loads.
 - 2026-08-25: `IndexManager.estimate_scan` now supports optional progress callbacks and cancellation; the Open Workspace flow runs this scan on a background `QThread` behind a new `WorkspaceScanProgressDialog` popup that shows a live, adjusting file count/size/RAM estimate (with Cancel) so the pre-load scan no longer appears frozen before the existing Continue/Cancel confirmation.
+- 2026-08-25: Fixed terminal noise during folder indexing: Python symbol indexing (`ast.parse` and `libcst.parse_module` in `app/indexer/python_indexer.py`) now suppresses `SyntaxWarning: invalid escape sequence` warnings, since these come from arbitrary third-party source being scanned (not our own code) and previously flooded stderr for every offending string literal in a large workspace.
 
 ## Out Of Scope (Initial Build)
 - REPL and CLI parity with legacy script

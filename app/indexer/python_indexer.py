@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import ast
+import warnings
 from pathlib import Path
 
 try:
@@ -55,7 +56,14 @@ def _module_symbols(
     """Extract class and function symbols from one Python file."""
     try:
         source = path.read_text(encoding="utf-8", errors="replace")
-        tree = ast.parse(source)
+        # Indexed files are arbitrary third-party source (not our own code),
+        # so invalid-escape-sequence SyntaxWarnings they trigger during
+        # parsing are expected noise, not something the user can act on.
+        # Suppress them here to avoid flooding the terminal while scanning
+        # a large workspace.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            tree = ast.parse(source)
     except OSError as exc:
         _record_skip(skipped_files, path=path, repo_root=repo_root, reason=f"read_error:{exc.__class__.__name__}")
         return []
@@ -185,7 +193,9 @@ def _module_symbols_cst(
 
     try:
         source = path.read_text(encoding="utf-8", errors="replace")
-        module = cst.parse_module(source)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            module = cst.parse_module(source)
         wrapper = MetadataWrapper(module)
         relative_path = path.relative_to(repo_root).as_posix()
         visitor = _CSTSymbolVisitor(relative_path)
