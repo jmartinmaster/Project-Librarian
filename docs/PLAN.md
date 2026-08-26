@@ -18,6 +18,9 @@ along with The Librarian. If not, see <https://www.gnu.org/licenses/>.
 -->
 # The Librarian Master Plan
 
+> [!IMPORTANT]
+> **Investigation Needed**: Investigate why some files are skipped during indexing even when they should not be (e.g. check skip criteria, file size limits, parser exception fallbacks, extension filters, and path exclusion checks).
+
 ## Editing Protocol
 - Update this file after completing any phase task.
 - Update this file before implementation if scope, ordering, or architecture changes.
